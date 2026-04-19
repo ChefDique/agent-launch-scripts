@@ -15,6 +15,17 @@ cd ~/ai_projects/research-and-development
 # Pre-launch: kill orphaned telegram pollers / suspended Lucius sessions to prevent 409 Conflict
 bash ~/ai_projects/agent-armory/hooks/telegram-cleanup.sh --pre-launch Lucius
 
+# Pre-launch patch-drift check — warn if claude-mem / claude-peers local patches got wiped by a plugin update.
+# Non-blocking: just echoes WARN lines. Session agent runs /claude-mem-patch-reapply to fix.
+CM_VER_DIR=$(ls -dt ~/.claude/plugins/cache/thedotmack/claude-mem/[0-9]*/ 2>/dev/null | head -1)
+if [ -n "$CM_VER_DIR" ]; then
+  [ -f "${CM_VER_DIR}modes/code--caveman.json" ] || echo "[pre-launch WARN] caveman observer mode file wiped — see memory/project_claude_mem_caveman_mode_patch.md"
+  grep -q "settingSources" "${CM_VER_DIR}scripts/worker-service.cjs" 2>/dev/null || echo "[pre-launch WARN] settingSources patch wiped — see memory/project_claude_mem_settingSources_patch.md"
+fi
+[ -f ~/.claude/mcp-servers/claude-peers/server.ts ] && \
+  (grep -q "stdio.*close\|on('close'" ~/.claude/mcp-servers/claude-peers/server.ts 2>/dev/null || \
+   echo "[pre-launch WARN] claude-peers stdio-close patch wiped — see memory/project_claude_peers_stdio_close_patch.md")
+
 # Pre-launch: reap orphaned claude-peers server.ts processes (parent claude dead → PPID=1).
 # Broker's 30s stale-peer sweep cleans the DB rows; this clears the OS processes.
 # DISABLED 2026-04-17 session 15 — diagnostic: testing whether this reaper is responsible
