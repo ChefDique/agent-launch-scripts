@@ -52,12 +52,16 @@ session_exists() {
 
 # Build the restart loop command for a department pane.
 # Claude runs, and when it exits the loop waits RESTART_DELAY seconds then relaunches.
+# Each iteration writes a timestamped banner + exit code to /tmp/chq-pane-<script>.log
+# so post-mortem can tell whether the loop never started vs. started but was SIGKILL'd.
 pane_loop() {
   local cwd="$1"
   local script="$2"
-  # The loop keeps the dept claude session alive. /restartsession exits claude; tmux loop relaunches via the dept .sh script (which carries the model + flag set).
+  local slug
+  slug=$(basename "$script" .sh)
+  local log="/tmp/chq-pane-${slug}.log"
   cat <<LOOP
-cd "${cwd}" && while true; do bash ${script}; echo "--- session exited, restarting in ${RESTART_DELAY}s ---"; sleep ${RESTART_DELAY}; done
+cd "${cwd}" && { echo "[\$(date '+%F %T')] pane_loop start script=${script} log=${log}" | tee -a "${log}"; while true; do echo "[\$(date '+%F %T')] -> bash ${script}" | tee -a "${log}"; bash "${script}"; rc=\$?; echo "[\$(date '+%F %T')] <- exit=\$rc, restarting in ${RESTART_DELAY}s" | tee -a "${log}"; sleep ${RESTART_DELAY}; done; }
 LOOP
 }
 
