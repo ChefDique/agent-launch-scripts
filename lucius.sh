@@ -13,7 +13,9 @@
 cd ~/ai_projects/research-and-development
 
 # Pre-launch: kill orphaned telegram pollers / suspended Lucius sessions to prevent 409 Conflict
-bash ~/ai_projects/agent-armory/hooks/telegram-cleanup.sh --pre-launch Lucius
+if [ -f ~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh ]; then
+  bash ~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius
+fi
 
 # Pre-launch patch-drift check — warn if claude-mem / claude-peers local patches got wiped by a plugin update.
 # Non-blocking: just echoes WARN lines. Session agent runs /claude-mem-patch-reapply to fix.
@@ -59,6 +61,8 @@ if [ -n "$TMUX_PANE" ]; then
   ( sleep 10; tmux send-keys -t "$TMUX_PANE" "/color purple" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename LUCIUS" Enter ) & echo $! >> "$PIDFILE"
   ( sleep 12; tmux send-keys -t "$TMUX_PANE" "/lucius-start" Enter ) & echo $! >> "$PIDFILE"
 fi
+
+export KOKORO_VOICE="bm_george"
 
 exec claude --channels plugin:telegram@claude-plugins-official \
             --dangerously-skip-permissions \
