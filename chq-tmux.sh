@@ -29,7 +29,7 @@ CLAUDE_FLAGS=(
 # Department definitions: name|cwd|window-name|script
 #
 # Two sources, merged into one DEPARTMENTS array:
-#   1. Registry-driven (agents.json) — xavier/lucius/gekko/swarmy/gemini.
+#   1. Registry-driven (agents.json) — xavier/lucius/gekko/swarmy/claude.
 #      Each registry entry contributes ONE department whose script field is
 #      `bash launch-agent.sh <id>` so adding a new agent here is just an
 #      `agents.json` append.

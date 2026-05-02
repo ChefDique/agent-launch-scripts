@@ -9,7 +9,8 @@
     "rename_to":     "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
     "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
     "pre_launch":    "Optional path to a hook script run before exec claude. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
-    "env":           "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook)."
+    "env":           "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
+    "avatar":        "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."
   },
   "agents": [
     {
@@ -48,13 +49,14 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
     },
     {
-      "id": "gemini",
-      "display_name": "tmux-electron-master",
-      "tmux_target": "gemini",
+      "id": "claude",
+      "display_name": "Claude",
+      "tmux_target": "claude",
       "cwd": "~/agent-launch-scripts",
-      "color": "purple",
-      "rename_to": "Gemini",
-      "startup_slash": "/gogo"
+      "color": "orange",
+      "rename_to": "Claude",
+      "startup_slash": "/gogo",
+      "avatar": "claude.svg"
     }
   ]
 }
