@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, session, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, globalShortcut, screen } = require('electron');
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -8,8 +8,24 @@ const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
 const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const DEPRECATED_ASSETS_DIR = path.join(REPO_ROOT, 'deprecated', 'assets');
+const OUT_LOG = path.join(__dirname, 'out.log');
+
+// Global accelerator for the show/hide toggle. Richard's chosen binding —
+// Control+Shift+Space, no Cmd. Electron's accelerator string parser accepts
+// 'Control' as the macOS-Ctrl mapping; 'Cmd' or 'Command' would map to ⌘.
+const TOGGLE_ACCELERATOR = 'Control+Shift+Space';
 
 let mainWindow;
+
+// Best-effort append to remote-app/out.log. Used so registration warnings
+// (e.g. accelerator already taken) survive across launches without depending
+// on how launch-remote.sh routes stdio. Never throws.
+function logToOutLog(line) {
+  try {
+    const ts = new Date().toISOString();
+    fs.appendFileSync(OUT_LOG, `[${ts}] ${line}\n`, 'utf8');
+  } catch { /* no-op: logging must not break the app */ }
+}
 
 // ---------------------------------------------------------------------------
 // Registry loader
@@ -94,8 +110,72 @@ function createWindow() {
 let lastTileRightClickAt = 0;
 ipcMain.on('tile-rightclick-suppress', () => { lastTileRightClickAt = Date.now(); });
 
-app.on('ready', createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  registerGlobalShortcut();
+});
 app.on('window-all-closed', () => { app.quit(); });
+// globalShortcut bindings are process-wide and survive renderer crashes —
+// Electron explicitly requires unregisterAll() before quit so the OS
+// releases the accelerator. Without this, a leftover binding can persist
+// until the entire process tree is reaped.
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
+
+// ---------------------------------------------------------------------------
+// Global show/hide toggle
+// ---------------------------------------------------------------------------
+// Behavior on accelerator fire:
+//   - hidden  → show + focus + relocate to the cursor's display so it
+//               surfaces wherever Richard is currently looking
+//   - shown + focused   → hide
+//   - shown + unfocused → focus (no reposition; just bring it forward)
+//
+// If the OS reports the accelerator as taken (another app holds it), log a
+// warning to out.log and continue — Richard can free the binding later
+// without us crashing.
+function registerGlobalShortcut() {
+  const ok = globalShortcut.register(TOGGLE_ACCELERATOR, toggleWindow);
+  if (!ok) {
+    logToOutLog(`globalShortcut.register("${TOGGLE_ACCELERATOR}") returned false — accelerator may already be claimed by another app. Toggle keybinding inactive this session.`);
+    return;
+  }
+  logToOutLog(`globalShortcut registered: ${TOGGLE_ACCELERATOR}`);
+}
+
+function toggleWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow.isVisible()) {
+    showAtCursorDisplay();
+    return;
+  }
+  if (mainWindow.isFocused()) {
+    mainWindow.hide();
+    return;
+  }
+  // Visible but unfocused → just focus, don't move it.
+  mainWindow.focus();
+}
+
+// Re-position the window so it surfaces on the display the cursor is on,
+// then show + focus. Center horizontally; place the panel at ~30% of the
+// display height so it sits comfortably above center on a typical screen
+// (Richard's been using it as a floating HUD).
+function showAtCursorDisplay() {
+  try {
+    const cursor = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursor);
+    const work = display.workArea;
+    const [winW, winH] = mainWindow.getSize();
+    const x = Math.round(work.x + (work.width  - winW) / 2);
+    const y = Math.round(work.y + work.height * 0.3);
+    mainWindow.setBounds({ x, y, width: winW, height: winH });
+  } catch (err) {
+    // If anything goes sideways with multi-display geometry, just show in place.
+    logToOutLog(`showAtCursorDisplay: geometry call failed (${err.message}); showing in current position`);
+  }
+  mainWindow.show();
+  mainWindow.focus();
+}
 
 // ---------------------------------------------------------------------------
 // Registry IPC — renderer asks for the agent list at boot AND after add/remove
