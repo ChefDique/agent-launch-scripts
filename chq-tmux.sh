@@ -261,6 +261,75 @@ cmd_attach() {
   tmux attach -t "$SESSION"
 }
 
+# Add agent panes to an EXISTING chq session. Idempotent: if a pane with the
+# requested wname already exists, it's a no-op. Created to fix the Electron
+# Deploy bug — clicking an agent button when chq is already up used to bail
+# with "Session already exists", instead of growing the session.
+cmd_add() {
+  if ! session_exists; then
+    # Sensible fallback: if there's no session, this is just a `start`.
+    cmd_start "$@"
+    return
+  fi
+
+  local selected_names=("$@")
+  if [[ ${#selected_names[@]} -eq 0 ]]; then
+    die "Usage: $0 add <name> [name...]"
+  fi
+
+  # Validate + lookup, mirroring cmd_start.
+  local selected_entries=()
+  local all_names=()
+  for entry in "${DEPARTMENTS[@]}"; do
+    IFS='|' read -r d _ wn _ <<< "$entry"
+    all_names+=("$wn")
+  done
+  for name in "${selected_names[@]}"; do
+    [[ -z "$name" ]] && continue
+    local found=""
+    for entry in "${DEPARTMENTS[@]}"; do
+      IFS='|' read -r dept cwd wname script <<< "$entry"
+      if [[ "$wname" == "$name" || "$dept" == "$name" ]]; then
+        found="$entry"
+        break
+      fi
+    done
+    [[ -z "$found" ]] && die "Unknown executive '${name}'. Valid options: ${all_names[*]}"
+    selected_entries+=("$found")
+  done
+
+  # Skip ones already running, split-window the rest into chq:0 (the
+  # original window) so they sit alongside the existing agent panes.
+  local existing_titles
+  existing_titles=$(tmux list-panes -t "${SESSION}:0" -F '#{pane_title}' 2>/dev/null || true)
+  local added=0
+  for entry in "${selected_entries[@]}"; do
+    IFS='|' read -r dept cwd wname script <<< "$entry"
+    # Skip if a pane with this title already lives in chq:0 (case-insensitive,
+    # claude /rename uppercases or substitutes — substring match is enough).
+    if grep -qi "${wname}" <<< "$existing_titles" 2>/dev/null; then
+      echo "  ${wname} already running — skipping."
+      continue
+    fi
+    # split-window -P -F '#{pane_id}' prints the new pane's stable id (e.g.
+    # "%47") to stdout. Stable id is safer than pane_index because indexes
+    # renumber on every split — using the index `tail -1` trick previously
+    # caused the new title to land on the WRONG pane (the old swarmy pane
+    # got mis-titled "claude" while the actual new pane stayed nameless).
+    local new_pane_id
+    new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
+    tmux select-pane -t "$new_pane_id" -T "$wname"
+    tmux send-keys -t "$new_pane_id" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+    echo "  ${wname} added -> ${cwd}"
+    added=$((added + 1))
+  done
+
+  if [[ $added -gt 0 ]]; then
+    tmux select-layout -t "${SESSION}:0" even-horizontal
+  fi
+  echo "Added ${added} pane(s) to existing CHQ session."
+}
+
 cmd_restart() {
   local target="${1:-}"
   local all_names=()
@@ -299,6 +368,7 @@ cmd_restart() {
 
 case "${1:-}" in
   start)   shift; cmd_start "$@" ;;
+  add)     shift; cmd_add "$@" ;;
   stop)    cmd_stop ;;
   status)  cmd_status ;;
   attach)  cmd_attach ;;
@@ -322,6 +392,8 @@ case "${1:-}" in
     echo "                       $0 start            (interactive prompt)"
     echo "                       $0 start xavier mugatu derek"
     echo "                       $0 start all        (registry agents + agent-factory execs)"
+    echo "  add <exec>...      Add panes to an EXISTING session (no-op if pane already running)."
+    echo "                     If no session exists, falls through to start."
     echo "  stop               Kill the entire CHQ session"
     echo "  status             Show running panes"
     echo "  attach             Attach to the CHQ session"

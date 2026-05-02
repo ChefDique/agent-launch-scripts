@@ -154,15 +154,21 @@ function listPanes() {
 // The osascript leg still uses a string template because AppleScript itself
 // requires its source as a single arg; we strip everything but [a-z0-9-] from
 // the agent ids (they have to match registry ids anyway) before interpolation.
+// Use chq-tmux.sh's `add` subcommand (not `start`) — `add` creates the session
+// if missing OR appends panes to an existing one. The old `start` path bailed
+// with "Session already exists" when chq was already up, which was the root
+// cause of the "Deploy doesn't work after first deploy" bug — clicking the
+// claude button (or any agent) once chq existed was a silent no-op.
 ipcMain.on('spawn-agents', (event, agents) => {
   const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
   if (safeAgents.length === 0) return;
 
-  execFile('bash', [CHQ_SCRIPT, 'start', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0' } }, (err, stdout, stderr) => {
+  execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0' } }, (err, stdout, stderr) => {
     if (err) {
-      console.error(`[spawn] chq-tmux start failed: ${stderr || err.message}`);
+      console.error(`[spawn] chq-tmux add failed: ${stderr || err.message}`);
       return;
     }
+    console.log(`[spawn] ${stdout.trim()}`);
     // Then open an iTerm tab and attach. CHQ_SCRIPT is a fixed path; safeAgents
     // are id-validated. The AppleScript source is a single literal — no user
     // input flows into it.
