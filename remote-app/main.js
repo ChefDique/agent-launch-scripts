@@ -10,10 +10,13 @@ const ASSETS_DIR = path.join(__dirname, 'assets');
 const DEPRECATED_ASSETS_DIR = path.join(REPO_ROOT, 'deprecated', 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 
-// Global accelerator for the show/hide toggle. Richard's chosen binding —
-// Control+Shift+Space, no Cmd. Electron's accelerator string parser accepts
-// 'Control' as the macOS-Ctrl mapping; 'Cmd' or 'Command' would map to ⌘.
-const TOGGLE_ACCELERATOR = 'Control+Shift+Space';
+// Global accelerator for the show/hide toggle. Richard switched from literal
+// Control to Cmd 2026-05-02 — Mac muscle memory reaches for Cmd+Shift+Space,
+// not Ctrl+Shift+Space. macOS Ctrl is rarely used for app shortcuts; Cmd is
+// the convention. Cmd+Space (Spotlight), Cmd+Ctrl+Space (Character Viewer),
+// and Cmd+Option+Space (alternate Spotlight) are taken — Cmd+Shift+Space
+// is free on stock macOS.
+const TOGGLE_ACCELERATOR = 'Cmd+Shift+Space';
 
 let mainWindow;
 
@@ -148,14 +151,26 @@ function toggleWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (!mainWindow.isVisible()) {
     showAtCursorDisplay();
+    focusChatInput();
     return;
   }
   if (mainWindow.isFocused()) {
     mainWindow.hide();
     return;
   }
-  // Visible but unfocused → just focus, don't move it.
+  // Visible but unfocused → focus and drop cursor in chat input.
   mainWindow.focus();
+  focusChatInput();
+}
+
+// Tell the renderer to focus the chat input. Fires after any shortcut-driven
+// summon or focus so the cursor lands ready to type — Richard wants summon →
+// type immediately, no extra click. Renderer listens via ipcRenderer.on.
+function focusChatInput() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.webContents.send('focus-chat-input'); }
+  catch { /* renderer not ready yet — first show; renderer also listens to
+              window focus events as a fallback */ }
 }
 
 // ---------------------------------------------------------------------------

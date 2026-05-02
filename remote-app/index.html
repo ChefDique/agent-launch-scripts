@@ -729,6 +729,19 @@
   <script>
     const { ipcRenderer } = require('electron');
 
+    // Auto-focus the chat input whenever main fires the shortcut-driven
+    // summon. Richard wants summon → type immediately, no extra click.
+    // Listener is set up before any other state so it works on first show.
+    ipcRenderer.on('focus-chat-input', () => {
+      const input = document.getElementById('chat-input');
+      if (input) {
+        // setTimeout 0 lets the window's own focus event settle first;
+        // without it, focus() can race with Electron's window-focus and
+        // the cursor lands but the caret isn't visible.
+        setTimeout(() => input.focus(), 0);
+      }
+    });
+
     // ---------------------------------------------------------------------
     // State
     // ---------------------------------------------------------------------
