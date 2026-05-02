@@ -276,37 +276,61 @@ ipcMain.handle('add-agent', async (event, payload) => {
   }
 });
 
-// Remove-agent IPC — strip from agents.json, archive the SVG to deprecated/.
-// We don't touch the agent's actual project dir (that's user data, not ours
-// to manage). The pane in tmux, if running, is also untouched — Richard can
-// kill it manually via chq-tmux.sh restart or by Ctrl-C in the pane.
+// Remove-agent IPC — strip from agents.json. SVG is left in remote-app/assets/
+// untouched (was being auto-archived to deprecated/assets/ in the previous
+// implementation; that bit Richard when he had to re-add an agent and the
+// avatar had silently vanished). SVG cleanup is a separate concern — handle
+// it manually or via a future "prune unused assets" command.
+//
+// We also don't touch the agent's actual project dir or its running tmux pane.
+// "Remove" = registry-delete only. To kill the pane, use the restart-agent IPC.
 ipcMain.handle('remove-agent', async (event, id) => {
   try {
     const safeId = String(id || '').trim().toLowerCase();
     if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
 
-    let removedAvatar = null;
     writeRegistry(data => {
       const before = data.agents.length;
-      data.agents = data.agents.filter(a => {
-        if (a.id === safeId) {
-          removedAvatar = a.avatar || `${safeId}.svg`;
-          return false;
-        }
-        return true;
-      });
+      data.agents = data.agents.filter(a => a.id !== safeId);
       if (data.agents.length === before) throw new Error(`agent id "${safeId}" not found`);
     });
-
-    if (removedAvatar) {
-      const src = path.join(ASSETS_DIR, removedAvatar);
-      if (fs.existsSync(src)) {
-        if (!fs.existsSync(DEPRECATED_ASSETS_DIR)) fs.mkdirSync(DEPRECATED_ASSETS_DIR, { recursive: true });
-        const dst = path.join(DEPRECATED_ASSETS_DIR, removedAvatar);
-        try { fs.renameSync(src, dst); } catch { /* cross-volume? ignore */ }
-      }
-    }
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Restart-agent IPC — non-destructive. Sends Ctrl-C to the agent's tmux pane;
+// chq-tmux.sh's restart loop respawns claude in 3s. Mirrors what
+// `chq-tmux.sh restart <name>` does, but we route through tmux directly here
+// because the chq-tmux.sh restart subcommand uses the wname (registry id) and
+// addresses the pane as `chq:0:<wname>` — which doesn't always match after
+// claude's /rename mutates the title. Resolving by tmux_target substring
+// (same rule as broadcast targeting) is more robust.
+//
+// Returns { ok: true, message } if a pane was found and SIGINT was sent.
+// { ok: false, error } if the agent isn't running anywhere.
+ipcMain.handle('restart-agent', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+
+    const agents = loadAgents();
+    const agent = agents.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const panes = await listPanes();
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    if (!match) throw new Error(`no running pane for "${safeId}"`);
+
+    await new Promise((resolve, reject) => {
+      execFile('tmux', ['send-keys', '-t', match.coord, 'C-c'], (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+    return { ok: true, message: `sent SIGINT to ${match.coord} — restart loop will respawn in ~3s` };
   } catch (err) {
     return { ok: false, error: err.message };
   }

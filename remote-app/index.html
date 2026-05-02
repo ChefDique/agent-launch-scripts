@@ -147,31 +147,102 @@
     }
     .status-dot.on { background: var(--status-on); box-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
 
-    /* Remove (×) badge — visible on hover only. */
-    .remove-badge {
+    /* ---------------------------------------------------------------------
+       Edit-mode badges — only visible when body.editing is on.
+       --------------------------------------------------------------------- */
+    /* Two badges per tile, both hidden by default:
+         .remove-badge (top-right, red) — destructive, deletes from registry
+         .restart-badge (top-left, amber) — non-destructive, SIGINTs the pane
+       They never appear unless the user has explicitly entered edit mode by
+       clicking the pencil. This is the fix for the "× looked harmless, deleted
+       claude registry entry on a stray click" trap. */
+    .badge {
       position: absolute;
-      top: -6px;
-      right: -6px;
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      background: rgba(255, 60, 90, 0.92);
       color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+      cursor: pointer;
+      opacity: 0;
+      transform: scale(0.6);
+      pointer-events: none;
+      user-select: none;
+      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      -webkit-app-region: no-drag;
+    }
+    .remove-badge {
+      top: -6px;
+      right: -6px;
+      background: rgba(255, 60, 90, 0.92);
+    }
+    .remove-badge:hover { background: rgba(255, 80, 110, 1); }
+    .restart-badge {
+      top: -6px;
+      left: -6px;
+      background: rgba(255, 170, 0, 0.92);
+      font-size: 10px;
+      line-height: 17px;
+    }
+    .restart-badge:hover { background: rgba(255, 190, 40, 1); }
+    body.editing .agent-btn .badge { opacity: 1; transform: scale(1); pointer-events: auto; }
+
+    /* In edit mode, the tile itself shows it's not selectable (subtle
+       crosshatch/flicker not needed; just dim the active glow and add a
+       dashed border to signal "this is a configuration view"). */
+    body.editing .agent-btn { cursor: default; }
+    body.editing .agent-btn:hover { transform: none; background: var(--bg-glass); }
+    body.editing .agent-btn { border-style: dashed; border-color: var(--border-medium); }
+    body.editing .agent-btn.active { box-shadow: none; }
+
+    /* Inline confirm overlay — covers the avatar with a check / cross pair
+       when a destructive action is requested. Same aesthetic, no native
+       dialog. */
+    .confirm-overlay {
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      background: rgba(8, 8, 14, 0.92);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      z-index: 5;
+    }
+    .agent-btn.confirming .confirm-overlay { display: flex; }
+    .confirm-overlay .ok,
+    .confirm-overlay .no {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
       font-size: 11px;
       font-weight: 700;
       line-height: 18px;
       text-align: center;
       cursor: pointer;
-      opacity: 0;
-      transform: scale(0.6);
-      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
-      border: 1px solid rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(0, 0, 0, 0.4);
       -webkit-app-region: no-drag;
-      pointer-events: none;
-      user-select: none;
     }
-    .agent-btn:hover .remove-badge { opacity: 1; transform: scale(1); pointer-events: auto; }
-    .remove-badge:hover { background: rgba(255, 80, 110, 1); }
+    .confirm-overlay .ok { background: var(--status-on); color: #062b10; }
+    .confirm-overlay .no { background: rgba(255, 255, 255, 0.18); color: #fff; }
+    .confirm-overlay .ok:hover  { box-shadow: 0 0 10px rgba(52, 208, 88, 0.6); }
+    .confirm-overlay .no:hover  { background: rgba(255, 255, 255, 0.28); }
+    .confirm-overlay .label {
+      position: absolute;
+      bottom: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
 
     .add-btn {
       width: 46px;
@@ -428,6 +499,7 @@
         <span class="pill">no agents selected</span>
       </div>
       <div class="util-buttons">
+        <button class="util-btn" id="edit-btn" title="Edit agents (toggle remove / restart controls)">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all">All</button>
         <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
       </div>
@@ -506,8 +578,20 @@
         btn.id = `btn-${id}`;
         btn.title = a.displayName;
         btn.addEventListener('click', (ev) => {
-          // Don't toggle if the click was on the remove badge.
-          if (ev.target.classList && ev.target.classList.contains('remove-badge')) return;
+          // Edit mode disables tile-body selection — only badges and overlay
+          // controls are interactive. This prevents the "click a tile in edit
+          // mode and accidentally toggle selection" cross-talk.
+          if (document.body.classList.contains('editing')) return;
+          // Don't toggle if the click was on a badge or overlay control.
+          const t = ev.target;
+          if (t && t.classList) {
+            if (t.classList.contains('badge') ||
+                t.classList.contains('remove-badge') ||
+                t.classList.contains('restart-badge') ||
+                t.classList.contains('ok') ||
+                t.classList.contains('no') ||
+                t.classList.contains('confirm-overlay')) return;
+          }
           toggleAgent(id);
         });
 
@@ -517,8 +601,6 @@
           const obj = document.createElement('object');
           obj.setAttribute('data', `assets/${a.avatar}`);
           obj.setAttribute('type', 'image/svg+xml');
-          // Once SVG loads we may need to re-measure (animations don't change
-          // size, but object loads asynchronously).
           obj.addEventListener('load', syncWindowSize);
           avatar.appendChild(obj);
         } else {
@@ -532,15 +614,47 @@
         dot.id = `dot-${id}`;
         btn.appendChild(dot);
 
+        // Restart badge (left, amber). Non-destructive — sends SIGINT, the
+        // pane_loop respawns claude in 3s. Visible only in edit mode.
+        const restart = document.createElement('div');
+        restart.className = 'badge restart-badge';
+        restart.textContent = '⟳';
+        restart.title = 'Restart pane (SIGINT, restart loop respawns)';
+        restart.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          requestConfirm(btn, 'restart', () => doRestart(id, btn));
+        });
+        btn.appendChild(restart);
+
+        // Remove badge (right, red). Destructive — deletes from agents.json.
+        // Visible only in edit mode AND requires inline confirm.
         const x = document.createElement('div');
-        x.className = 'remove-badge';
+        x.className = 'badge remove-badge';
         x.textContent = '×';
-        x.title = 'Remove agent';
+        x.title = 'Remove from registry';
         x.addEventListener('click', (ev) => {
           ev.stopPropagation();
-          removeAgent(id);
+          requestConfirm(btn, 'remove', () => doRemove(id, btn));
         });
         btn.appendChild(x);
+
+        // Inline confirm overlay (the tile-takeover ✓ ✗ pair). Hidden until
+        // requestConfirm() flips body.confirming on this tile.
+        const overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        const ok = document.createElement('div');
+        ok.className = 'ok';
+        ok.textContent = '✓';
+        const no = document.createElement('div');
+        no.className = 'no';
+        no.textContent = '✗';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = '';
+        overlay.appendChild(ok);
+        overlay.appendChild(no);
+        overlay.appendChild(label);
+        btn.appendChild(overlay);
 
         dock.appendChild(btn);
       });
@@ -552,6 +666,41 @@
       add.textContent = '+';
       add.addEventListener('click', toggleAddForm);
       dock.appendChild(add);
+    }
+
+    // ---------------------------------------------------------------------
+    // Inline confirm — takes over the avatar with a ✓ ✗ pair until the user
+    // picks one or 4s elapses (auto-cancels). The action callback only fires
+    // on ✓. This is what makes a stray click ineffective: even if you somehow
+    // hit the × badge, the destruction won't fire without a second click.
+    // ---------------------------------------------------------------------
+    let confirmTimer = null;
+    function requestConfirm(tileEl, kind, onConfirm) {
+      // Cancel any prior in-flight confirm (only one tile shows it at a time).
+      document.querySelectorAll('.agent-btn.confirming').forEach(el => el.classList.remove('confirming'));
+      if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+
+      const overlay = tileEl.querySelector('.confirm-overlay');
+      const label = overlay.querySelector('.label');
+      label.textContent = kind === 'remove' ? 'remove?' : 'restart?';
+      tileEl.classList.add('confirming');
+
+      // ✓ → run action
+      const ok = overlay.querySelector('.ok');
+      const no = overlay.querySelector('.no');
+      const cleanup = () => {
+        tileEl.classList.remove('confirming');
+        if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+        ok.removeEventListener('click', okHandler);
+        no.removeEventListener('click', noHandler);
+      };
+      const okHandler = (ev) => { ev.stopPropagation(); cleanup(); onConfirm(); };
+      const noHandler = (ev) => { ev.stopPropagation(); cleanup(); };
+      ok.addEventListener('click', okHandler);
+      no.addEventListener('click', noHandler);
+
+      // Auto-cancel after 4s so a forgotten confirm doesn't sit there waiting.
+      confirmTimer = setTimeout(() => cleanup(), 4000);
     }
 
     function toggleAgent(id) {
@@ -658,11 +807,49 @@
       await loadAndRender();
     }
 
-    async function removeAgent(id) {
-      if (!confirm(`Remove agent "${agents[id].displayName}" from registry?\n\nThe agent's project dir is left alone. Any running pane in tmux is untouched.`)) return;
+    async function doRemove(id, tileEl) {
       const result = await ipcRenderer.invoke('remove-agent', id);
-      if (!result.ok) { alert(`Remove failed: ${result.error}`); return; }
+      if (!result.ok) { flashTileError(tileEl, result.error); return; }
       await loadAndRender();
+    }
+
+    async function doRestart(id, tileEl) {
+      const result = await ipcRenderer.invoke('restart-agent', id);
+      if (!result.ok) { flashTileError(tileEl, result.error); return; }
+      // SIGINT sent — restart loop respawns claude in ~3s. Status dot will
+      // flicker grey then come back green on the next poll cycle.
+    }
+
+    // Briefly flash an error tooltip beneath the tile when an action fails
+    // (e.g. trying to restart an agent that isn't running). Avoids alert().
+    function flashTileError(tileEl, msg) {
+      const overlay = tileEl.querySelector('.confirm-overlay');
+      if (!overlay) return;
+      const label = overlay.querySelector('.label');
+      const prev = label.textContent;
+      label.textContent = String(msg || 'failed').slice(0, 28);
+      label.style.color = '#ff7090';
+      tileEl.classList.add('confirming');
+      setTimeout(() => {
+        tileEl.classList.remove('confirming');
+        label.textContent = prev;
+        label.style.color = '';
+      }, 1800);
+    }
+
+    // Edit-mode toggle. Off by default. Clicking the pencil/Edit button puts
+    // the panel into a configuration view where the destructive badges
+    // (× remove, ⟳ restart) are visible. Tile-body clicks are inert in this
+    // mode so a stray miss doesn't toggle selection. Click the button again
+    // (or trigger an action that re-renders) to exit.
+    function toggleEditMode() {
+      const on = !document.body.classList.contains('editing');
+      document.body.classList.toggle('editing', on);
+      document.getElementById('edit-btn').classList.toggle('active', on);
+      // Cancel any open confirm when leaving edit mode.
+      if (!on) {
+        document.querySelectorAll('.agent-btn.confirming').forEach(el => el.classList.remove('confirming'));
+      }
     }
 
     // ---------------------------------------------------------------------
@@ -692,6 +879,7 @@
     // ---------------------------------------------------------------------
     document.getElementById('send-btn').addEventListener('click', send);
     document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') send(); });
+    document.getElementById('edit-btn').addEventListener('click', toggleEditMode);
     document.getElementById('select-all-btn').addEventListener('click', selectAll);
     document.getElementById('deploy-btn').addEventListener('click', deploy);
     document.getElementById('f-cwd-pick').addEventListener('click', pickCwd);
