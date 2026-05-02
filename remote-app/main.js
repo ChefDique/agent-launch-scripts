@@ -143,8 +143,21 @@ ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }
   }
 
   for (const coord of sendTo) {
-    execFile('tmux', ['send-keys', '-t', coord, message, 'C-m'], (err, stdout, stderr) => {
-      if (err) console.error(`[broadcast] send-keys ${coord} failed: ${stderr || err.message}`);
+    // Two send-keys calls: first types the literal message (so claude's TUI
+    // input box receives the characters), then presses Enter as a separate
+    // keystroke to submit. A single combined call (`message Enter`) typed
+    // the text but didn't submit reliably against claude's TUI — Richard
+    // reported the input sat in the box unsubmitted. The launch-agent.sh
+    // auto-inject sequence uses the same split-call pattern (matches the
+    // legacy per-agent scripts that worked).
+    execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
+      if (err) {
+        console.error(`[broadcast] send-keys (text) ${coord} failed: ${ser || err.message}`);
+        return;
+      }
+      execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err2, _o2, ser2) => {
+        if (err2) console.error(`[broadcast] send-keys (Enter) ${coord} failed: ${ser2 || err2.message}`);
+      });
     });
   }
 });

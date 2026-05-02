@@ -36,10 +36,19 @@
       margin: 0;
       padding: 0;
       background: transparent;
-      font-family: 'Inter', -apple-system, 'SF Pro Display', system-ui, sans-serif;
+      /* Body / chat / inputs: monospace. Reads as a terminal/dev tool, fits
+         the agent-launcher feel. Falls through to system mono if JetBrains
+         Mono isn't installed. */
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
       color: var(--text-primary);
       -webkit-font-smoothing: antialiased;
       overflow: hidden;
+    }
+
+    /* Reusable for any element that wants the humanist-sans pairing —
+       names, captions, anything that's not chat/code text. */
+    .ui-sans, .agent-label, .pill, .util-btn, .form-row label, .form-error {
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
     }
 
     body {
@@ -92,9 +101,40 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      align-items: center;
+      align-items: flex-start;
       -webkit-app-region: no-drag;
     }
+
+    /* Tile wrapper: stacks the avatar button + the small text label below.
+       The button keeps its 46x46 footprint; the label adds ~14px below. */
+    .agent-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      width: 46px;
+    }
+
+    .agent-label {
+      /* font-family inherited from the .ui-sans group above */
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.4px;
+      color: rgba(255, 255, 255, 0.62);
+      max-width: 60px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+      line-height: 1.2;
+      transition: color 0.2s var(--ease);
+      pointer-events: none;
+      user-select: none;
+    }
+    .agent-tile:hover .agent-label { color: rgba(255, 255, 255, 0.92); }
+    /* Label brightens when its avatar is active (selected). :has() is fine
+       in Electron's Chromium. */
+    .agent-tile:has(.agent-btn.active) .agent-label { color: var(--text-primary); }
 
     .agent-btn {
       position: relative;
@@ -568,6 +608,19 @@
       pollStatusOnce();
     }
 
+    // Cosmetic-only alias map for tile labels. The registry's display_name
+    // for swarmy is "overlordswarmy" (load-bearing — it's the claude -n flag
+    // value used by ps-grep detection and pane title resolution), but at
+    // 10px / 60px max it gets visually clipped. Show a friendlier label.
+    // Add other aliases here if future agents have similarly long names.
+    const LABEL_ALIASES = {
+      overlordswarmy: 'Swarmy'
+    };
+    function displayLabelFor(agent) {
+      const dn = agent.displayName || agent.id || '';
+      return LABEL_ALIASES[dn.toLowerCase()] || dn;
+    }
+
     function renderDock() {
       const dock = document.getElementById('dock');
       dock.innerHTML = '';
@@ -656,7 +709,21 @@
         overlay.appendChild(label);
         btn.appendChild(overlay);
 
-        dock.appendChild(btn);
+        // Wrap the avatar button + a small text label below it. The label
+        // shows the registry display_name, but with one alias: "overlordswarmy"
+        // is too wide at 10px and gets clipped — show "Swarmy" instead. The
+        // alias is purely cosmetic; tmux_target / display_name in the
+        // registry stay unchanged.
+        const tile = document.createElement('div');
+        tile.className = 'agent-tile';
+        tile.appendChild(btn);
+
+        const nameLabel = document.createElement('div');
+        nameLabel.className = 'agent-label';
+        nameLabel.textContent = displayLabelFor(a);
+        tile.appendChild(nameLabel);
+
+        dock.appendChild(tile);
       });
 
       // Add (+) button at the end of the dock.
