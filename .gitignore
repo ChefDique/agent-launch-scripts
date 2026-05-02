@@ -1,1 +1,5 @@
 node_modules/
+.claude/settings.local.json
+remote-app/out.log
+remote-app/.toggle
+**/.DS_Store
