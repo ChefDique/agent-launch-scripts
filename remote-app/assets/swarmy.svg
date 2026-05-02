@@ -1,0 +1,35 @@
+<svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Swarmy: High Visibility Pokemone Style -->
+  <defs>
+    <linearGradient id="swarmyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00ccff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Orbiting Nodes (Bright) -->
+  <circle cx="50" cy="50" r="2" fill="#fff">
+    <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="1.5s" repeatCount="indefinite" />
+    <animate attributeName="cx" values="5;95;5" dur="1.5s" repeatCount="indefinite" />
+  </circle>
+  <!-- Main Body (Vibrant) -->
+  <circle cx="50" cy="50" r="38" fill="url(#swarmyGrad)" stroke="#fff" stroke-width="1.5">
+    <animate attributeName="r" values="36;40;36" dur="2s" repeatCount="indefinite" />
+  </circle>
+  <!-- Antennae (Bright) -->
+  <path d="M30 30 L15 5" stroke="#fff" stroke-width="6" stroke-linecap="round">
+    <animateTransform attributeName="transform" type="rotate" from="-10 30 30" to="10 30 30" dur="0.3s" repeatCount="indefinite" additive="sum" />
+  </path>
+  <path d="M70 30 L85 5" stroke="#fff" stroke-width="6" stroke-linecap="round">
+    <animateTransform attributeName="transform" type="rotate" from="10 70 30" to="-10 70 30" dur="0.3s" repeatCount="indefinite" additive="sum" />
+  </path>
+  <!-- High Contrast Eyes -->
+  <rect x="33" y="40" width="14" height="10" rx="5" fill="#fff">
+    <animate attributeName="height" values="10;1;10" dur="3s" repeatCount="indefinite" />
+  </rect>
+  <rect x="53" y="40" width="14" height="10" rx="5" fill="#fff">
+    <animate attributeName="height" values="10;1;10" dur="3s" repeatCount="indefinite" />
+  </rect>
+  <!-- Bright Blush -->
+  <circle cx="35" cy="58" r="4" fill="#ff99cc" />
+  <circle cx="65" cy="58" r="4" fill="#ff99cc" />
+</svg>

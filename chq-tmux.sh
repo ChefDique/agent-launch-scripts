@@ -12,6 +12,7 @@ set -euo pipefail
 SESSION="chq"
 CHQ_ROOT="/Users/richardadair/ai_projects/CorporateHQ"
 RESTART_DELAY=3
+AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
 # Flags every CHQ claude session must launch with.
 # - telegram channel for Mugatu/Derek messaging
@@ -38,6 +39,8 @@ DEPARTMENTS=(
   "marketing|${HOME}/ai_projects/adairlabs|hansel|${AGENT_FACTORY}/Operations/scripts/hansel.sh"
   "rnd|${HOME}/ai_projects/research-and-development|lucius|${HOME}/agent-launch-scripts/lucius.sh"
   "operations|${AGENT_FACTORY}/Operations|maury|${AGENT_FACTORY}/Operations/scripts/maury.sh"
+  "swarmy|${HOME}/ai_projects/swarmy|swarmy|${HOME}/agent-launch-scripts/swarmy.sh"
+  "trading|${HOME}/ai_projects/trading|gekko|${HOME}/agent-launch-scripts/gekko.sh"
 )
 
 # ---------------------------------------------------------------------------
@@ -45,6 +48,18 @@ DEPARTMENTS=(
 # ---------------------------------------------------------------------------
 
 die() { echo "ERROR: $*" >&2; exit 1; }
+
+should_auto_attach() {
+  [[ "${AUTO_ATTACH_DEFAULT}" == "1" ]] || return 1
+  [[ -z "${TMUX:-}" ]] || return 1
+  [[ -t 0 && -t 1 ]] || return 1
+}
+
+auto_attach_if_requested() {
+  should_auto_attach || return 0
+  echo "Auto-attaching to tmux session '${SESSION}'..."
+  exec tmux attach -t "$SESSION"
+}
 
 session_exists() {
   tmux has-session -t "$SESSION" 2>/dev/null
@@ -73,6 +88,7 @@ cmd_start() {
   if session_exists; then
     echo "Session '${SESSION}' already exists. Use 'attach' or 'stop' first."
     tmux list-windows -t "$SESSION" -F "  #I: #W (#{pane_current_command})"
+    auto_attach_if_requested
     exit 0
   fi
 
@@ -172,6 +188,7 @@ cmd_start() {
   echo ""
   echo "Attach with:  tmux attach -t ${SESSION}"
   echo "Or run:       $0 attach"
+  auto_attach_if_requested
 }
 
 cmd_stop() {

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    :root {
+      --bg: rgba(15, 15, 25, 0.98);
+      --glass: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.2);
+      --xavier: #00f2ff;
+      --lucius: #ffcc00;
+      --gekko: #00ff88;
+      --swarmy: #ff00ff;
+      --accent: #00f2ff;
+    }
+
+    body.theme-gold {
+      --bg: rgba(25, 20, 10, 0.98);
+      --accent: #ffd700;
+      --border: rgba(255, 215, 0, 0.4);
+    }
+
+    body.theme-comic {
+      --bg: rgba(255, 255, 255, 1);
+      --accent: #e63946;
+      --border: #000;
+      --glass: rgba(0,0,0,0.05);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, sans-serif;
+      -webkit-app-region: drag;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 120px;
+    }
+
+    .remote-container {
+      width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .remote-strip {
+      width: 100%;
+      background: var(--bg);
+      backdrop-filter: blur(30px) saturate(1.5);
+      border: 1.5px solid var(--border);
+      border-radius: 24px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7);
+      transition: all 0.4s;
+    }
+
+    .theme-dots {
+      display: flex;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+      background: rgba(0,0,0,0.3);
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      transition: transform 0.2s;
+    }
+    .dot:hover { transform: scale(1.3); }
+    .dot.cyber { background: #00f2ff; }
+    .dot.gold { background: #ffd700; }
+    .dot.comic { background: #e63946; }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      -webkit-app-region: no-drag;
+    }
+
+    .agent-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      border: 1.5px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .agent-btn:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-2px); }
+
+    .agent-btn object {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      transition: all 0.4s;
+    }
+
+    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 15px var(--xavier); }
+    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 15px var(--lucius); }
+    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 15px var(--gekko); }
+    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 15px var(--swarmy); }
+
+    .agent-btn.active object { transform: scale(1.1); }
+
+    .spawn-btn {
+      margin-left: auto;
+      background: #ffffff;
+      color: #000;
+      border: none;
+      padding: 0 20px;
+      height: 40px;
+      border-radius: 12px;
+      font-weight: 900;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: all 0.3s;
+    }
+
+    .spawn-btn:hover { background: var(--accent); color: #fff; box-shadow: 0 0 20px var(--accent); }
+    .spawn-btn:active { transform: scale(0.92); }
+
+  </style>
+</head>
+<body class="theme-cyber">
+  <div class="remote-container">
+    <div class="theme-dots">
+      <div class="dot cyber" onclick="setTheme('cyber')" title="Cyber Neon"></div>
+      <div class="dot gold" onclick="setTheme('gold')" title="Wall Street Gold"></div>
+      <div class="dot comic" onclick="setTheme('comic')" title="Classic Comic"></div>
+    </div>
+    <div class="remote-strip">
+      <div class="btn-group">
+        <button class="agent-btn xavier" onclick="toggle('xavier', this)" title="Deploy Xavier">
+          <object data="assets/xavier.svg" type="image/svg+xml"></object>
+        </button>
+        <button class="agent-btn lucius" onclick="toggle('lucius', this)" title="Deploy Lucius">
+          <object data="assets/lucius.svg" type="image/svg+xml"></object>
+        </button>
+        <button class="agent-btn gekko" onclick="toggle('gekko', this)" title="Deploy Gekko">
+          <object data="assets/gekko.svg" type="image/svg+xml"></object>
+        </button>
+        <button class="agent-btn swarmy" onclick="toggle('swarmy', this)" title="Deploy Swarmy">
+          <object data="assets/swarmy.svg" type="image/svg+xml"></object>
+        </button>
+      </div>
+      <button class="spawn-btn" onclick="spawn()">Deploy</button>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    let selected = new Set();
+
+    function setTheme(t) {
+      document.body.className = 'theme-' + t;
+    }
+
+    function toggle(id, btn) {
+      if (selected.has(id)) { selected.delete(id); btn.classList.remove('active'); }
+      else { selected.add(id); btn.classList.add('active'); }
+    }
+
+    function spawn() {
+      if (selected.size === 0) return;
+      const agents = Array.from(selected).map(id => id === 'gekko' ? 'trading' : id);
+      ipcRenderer.send('spawn-agents', agents);
+      selected.clear();
+      document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+    }
+  </script>
+</body>
+</html>

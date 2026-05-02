@@ -11,8 +11,9 @@
 # to have this auto reply (with voice and text)".
 #
 # Environment:
-#   KOKORO_VOICE       per-agent voice (e.g. bm_george / am_onyx / am_michael).
-#                      Default: bm_george (British baritone, Lucius).
+#   KOKORO_VOICE       per-agent voice (e.g. af_heart / bm_george / am_onyx / am_michael).
+#                      Default: af_heart (Aria / default female fallback).
+#   KOKORO_SPEED       optional Kokoro playback speed. Default: 1.15.
 #   TELEGRAM_BOT_TOKEN bot token for the project's bot. Required — silent skip
 #                      if missing (do not block the parent reply on hook failure).
 #
@@ -36,16 +37,18 @@ CHAT_ID=$(echo "$INPUT" | jq -r '.tool_input.chat_id // ""' 2>/dev/null || echo 
 [ -z "$TEXT" ] && { echo "$(date -u +%FT%TZ) skip: empty text" ; exit 0 ; }
 [ -z "$CHAT_ID" ] && { echo "$(date -u +%FT%TZ) skip: empty chat_id" ; exit 0 ; }
 
-VOICE="${KOKORO_VOICE:-bm_george}"
+VOICE="${KOKORO_VOICE:-af_heart}"
+SPEED="${KOKORO_SPEED:-1.15}"
 TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 
-# If token isn't in env, try to source it from common locations.
-# Each project's launcher exports TELEGRAM_BOT_TOKEN before exec'ing claude;
-# fallback paths cover sessions started without that wiring.
-if [ -z "$TOKEN" ]; then
-  for f in "$HOME/.claude/channels/telegram-routing.env" "$HOME/.zshrc.local" ; do
-    [ -f "$f" ] && . "$f" 2>/dev/null
-  done
+# Legacy Claude-side lookup path for quad-code launch flows.
+# Hermes profiles use ~/.hermes/profiles/*/.env instead; do not conflate them.
+if [ -z "$TOKEN" ] && [ -f "$HOME/.claude/channels/telegram-routing.env" ]; then
+  . "$HOME/.claude/channels/telegram-routing.env" 2>/dev/null || true
+  TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+fi
+if [ -z "$TOKEN" ] && [ -f "$HOME/.zshrc.local" ]; then
+  . "$HOME/.zshrc.local" 2>/dev/null || true
   TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 fi
 
@@ -65,7 +68,8 @@ OGG="/tmp/agent-voice-${TS}-$$.ogg"
 "$KOKORO_PY" "$KOKORO_HELPER" \
   --text "$TEXT" \
   --output "$OGG" \
-  --voice "$VOICE" >/dev/null 2>>"$LOG"
+  --voice "$VOICE" \
+  --speed "$SPEED" >/dev/null 2>>"$LOG"
 
 if [ ! -s "$OGG" ]; then
   echo "$(date -u +%FT%TZ) skip: kokoro produced no audio for voice=$VOICE text=${TEXT:0:60}"

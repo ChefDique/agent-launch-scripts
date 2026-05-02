@@ -1,0 +1,79 @@
+#!/bin/bash
+# session-cleanup.sh — Kill Claude Code sessions in unapproved directories
+#
+# Reads the claude-peers SQLite DB to find all active sessions,
+# then kills any session whose CWD is not in the approved list.
+#
+# Usage:
+#   bash session-cleanup.sh           # dry run (default)
+#   bash session-cleanup.sh --kill    # actually kill stale sessions
+#
+# Cron (every 10 min):
+#   */10 * * * * bash /Users/richardadair/ai_projects/blacksmith/tools/session-cleanup.sh --kill >> ~/.claude/logs/session-cleanup.log 2>&1
+
+set -euo pipefail
+
+DB="${HOME}/.claude-peers.db"
+LOG_FILE="${HOME}/.claude/logs/session-cleanup.log"
+DRY_RUN=true
+
+for arg in "$@"; do
+  [[ "$arg" == "--kill" ]] && DRY_RUN=false
+done
+
+# Approved CWD prefixes — sessions here are never killed
+ALLOWED=(
+  "$HOME/ai_projects/blacksmith"
+  "$HOME/ai_projects/CorporateHQ"
+  "$HOME/ai_projects/Leaderboard"
+  "$HOME/ai_projects/adairlabs"
+  "$HOME/ai_projects/acrm"
+)
+
+log() { echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") $1"; }
+
+if [ ! -f "$DB" ]; then
+  log "No peers DB found at $DB"
+  exit 0
+fi
+
+# Query all peers with PID and CWD
+rows=$(sqlite3 "$DB" "SELECT pid, cwd FROM peers WHERE pid IS NOT NULL;" 2>/dev/null || true)
+
+if [ -z "$rows" ]; then
+  log "No peers in DB"
+  exit 0
+fi
+
+killed=0
+spared=0
+
+while IFS='|' read -r pid cwd; do
+  # Skip if process is already dead
+  if ! kill -0 "$pid" 2>/dev/null; then
+    continue
+  fi
+
+  # Check if CWD is approved
+  approved=false
+  for allowed in "${ALLOWED[@]}"; do
+    if [[ "$cwd" == "$allowed"* ]]; then
+      approved=true
+      break
+    fi
+  done
+
+  if $approved; then
+    spared=$((spared + 1))
+    continue
+  fi
+
+  if $DRY_RUN; then
+    log "[DRY RUN] Would kill PID $pid (cwd: $cwd)"
+  else
+    kill "$pid" 2>/dev/null && log "Killed PID $pid (cwd: $cwd)" || log "Failed to kill PID $pid"
+    killed=$((killed + 1))
+  fi
+done <<< "$rows"
+
+$DRY_RUN && log "Dry run: spared=$spared" || log "Done: killed=$killed spared=$spared"

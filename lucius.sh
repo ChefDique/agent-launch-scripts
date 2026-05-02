@@ -4,7 +4,7 @@
 # ============================================================================
 # Single-session launcher for the Lucius Fox persona (Applied Sciences head).
 # Mirrors agent-armory/scripts/xavier.sh — pre-launch telegram cleanup,
-# tmux auto-inject of /lucius-start, claude session with telegram + peers.
+# tmux auto-inject of /gogo, claude session with telegram + peers.
 #
 # Used by:
 #   - lucius shell alias (~/.zshrc) — interactive launcher
@@ -39,7 +39,7 @@ fi
 
 # If we're inside a tmux pane, schedule the auto-start sequence:
 # 1. Dismiss the --dangerously-load-development-channels warning (4s)
-# 2. Auto-send /lucius-start to orient and start working (12s — lets the
+# 2. Auto-send /gogo to orient and start working (12s — lets the
 #    session fully initialize, load hooks, render the prompt)
 if [ -n "$TMUX_PANE" ]; then
   # Kill stale auto-inject subshells from prior runs in this pane. Order
@@ -59,10 +59,8 @@ if [ -n "$TMUX_PANE" ]; then
   fi
   ( sleep 4;  tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
   ( sleep 10; tmux send-keys -t "$TMUX_PANE" "/color purple" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename LUCIUS" Enter ) & echo $! >> "$PIDFILE"
-  ( sleep 12; tmux send-keys -t "$TMUX_PANE" "/lucius-start" Enter ) & echo $! >> "$PIDFILE"
+  ( sleep 12; tmux send-keys -t "$TMUX_PANE" "/gogo" Enter ) & echo $! >> "$PIDFILE"
 fi
-
-export KOKORO_VOICE="bm_george"
 
 exec claude --channels plugin:telegram@claude-plugins-official \
             --dangerously-skip-permissions \

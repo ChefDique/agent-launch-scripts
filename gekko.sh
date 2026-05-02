@@ -13,14 +13,14 @@
 
 # Pivot knobs — override via alias to repoint Gekko at a different project.
 PROJECT_ROOT="${PROJECT_ROOT:-$HOME/ai_projects/trading}"
-STARTUP_SLASH="${STARTUP_SLASH:-/gekko-start}"
+STARTUP_SLASH="${STARTUP_SLASH:-/gogo}"
 
 cd "$PROJECT_ROOT"
 
 # Pre-launch: kill orphaned telegram pollers / suspended Gekko sessions to prevent 409 Conflict.
-# Use agent-armory telegram-cleanup.sh — project-agnostic, takes --pre-launch <label>.
-if [ -f "$HOME/ai_projects/agent-armory/hooks/telegram-cleanup.sh" ]; then
-  bash "$HOME/ai_projects/agent-armory/hooks/telegram-cleanup.sh" --pre-launch Gekko
+# Uses CHQ's telegram-cleanup.sh — project-agnostic, takes --pre-launch <label>.
+if [ -f "$HOME/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh" ]; then
+  bash "$HOME/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh" --pre-launch Gekko
 fi
 
 # If we're inside a tmux pane, schedule auto-start sequence:

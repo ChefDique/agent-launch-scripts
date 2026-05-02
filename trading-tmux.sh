@@ -1,27 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# R&D Tmux Launcher — spin up Lucius in a tmux pane with restart loop
-# (Mirror of agent-armory/scripts/armory-tmux.sh — only Lucius for now;
-#  add more agents to DEPARTMENTS if R&D grows local persistent panes.)
+# Trading Tmux Launcher — spin up Gordon Gekko in a tmux pane with restart loop.
+# Mirrors rnd-tmux.sh (single pane for now; expand DEPARTMENTS when Bud/Icahn/Lutnick earn their seats).
 #
 # Usage:
-#   rnd-tmux.sh start    — create session with Lucius
-#   rnd-tmux.sh stop     — kill the entire rnd session
-#   rnd-tmux.sh status   — show which panes are running
-#   rnd-tmux.sh attach   — attach to the rnd session
-#   rnd-tmux.sh restart <name> — restart a pane
+#   trading-tmux.sh start            — create session with Gekko
+#   trading-tmux.sh stop             — kill the entire trading session
+#   trading-tmux.sh status           — show which panes are running
+#   trading-tmux.sh attach           — attach to the trading session
+#   trading-tmux.sh restart <name>   — restart a pane
 
-SESSION="rnd"
-RND_ROOT="${HOME}/ai_projects/research-and-development"
+SESSION="trading"
+TRADING_ROOT="${HOME}/ai_projects/trading"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
-LAUNCH_SCRIPTS="${HOME}/agent-launch-scripts"
-
 # Department definitions: name|cwd|window-name|script
 DEPARTMENTS=(
-  "lucius|${RND_ROOT}|lucius|${LAUNCH_SCRIPTS}/lucius.sh"
+  "gekko|${TRADING_ROOT}|gekko|${HOME}/agent-launch-scripts/gekko.sh"
 )
 
 # ---------------------------------------------------------------------------
@@ -46,8 +43,6 @@ session_exists() {
   tmux has-session -t "$SESSION" 2>/dev/null
 }
 
-# Build the restart loop command for a department pane.
-# Claude runs, and when it exits the loop waits RESTART_DELAY seconds then relaunches.
 pane_loop() {
   local cwd="$1"
   local script="$2"
@@ -95,7 +90,7 @@ cmd_start() {
       fi
     done
     if [[ -z "$found" ]]; then
-      echo "ERROR: Unknown pane '${name}'. Valid options: lucius" >&2
+      echo "ERROR: Unknown pane '${name}'. Valid options: gekko" >&2
       exit 1
     fi
     selected_entries+=("$found")
@@ -105,30 +100,30 @@ cmd_start() {
     die "No panes selected."
   fi
 
-  echo "Starting rnd tmux session..."
+  echo "Starting trading tmux session..."
 
   local first="${selected_entries[0]}"
   IFS='|' read -r dept cwd wname script <<< "$first"
 
-  tmux new-session -d -s "$SESSION" -n "rnd" -c "$cwd" -x 220 -y 50
-  tmux select-pane -t "${SESSION}:rnd.0" -T "$wname"
-  tmux send-keys -t "${SESSION}:rnd.0" "$(pane_loop "$cwd" "$script")" Enter
+  tmux new-session -d -s "$SESSION" -n "trading" -c "$cwd" -x 220 -y 50
+  tmux select-pane -t "${SESSION}:trading.0" -T "$wname"
+  tmux send-keys -t "${SESSION}:trading.0" "$(pane_loop "$cwd" "$script")" Enter
 
   if [[ ${#selected_entries[@]} -gt 1 ]]; then
     local pane_idx=0
     for entry in "${selected_entries[@]:1}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
-      tmux split-window -h -t "${SESSION}:rnd" -c "$cwd"
+      tmux split-window -h -t "${SESSION}:trading" -c "$cwd"
       pane_idx=$((pane_idx + 1))
-      tmux select-pane -t "${SESSION}:rnd.${pane_idx}" -T "$wname"
-      tmux send-keys -t "${SESSION}:rnd.${pane_idx}" "$(pane_loop "$cwd" "$script")" Enter
+      tmux select-pane -t "${SESSION}:trading.${pane_idx}" -T "$wname"
+      tmux send-keys -t "${SESSION}:trading.${pane_idx}" "$(pane_loop "$cwd" "$script")" Enter
     done
   fi
 
   tmux set -t "$SESSION" pane-border-status top
   tmux set -t "$SESSION" pane-border-format " #T "
-  tmux select-layout -t "${SESSION}:rnd" even-horizontal
-  tmux select-pane -t "${SESSION}:rnd.0"
+  tmux select-layout -t "${SESSION}:trading" even-horizontal
+  tmux select-pane -t "${SESSION}:trading.0"
 
   tmux set -g mouse on
   tmux set -g history-limit 50000
@@ -142,7 +137,7 @@ cmd_start() {
   tmux bind-key -n M-Up    select-pane -U
   tmux bind-key -n M-Down  select-pane -D
 
-  echo "R&D session started with ${#selected_entries[@]} pane(s):"
+  echo "Trading session started with ${#selected_entries[@]} pane(s):"
   for entry in "${selected_entries[@]}"; do
     IFS='|' read -r dept cwd wname script <<< "$entry"
     echo "  ${wname} -> ${cwd}"
@@ -155,37 +150,37 @@ cmd_start() {
 
 cmd_stop() {
   if ! session_exists; then
-    echo "No rnd session running."
+    echo "No trading session running."
     exit 0
   fi
 
   tmux kill-session -t "$SESSION"
-  echo "R&D session stopped."
+  echo "Trading session stopped."
 }
 
 cmd_status() {
   if ! session_exists; then
-    echo "No rnd session running."
+    echo "No trading session running."
     exit 0
   fi
 
-  echo "R&D tmux session:"
+  echo "Trading tmux session:"
   tmux list-windows -t "$SESSION" -F "  #I: #W — #{pane_current_path} (#{pane_current_command})"
 }
 
 cmd_attach() {
   if ! session_exists; then
-    die "No rnd session running. Start with: $0 start"
+    die "No trading session running. Start with: $0 start"
   fi
 
   tmux attach -t "$SESSION"
 }
 
 cmd_restart() {
-  local target="${1:-lucius}"
+  local target="${1:-gekko}"
 
   if ! session_exists; then
-    die "No rnd session running."
+    die "No trading session running."
   fi
 
   local found=""
@@ -197,7 +192,7 @@ cmd_restart() {
     fi
   done
 
-  [[ -z "$found" ]] && die "Unknown pane: ${target}. Options: lucius"
+  [[ -z "$found" ]] && die "Unknown pane: ${target}. Options: gekko"
 
   IFS='|' read -r dept cwd wname script <<< "$found"
 
@@ -216,15 +211,15 @@ case "${1:-}" in
   attach)  cmd_attach ;;
   restart) cmd_restart "${2:-}" ;;
   *)
-    echo "R&D Tmux Launcher"
+    echo "Trading Tmux Launcher"
     echo ""
     echo "Usage: $0 <command> [args]"
     echo ""
     echo "Commands:"
-    echo "  start [name...]    Create tmux session. Default = all (currently just lucius)."
-    echo "  stop               Kill the entire rnd session"
+    echo "  start [name...]    Create tmux session. Default = all (currently just gekko)."
+    echo "  stop               Kill the entire trading session"
     echo "  status             Show running panes"
-    echo "  attach             Attach to the rnd session"
-    echo "  restart <name>     Restart a pane (currently: lucius)"
+    echo "  attach             Attach to the trading session"
+    echo "  restart <name>     Restart a pane (currently: gekko)"
     ;;
 esac
