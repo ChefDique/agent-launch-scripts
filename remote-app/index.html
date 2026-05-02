@@ -1,292 +1,706 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <style>
+    /*
+      Personal Chat Central — cinematic glassmorphism, always-visible chat
+      input, dynamically-sized panel. Single dark panel with three rows:
+        1. agent dock (avatars + status dots + add button)
+        2. chat input (always visible)
+        3. send / recipient summary
+    */
     :root {
-      --bg: rgba(12, 12, 18, 0.96);
-      --glass-border: rgba(255, 255, 255, 0.15);
-      --accent: #00f2ff;
-      --xavier: #00f2ff;
-      --lucius: #ffaa00;
-      --gekko: #00ff88;
-      --swarmy: #ff77cc;
-      --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      --bg-deep:       rgba(8, 8, 14, 0.72);
+      --bg-glass:      rgba(20, 20, 30, 0.55);
+      --bg-input:      rgba(255, 255, 255, 0.04);
+      --border-soft:   rgba(255, 255, 255, 0.08);
+      --border-medium: rgba(255, 255, 255, 0.16);
+      --text-primary:  #f4f4f8;
+      --text-muted:    #8a8a98;
+      --accent:        #e07c4c;     /* anthropic orange */
+      --accent-glow:   rgba(224, 124, 76, 0.55);
+      --status-on:     #34d058;
+      --status-off:    rgba(255, 255, 255, 0.18);
+      --xavier:        #00f2ff;
+      --lucius:        #ffaa00;
+      --gekko:         #00ff88;
+      --swarmy:        #ff77cc;
+      --claude:        #e07c4c;
+      --ease:          cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      font-family: 'Inter', -apple-system, 'SF Pro Display', system-ui, sans-serif;
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
     }
 
     body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      font-family: 'JetBrains Mono', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px;
       -webkit-app-region: drag;
-      background: transparent;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 180px;
     }
 
-    .remote-container {
-      width: 560px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .dashboard-container {
+    /* ---------------------------------------------------------------------
+       Panel
+       --------------------------------------------------------------------- */
+    .panel {
       width: 100%;
-      position: relative;
-      background: var(--bg);
-      backdrop-filter: blur(40px);
-      border: 1px solid var(--glass-border);
-      border-radius: 24px;
-      height: 68px;
+      max-width: 720px;
+      background: var(--bg-deep);
+      backdrop-filter: blur(40px) saturate(140%);
+      -webkit-backdrop-filter: blur(40px) saturate(140%);
+      border: 1px solid var(--border-medium);
+      border-radius: 22px;
+      box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      padding: 14px 16px 12px;
       display: flex;
-      align-items: center;
-      padding: 0 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
-      transition: all 0.5s var(--ease);
-      z-index: 10;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .btn-group {
+    /* Subtle aurora behind glass — barely visible, just enough lift */
+    .panel::before {
+      content: '';
+      position: absolute;
+      inset: -50%;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(224, 124, 76, 0.10), transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(0, 242, 255, 0.07), transparent 40%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .panel > * { position: relative; z-index: 1; }
+
+    /* ---------------------------------------------------------------------
+       Top row: agent dock
+       --------------------------------------------------------------------- */
+    .dock {
       display: flex;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
       -webkit-app-region: no-drag;
     }
 
     .agent-btn {
-      width: 44px;
-      height: 44px;
+      position: relative;
+      width: 46px;
+      height: 46px;
       border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-soft);
+      background: var(--bg-glass);
       padding: 0;
       cursor: pointer;
-      transition: all 0.3s var(--ease);
+      transition: transform 0.25s var(--ease),
+                  border-color 0.25s var(--ease),
+                  box-shadow 0.25s var(--ease),
+                  background 0.25s var(--ease);
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: visible;
+    }
+    .agent-btn:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.07); }
+    .agent-btn .avatar { width: 100%; height: 100%; pointer-events: none; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .agent-btn .avatar object,
+    .agent-btn .avatar img { width: 100%; height: 100%; pointer-events: none; }
+    .agent-btn .avatar.fallback {
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.5px;
+      color: var(--text-primary);
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
     }
 
-    .agent-btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
-    .agent-btn object { width: 100%; height: 100%; pointer-events: none; }
+    .agent-btn.active { border-color: var(--accent); box-shadow: 0 0 24px var(--accent-glow), inset 0 0 0 1px var(--accent); }
+    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 24px rgba(0, 242, 255, 0.55); }
+    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 24px rgba(255, 170, 0, 0.55); }
+    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 24px rgba(0, 255, 136, 0.55); }
+    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 24px rgba(255, 119, 204, 0.55); }
+    .agent-btn.active.claude { border-color: var(--claude); box-shadow: 0 0 24px rgba(224, 124, 76, 0.55); }
 
-    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 20px var(--xavier); }
-    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 20px var(--lucius); }
-    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 20px var(--gekko); }
-    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 20px var(--swarmy); }
-    .agent-btn.active object { transform: scale(1.1); filter: brightness(1.4); }
-
-    body.command-mode .agent-btn:not(.active) { opacity: 0.3; filter: grayscale(1); }
-
-    .control-group {
-      display: flex;
-      gap: 8px;
-      margin-left: 10px;
-      -webkit-app-region: no-drag;
+    /* Status dot (bottom-right, anchored outside the avatar). */
+    .status-dot {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--status-off);
+      border: 2px solid var(--bg-deep);
+      transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
     }
+    .status-dot.on { background: var(--status-on); box-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
 
-    .icon-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.05);
+    /* Remove (×) badge — visible on hover only. */
+    .remove-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255, 60, 90, 0.92);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      text-align: center;
       cursor: pointer;
+      opacity: 0;
+      transform: scale(0.6);
+      transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+      border: 1px solid rgba(0, 0, 0, 0.3);
+      -webkit-app-region: no-drag;
+      pointer-events: none;
+      user-select: none;
+    }
+    .agent-btn:hover .remove-badge { opacity: 1; transform: scale(1); pointer-events: auto; }
+    .remove-badge:hover { background: rgba(255, 80, 110, 1); }
+
+    .add-btn {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      border: 1px dashed var(--border-medium);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 22px;
+      font-weight: 300;
+      cursor: pointer;
+      transition: all 0.25s var(--ease);
+      -webkit-app-region: no-drag;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.3s var(--ease);
     }
-    .icon-btn:hover { background: var(--accent); border-color: var(--accent); }
-    .icon-btn svg { width: 18px; height: 18px; color: #fff; }
-    .icon-btn.active { background: #fff; border-color: #fff; }
-    .icon-btn.active svg { color: #000; }
+    .add-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(224, 124, 76, 0.08); transform: translateY(-2px); }
 
-    /* Hidden until Command Mode */
-    .select-all-btn { display: none; }
-    body.command-mode .select-all-btn { display: flex; }
-
-    .input-wrapper {
-      width: 550px;
-      height: 0;
-      opacity: 0;
-      overflow: hidden;
-      transition: all 0.5s var(--ease);
-      background: rgba(15, 15, 25, 0.8);
-      backdrop-filter: blur(50px);
-      border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    /* ---------------------------------------------------------------------
+       Middle: chat input
+       --------------------------------------------------------------------- */
+    .chat-row {
       display: flex;
       align-items: center;
-      padding: 0 15px;
-      box-shadow: 0 15px 40px rgba(0,0,0,0.5);
-      margin-bottom: 8px;
+      gap: 10px;
       -webkit-app-region: no-drag;
     }
-
-    body.command-mode .input-wrapper { height: 50px; opacity: 1; margin-top: 5px; }
-
-    #broadcast-input {
-      width: 100%;
+    .chat-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      padding: 0 14px;
+      height: 42px;
+      transition: border-color 0.25s var(--ease), background 0.25s var(--ease);
+    }
+    .chat-wrap:focus-within { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); }
+    #chat-input {
+      flex: 1;
       background: transparent;
       border: none;
       outline: none;
-      color: #fff;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      letter-spacing: 0.1px;
     }
+    #chat-input::placeholder { color: var(--text-muted); }
 
-    .spawn-btn {
-      margin-left: auto;
-      background: #ffffff;
-      color: #000;
-      border: none;
-      padding: 0 20px;
+    .send-btn {
       height: 42px;
+      padding: 0 18px;
       border-radius: 14px;
-      font-weight: 900;
-      font-size: 11px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 1px;
       text-transform: uppercase;
-      letter-spacing: 1.5px;
       cursor: pointer;
+      transition: all 0.2s var(--ease);
       -webkit-app-region: no-drag;
-      transition: all 0.2s;
     }
-    .spawn-btn:hover { background: var(--accent); color: #fff; box-shadow: 0 0 25px var(--accent); }
+    .send-btn:hover { background: #ec8957; box-shadow: 0 0 22px var(--accent-glow); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+    /* ---------------------------------------------------------------------
+       Bottom: recipient summary + utility buttons
+       --------------------------------------------------------------------- */
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.4px;
+      -webkit-app-region: no-drag;
+      min-height: 18px;
+    }
+    .recipient-summary { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .recipient-summary .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      margin-right: 4px;
+      font-size: 10px;
+    }
+    .recipient-summary.broadcast .pill { background: rgba(224, 124, 76, 0.18); color: var(--accent); }
+    .util-buttons { display: flex; gap: 6px; }
+    .util-btn {
+      background: transparent;
+      border: 1px solid var(--border-soft);
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 4px 9px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+    }
+    .util-btn:hover { color: var(--text-primary); border-color: var(--border-medium); }
+    .util-btn.active { color: var(--accent); border-color: var(--accent); }
+
+    /* ---------------------------------------------------------------------
+       Add-agent inline form (expandable)
+       --------------------------------------------------------------------- */
+    .add-form {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-soft);
+      border-radius: 12px;
+      -webkit-app-region: no-drag;
+    }
+    body.adding .add-form { display: flex; }
+
+    .form-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .form-row label {
+      width: 88px;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .form-row input,
+    .form-row select {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s var(--ease);
+    }
+    .form-row input:focus, .form-row select:focus { border-color: var(--accent); }
+    .form-row .pick-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-soft);
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .form-row .pick-btn:hover { color: var(--text-primary); border-color: var(--border-medium); }
+
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .form-actions button {
+      background: transparent;
+      border: 1px solid var(--border-medium);
+      color: var(--text-primary);
+      font-size: 11px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+    }
+    .form-actions .submit { background: var(--accent); border-color: var(--accent); }
+    .form-actions .submit:hover { background: #ec8957; box-shadow: 0 0 16px var(--accent-glow); }
+    .form-actions button:hover { border-color: var(--text-primary); }
+
+    .form-error {
+      color: #ff7090;
+      font-size: 11px;
+      padding-top: 4px;
+    }
   </style>
 </head>
 <body>
-  <div class="remote-container">
-    <div class="input-wrapper">
-      <input type="text" id="broadcast-input" placeholder="Broadcast command to selected agents..." />
+  <div class="panel" id="panel">
+    <!-- Row 1: agent dock -->
+    <div class="dock" id="dock"></div>
+
+    <!-- Add agent form (hidden unless body.adding) -->
+    <div class="add-form" id="add-form">
+      <div class="form-row">
+        <label>id</label>
+        <input id="f-id" placeholder="lowercase, no spaces" />
+      </div>
+      <div class="form-row">
+        <label>name</label>
+        <input id="f-name" placeholder="display name (claude -n flag)" />
+      </div>
+      <div class="form-row">
+        <label>cwd</label>
+        <input id="f-cwd" placeholder="~/path/to/project" />
+        <button class="pick-btn" id="f-cwd-pick">Pick</button>
+      </div>
+      <div class="form-row">
+        <label>color</label>
+        <select id="f-color">
+          <option value="cyan">cyan</option>
+          <option value="green">green</option>
+          <option value="yellow">yellow</option>
+          <option value="orange">orange</option>
+          <option value="red">red</option>
+          <option value="pink">pink</option>
+          <option value="purple">purple</option>
+          <option value="blue">blue</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>startup</label>
+        <input id="f-slash" value="/gogo" />
+      </div>
+      <div class="form-row">
+        <label>avatar</label>
+        <input id="f-avatar" placeholder="optional .svg path" readonly />
+        <button class="pick-btn" id="f-avatar-pick">Pick</button>
+      </div>
+      <div class="form-error" id="f-error"></div>
+      <div class="form-actions">
+        <button id="f-cancel">Cancel</button>
+        <button class="submit" id="f-submit">Create</button>
+      </div>
     </div>
 
-    <div class="dashboard-container">
-      <div class="btn-group" id="agent-buttons">
-        <!-- Buttons rendered from agents.json by the script below. -->
+    <!-- Row 2: chat input -->
+    <div class="chat-row">
+      <div class="chat-wrap">
+        <input id="chat-input" placeholder="Type to selected agents — or select all to broadcast" autocomplete="off" />
       </div>
+      <button class="send-btn" id="send-btn">Send</button>
+    </div>
 
-      <div class="control-group">
-        <!-- Trigger Icon -->
-        <div class="icon-btn command-trigger" id="mode-trigger" onclick="toggleCommandMode()" title="Broadcast Mode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6M12 19h8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <!-- Select All Icon -->
-        <div class="icon-btn select-all-btn" onclick="toggleSelectAll()" title="Select All Agents">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 13l3 3 7-7M7 6l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
+    <!-- Row 3: recipient summary + utility -->
+    <div class="meta-row">
+      <div class="recipient-summary" id="recipient-summary">
+        <span class="pill">no agents selected</span>
       </div>
-
-      <button class="spawn-btn" id="main-action-btn" onclick="executeMainAction()">Deploy</button>
+      <div class="util-buttons">
+        <button class="util-btn" id="select-all-btn" title="Select all">All</button>
+        <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
+      </div>
     </div>
   </div>
 
   <script>
     const { ipcRenderer } = require('electron');
 
-    // agents object — populated from main.js's get-agents IPC handler at boot.
-    // Shape: { [id]: { id, displayName, tmuxTarget, color, selected } }.
-    let agents = {};
-    let commandMode = false;
+    // ---------------------------------------------------------------------
+    // State
+    // ---------------------------------------------------------------------
+    let agents = {};        // id -> { id, displayName, tmuxTarget, color, avatar, selected, running }
+    let agentOrder = [];    // preserve registry order
+    let statusTimer = null;
 
-    async function init() {
+    // ---------------------------------------------------------------------
+    // Layout: measure DOM, ask main to setContentSize
+    // ---------------------------------------------------------------------
+    function syncWindowSize() {
+      // Run twice: once now, once after the next frame, to handle late
+      // layout (object SVG load, font swap, etc).
+      const measure = () => {
+        const panel = document.getElementById('panel');
+        if (!panel) return;
+        const rect = panel.getBoundingClientRect();
+        // Body has 14px padding all around; window content size needs that too.
+        const w = Math.ceil(rect.width) + 28;
+        const h = Math.ceil(rect.height) + 28;
+        ipcRenderer.send('resize-window', { width: w, height: h });
+      };
+      measure();
+      requestAnimationFrame(measure);
+    }
+
+    // ---------------------------------------------------------------------
+    // Render
+    // ---------------------------------------------------------------------
+    async function loadAndRender() {
       let registry = [];
-      try {
-        registry = await ipcRenderer.invoke('get-agents');
-      } catch (err) {
-        console.error('failed to load registry:', err);
-      }
+      try { registry = await ipcRenderer.invoke('get-agents'); }
+      catch (err) { console.error('failed to load registry:', err); }
+
       if (!registry || registry.length === 0) {
-        // Fallback: hardcoded list so the dashboard isn't empty if registry
-        // load fails. Matches the canonical five.
         registry = [
-          { id: 'xavier', displayName: 'Xavier', tmuxTarget: 'xavier' },
-          { id: 'lucius', displayName: 'Lucius', tmuxTarget: 'lucius' },
-          { id: 'gekko',  displayName: 'Gekko',  tmuxTarget: 'gekko' },
-          { id: 'swarmy', displayName: 'Swarmy', tmuxTarget: 'overlordswarmy' },
-          { id: 'claude', displayName: 'Claude', tmuxTarget: 'claude' }
+          { id: 'xavier', displayName: 'Xavier', tmuxTarget: 'xavier', avatar: 'xavier.svg' },
+          { id: 'lucius', displayName: 'Lucius', tmuxTarget: 'lucius', avatar: 'lucius.svg' },
+          { id: 'gekko',  displayName: 'Gekko',  tmuxTarget: 'gekko',  avatar: 'gekko.svg' },
+          { id: 'swarmy', displayName: 'overlordswarmy', tmuxTarget: 'overlordswarmy', avatar: 'swarmy.svg' },
+          { id: 'claude', displayName: 'Claude', tmuxTarget: 'claude', avatar: 'claude.svg' }
         ];
       }
 
-      const container = document.getElementById('agent-buttons');
-      container.innerHTML = '';
+      // Preserve selection state across reloads.
+      const prevSelected = new Set(Object.values(agents).filter(a => a.selected).map(a => a.id));
+      agents = {};
+      agentOrder = [];
       registry.forEach(a => {
-        agents[a.id] = { ...a, selected: false };
+        agents[a.id] = { ...a, selected: prevSelected.has(a.id), running: false };
+        agentOrder.push(a.id);
+      });
+
+      renderDock();
+      updateRecipientSummary();
+      syncWindowSize();
+      pollStatusOnce();
+    }
+
+    function renderDock() {
+      const dock = document.getElementById('dock');
+      dock.innerHTML = '';
+      agentOrder.forEach(id => {
+        const a = agents[id];
         const btn = document.createElement('button');
-        btn.className = `agent-btn ${a.id}`;
-        btn.id = `btn-${a.id}`;
+        btn.className = `agent-btn ${id}` + (a.selected ? ' active' : '');
+        btn.id = `btn-${id}`;
         btn.title = a.displayName;
-        btn.addEventListener('click', () => agentClick(a.id, btn));
-        const obj = document.createElement('object');
-        obj.setAttribute('data', `assets/${a.id}.svg`);
-        obj.setAttribute('type', 'image/svg+xml');
-        btn.appendChild(obj);
-        container.appendChild(btn);
+        btn.addEventListener('click', (ev) => {
+          // Don't toggle if the click was on the remove badge.
+          if (ev.target.classList && ev.target.classList.contains('remove-badge')) return;
+          toggleAgent(id);
+        });
+
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        if (a.avatar) {
+          const obj = document.createElement('object');
+          obj.setAttribute('data', `assets/${a.avatar}`);
+          obj.setAttribute('type', 'image/svg+xml');
+          // Once SVG loads we may need to re-measure (animations don't change
+          // size, but object loads asynchronously).
+          obj.addEventListener('load', syncWindowSize);
+          avatar.appendChild(obj);
+        } else {
+          avatar.classList.add('fallback');
+          avatar.textContent = (a.displayName || a.id).slice(0, 1).toUpperCase();
+        }
+        btn.appendChild(avatar);
+
+        const dot = document.createElement('div');
+        dot.className = 'status-dot' + (a.running ? ' on' : '');
+        dot.id = `dot-${id}`;
+        btn.appendChild(dot);
+
+        const x = document.createElement('div');
+        x.className = 'remove-badge';
+        x.textContent = '×';
+        x.title = 'Remove agent';
+        x.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          removeAgent(id);
+        });
+        btn.appendChild(x);
+
+        dock.appendChild(btn);
       });
+
+      // Add (+) button at the end of the dock.
+      const add = document.createElement('button');
+      add.className = 'add-btn';
+      add.title = 'Add agent';
+      add.textContent = '+';
+      add.addEventListener('click', toggleAddForm);
+      dock.appendChild(add);
     }
 
-    function toggleCommandMode() {
-      commandMode = !commandMode;
-      document.body.classList.toggle('command-mode', commandMode);
-      document.getElementById('mode-trigger').classList.toggle('active', commandMode);
-      document.getElementById('main-action-btn').innerText = commandMode ? 'Broadcast' : 'Deploy';
-      if (commandMode) document.getElementById('broadcast-input').focus();
-      else resetSelection();
-    }
-
-    function toggleSelectAll() {
-      const allSelected = Object.values(agents).every(a => a.selected);
-      Object.keys(agents).forEach(id => {
-        agents[id].selected = !allSelected;
-        const el = document.getElementById(`btn-${id}`);
-        if (el) el.classList.toggle('active', !allSelected);
-      });
-    }
-
-    function agentClick(id, btn) {
+    function toggleAgent(id) {
       agents[id].selected = !agents[id].selected;
-      btn.classList.toggle('active', agents[id].selected);
+      document.getElementById(`btn-${id}`).classList.toggle('active', agents[id].selected);
+      updateRecipientSummary();
     }
 
-    function resetSelection() {
-      Object.values(agents).forEach(a => a.selected = false);
-      document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+    function selectAll() {
+      const allOn = Object.values(agents).every(a => a.selected);
+      Object.values(agents).forEach(a => {
+        a.selected = !allOn;
+        const btn = document.getElementById(`btn-${a.id}`);
+        if (btn) btn.classList.toggle('active', a.selected);
+      });
+      updateRecipientSummary();
     }
 
-    function executeMainAction() {
-      if (commandMode) broadcast();
-      else {
-        // Pass canonical registry ids straight through — chq-tmux.sh now
-        // reads the same registry, so no per-id rewrites needed.
-        const selectedIds = Object.values(agents).filter(a => a.selected).map(a => a.id);
-        if (selectedIds.length > 0) { ipcRenderer.send('spawn-agents', selectedIds); resetSelection(); }
+    function updateRecipientSummary() {
+      const selected = Object.values(agents).filter(a => a.selected);
+      const total = Object.keys(agents).length;
+      const summary = document.getElementById('recipient-summary');
+      summary.classList.remove('broadcast');
+
+      if (selected.length === 0) {
+        summary.innerHTML = '<span class="pill">no recipients</span>';
+        document.getElementById('chat-input').placeholder = 'Type a message — pick agents above to send';
+      } else if (selected.length === total) {
+        summary.classList.add('broadcast');
+        summary.innerHTML = '<span class="pill">broadcast → all</span>';
+        document.getElementById('chat-input').placeholder = 'Broadcast to every running pane';
+      } else {
+        summary.innerHTML = selected.map(a => `<span class="pill">${a.displayName}</span>`).join('');
+        document.getElementById('chat-input').placeholder = `Message to ${selected.map(a => a.displayName).join(', ')}`;
       }
     }
 
-    function broadcast() {
-      const msg = document.getElementById('broadcast-input').value;
-      const selectedAgents = Object.values(agents).filter(a => a.selected);
-      if (!msg || selectedAgents.length === 0) return;
-      // "isAll" = every agent in the registry is selected. main.js fans out
-      // to every pane in every tmux session in that case.
-      const isAll = selectedAgents.length === Object.keys(agents).length;
-      // Strip the metadata keys main.js doesn't need so we don't leak DOM
-      // refs across the IPC boundary.
-      const payload = selectedAgents.map(a => ({ id: a.id, tmuxTarget: a.tmuxTarget }));
+    // ---------------------------------------------------------------------
+    // Send + Deploy
+    // ---------------------------------------------------------------------
+    function send() {
+      const input = document.getElementById('chat-input');
+      const msg = input.value;
+      if (!msg) return;
+      const selected = Object.values(agents).filter(a => a.selected);
+      if (selected.length === 0) return;
+      const isAll = selected.length === Object.keys(agents).length;
+      const payload = selected.map(a => ({ id: a.id, tmuxTarget: a.tmuxTarget }));
       ipcRenderer.send('broadcast-message', { message: msg, selectedAgents: payload, isAll });
-      document.getElementById('broadcast-input').value = '';
-      toggleCommandMode();
+      input.value = '';
+      // Keep selection so consecutive messages don't require re-clicking. Power-user feel.
     }
 
-    document.getElementById('broadcast-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') broadcast();
-    });
+    function deploy() {
+      const ids = Object.values(agents).filter(a => a.selected).map(a => a.id);
+      if (ids.length === 0) return;
+      ipcRenderer.send('spawn-agents', ids);
+    }
 
-    init();
+    // ---------------------------------------------------------------------
+    // Add / Remove agent
+    // ---------------------------------------------------------------------
+    function toggleAddForm() {
+      document.body.classList.toggle('adding');
+      syncWindowSize();
+      if (document.body.classList.contains('adding')) {
+        document.getElementById('f-id').focus();
+      }
+    }
+
+    async function pickCwd() {
+      const dir = await ipcRenderer.invoke('pick-cwd');
+      if (dir) document.getElementById('f-cwd').value = dir;
+    }
+
+    let pickedAvatarPath = null;
+    async function pickAvatar() {
+      const file = await ipcRenderer.invoke('pick-svg');
+      if (file) {
+        pickedAvatarPath = file;
+        const parts = file.split('/');
+        document.getElementById('f-avatar').value = parts[parts.length - 1];
+      }
+    }
+
+    async function submitAdd() {
+      const errEl = document.getElementById('f-error');
+      errEl.textContent = '';
+      const payload = {
+        id: document.getElementById('f-id').value.trim(),
+        displayName: document.getElementById('f-name').value.trim(),
+        cwd: document.getElementById('f-cwd').value.trim(),
+        color: document.getElementById('f-color').value,
+        startupSlash: document.getElementById('f-slash').value.trim(),
+        avatarSrc: pickedAvatarPath
+      };
+      const result = await ipcRenderer.invoke('add-agent', payload);
+      if (!result.ok) { errEl.textContent = result.error || 'unknown error'; return; }
+      // Reset form, close, reload.
+      ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('f-slash').value = '/gogo';
+      pickedAvatarPath = null;
+      document.body.classList.remove('adding');
+      await loadAndRender();
+    }
+
+    async function removeAgent(id) {
+      if (!confirm(`Remove agent "${agents[id].displayName}" from registry?\n\nThe agent's project dir is left alone. Any running pane in tmux is untouched.`)) return;
+      const result = await ipcRenderer.invoke('remove-agent', id);
+      if (!result.ok) { alert(`Remove failed: ${result.error}`); return; }
+      await loadAndRender();
+    }
+
+    // ---------------------------------------------------------------------
+    // Status polling — updates the green/grey dot per agent
+    // ---------------------------------------------------------------------
+    async function pollStatusOnce() {
+      try {
+        const statuses = await ipcRenderer.invoke('pane-status');
+        statuses.forEach(s => {
+          if (!agents[s.id]) return;
+          agents[s.id].running = s.running;
+          const dot = document.getElementById(`dot-${s.id}`);
+          if (dot) dot.classList.toggle('on', s.running);
+        });
+      } catch (err) {
+        // Quiet: if tmux isn't running, all dots stay grey, nothing to do.
+      }
+    }
+
+    function startStatusPolling() {
+      if (statusTimer) return;
+      statusTimer = setInterval(pollStatusOnce, 3000);
+    }
+
+    // ---------------------------------------------------------------------
+    // Wire-up
+    // ---------------------------------------------------------------------
+    document.getElementById('send-btn').addEventListener('click', send);
+    document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') send(); });
+    document.getElementById('select-all-btn').addEventListener('click', selectAll);
+    document.getElementById('deploy-btn').addEventListener('click', deploy);
+    document.getElementById('f-cwd-pick').addEventListener('click', pickCwd);
+    document.getElementById('f-avatar-pick').addEventListener('click', pickAvatar);
+    document.getElementById('f-cancel').addEventListener('click', () => { document.body.classList.remove('adding'); syncWindowSize(); });
+    document.getElementById('f-submit').addEventListener('click', submitAdd);
+
+    loadAndRender().then(startStatusPolling);
+    window.addEventListener('resize', syncWindowSize);
   </script>
 </body>
 </html>
