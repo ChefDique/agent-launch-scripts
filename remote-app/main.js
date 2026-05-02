@@ -113,6 +113,8 @@ ipcMain.on('tile-rightclick-suppress', () => { lastTileRightClickAt = Date.now()
 app.whenReady().then(() => {
   createWindow();
   registerGlobalShortcut();
+  registerSignalToggle();
+  watchToggleFile();
 });
 app.on('window-all-closed', () => { app.quit(); });
 // globalShortcut bindings are process-wide and survive renderer crashes —
@@ -154,6 +156,51 @@ function toggleWindow() {
   }
   // Visible but unfocused → just focus, don't move it.
   mainWindow.focus();
+}
+
+// ---------------------------------------------------------------------------
+// SIGUSR1 signal toggle — fallback for when macOS Accessibility / Input
+// Monitoring permission hasn't been granted to the Electron binary, which
+// causes globalShortcut event taps to fire registration-OK but never receive
+// events. Sending SIGUSR1 to the main Electron process calls toggleWindow()
+// directly, bypassing the OS input stack entirely.
+//
+// Usage (from terminal):  kill -SIGUSR1 $(pgrep -f "Electron.app.*MacOS/Electron")
+// Or via launch-remote.sh toggle subcommand.
+//
+// Note: Electron/Node's SIGUSR1 is normally used by the debugger protocol.
+// We hijack it here deliberately. If remote debugging is needed, use SIGUSR2 or
+// the --inspect flag instead.
+function registerSignalToggle() {
+  process.on('SIGUSR1', () => {
+    logToOutLog('SIGUSR1 received — toggling window via signal (keyboard shortcut fallback)');
+    toggleWindow();
+  });
+  logToOutLog('SIGUSR1 signal handler registered (toggle fallback)');
+}
+
+// ---------------------------------------------------------------------------
+// File-watch toggle — second fallback. Watches for a sentinel file at
+// remote-app/.toggle. Any write/creation of that file triggers toggleWindow().
+// The file is deleted immediately after consumption so the next write triggers
+// again. Use-case: scripts / keybinding managers that can write files but
+// can't easily send Unix signals.
+//
+// Usage: touch /path/to/remote-app/.toggle
+const TOGGLE_FILE = path.join(__dirname, '.toggle');
+function watchToggleFile() {
+  // Clean up any leftover sentinel from a previous run.
+  try { fs.unlinkSync(TOGGLE_FILE); } catch { /* no-op */ }
+
+  // fs.watch on a non-existent path throws; watch the directory instead and
+  // filter for our filename. This also picks up creates, not just writes.
+  fs.watch(__dirname, (eventType, filename) => {
+    if (filename !== '.toggle') return;
+    if (!fs.existsSync(TOGGLE_FILE)) return;
+    try { fs.unlinkSync(TOGGLE_FILE); } catch { /* already consumed */ }
+    logToOutLog('Toggle file detected — toggling window via file-watch (keyboard shortcut fallback)');
+    toggleWindow();
+  });
 }
 
 // Re-position the window so it surfaces on the display the cursor is on,
