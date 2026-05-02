@@ -1,16 +1,16 @@
 {
   "_comment": "Agent registry. Single source of truth for launch-agent.sh, chq-tmux.sh, and the Electron remote. Add a new agent by appending one entry — no new bash file needed.",
   "_field_docs": {
-    "id":            "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
-    "display_name":  "Value passed to claude's -n <Name> flag. Load-bearing — used by ps-grep detection and pane targeting.",
-    "tmux_target":   "Pane title used for broadcast targeting. Defaults to lowercased display_name; only set explicitly when claude's /rename mutates it (e.g. swarmy renames to overlordswarmy).",
-    "cwd":           "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
-    "color":         "Argument to claude's /color slash command. Set during the auto-inject sequence.",
-    "rename_to":     "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
+    "id": "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
+    "display_name": "Value passed to claude's -n <Name> flag. Load-bearing — used by ps-grep detection and pane targeting.",
+    "tmux_target": "Pane title used for broadcast targeting. Defaults to lowercased display_name; only set explicitly when claude's /rename mutates it (e.g. swarmy renames to overlordswarmy).",
+    "cwd": "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
+    "color": "Argument to claude's /color slash command. Set during the auto-inject sequence.",
+    "rename_to": "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
     "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
-    "pre_launch":    "Optional path to a hook script run before exec claude. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
-    "env":           "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
-    "avatar":        "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."
+    "pre_launch": "Optional path to a hook script run before exec claude. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
+    "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
+    "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."
   },
   "agents": [
     {
@@ -28,7 +28,9 @@
       "color": "purple",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
-      "env": { "KOKORO_VOICE": "am_michael" }
+      "env": {
+        "KOKORO_VOICE": "am_michael"
+      }
     },
     {
       "id": "gekko",
