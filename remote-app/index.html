@@ -3,122 +3,142 @@
 <head>
   <style>
     :root {
-      --bg: rgba(15, 15, 25, 0.98);
-      --glass: rgba(255, 255, 255, 0.05);
-      --border: rgba(255, 255, 255, 0.2);
-      --xavier: #00f2ff;
-      --lucius: #ffcc00;
-      --gekko: #00ff88;
-      --swarmy: #ff00ff;
+      --bg: rgba(12, 12, 18, 0.96);
+      --glass-border: rgba(255, 255, 255, 0.15);
       --accent: #00f2ff;
-    }
-
-    body.theme-gold {
-      --bg: rgba(25, 20, 10, 0.98);
-      --accent: #ffd700;
-      --border: rgba(255, 215, 0, 0.4);
-    }
-
-    body.theme-comic {
-      --bg: rgba(255, 255, 255, 1);
-      --accent: #e63946;
-      --border: #000;
-      --glass: rgba(0,0,0,0.05);
+      --xavier: #00f2ff;
+      --lucius: #ffaa00;
+      --gekko: #00ff88;
+      --swarmy: #ff77cc;
+      --ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      font-family: 'Inter', -apple-system, sans-serif;
+      font-family: 'JetBrains Mono', monospace;
       -webkit-app-region: drag;
       background: transparent;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 120px;
+      height: 180px;
     }
 
     .remote-container {
-      width: 440px;
+      width: 560px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
-    .remote-strip {
+    .dashboard-container {
       width: 100%;
+      position: relative;
       background: var(--bg);
-      backdrop-filter: blur(30px) saturate(1.5);
-      border: 1.5px solid var(--border);
+      backdrop-filter: blur(40px);
+      border: 1px solid var(--glass-border);
       border-radius: 24px;
-      height: 64px;
+      height: 68px;
       display: flex;
       align-items: center;
       padding: 0 16px;
-      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7);
-      transition: all 0.4s;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9);
+      transition: all 0.5s var(--ease);
+      z-index: 10;
     }
-
-    .theme-dots {
-      display: flex;
-      gap: 8px;
-      -webkit-app-region: no-drag;
-      background: rgba(0,0,0,0.3);
-      padding: 5px 12px;
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      cursor: pointer;
-      border: 1.5px solid rgba(255,255,255,0.3);
-      transition: transform 0.2s;
-    }
-    .dot:hover { transform: scale(1.3); }
-    .dot.cyber { background: #00f2ff; }
-    .dot.gold { background: #ffd700; }
-    .dot.comic { background: #e63946; }
 
     .btn-group {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       -webkit-app-region: no-drag;
     }
 
     .agent-btn {
-      width: 46px;
-      height: 46px;
+      width: 44px;
+      height: 44px;
       border-radius: 14px;
-      border: 1.5px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
       padding: 0;
       cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s var(--ease);
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .agent-btn:hover { background: rgba(255, 255, 255, 0.12); transform: translateY(-2px); }
+    .agent-btn:hover { background: rgba(255, 255, 255, 0.1); transform: translateY(-2px); }
+    .agent-btn object { width: 100%; height: 100%; pointer-events: none; }
 
-    .agent-btn object {
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      transition: all 0.4s;
+    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 20px var(--xavier); }
+    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 20px var(--lucius); }
+    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 20px var(--gekko); }
+    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 20px var(--swarmy); }
+    .agent-btn.active object { transform: scale(1.1); filter: brightness(1.4); }
+
+    body.command-mode .agent-btn:not(.active) { opacity: 0.3; filter: grayscale(1); }
+
+    .control-group {
+      display: flex;
+      gap: 8px;
+      margin-left: 10px;
+      -webkit-app-region: no-drag;
     }
 
-    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 15px var(--xavier); }
-    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 15px var(--lucius); }
-    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 15px var(--gekko); }
-    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 15px var(--swarmy); }
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s var(--ease);
+    }
+    .icon-btn:hover { background: var(--accent); border-color: var(--accent); }
+    .icon-btn svg { width: 18px; height: 18px; color: #fff; }
+    .icon-btn.active { background: #fff; border-color: #fff; }
+    .icon-btn.active svg { color: #000; }
 
-    .agent-btn.active object { transform: scale(1.1); }
+    /* Hidden until Command Mode */
+    .select-all-btn { display: none; }
+    body.command-mode .select-all-btn { display: flex; }
+
+    .input-wrapper {
+      width: 550px;
+      height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: all 0.5s var(--ease);
+      background: rgba(15, 15, 25, 0.8);
+      backdrop-filter: blur(50px);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      padding: 0 15px;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+      margin-bottom: 8px;
+      -webkit-app-region: no-drag;
+    }
+
+    body.command-mode .input-wrapper { height: 50px; opacity: 1; margin-top: 5px; }
+
+    #broadcast-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
 
     .spawn-btn {
       margin-left: auto;
@@ -126,68 +146,147 @@
       color: #000;
       border: none;
       padding: 0 20px;
-      height: 40px;
-      border-radius: 12px;
+      height: 42px;
+      border-radius: 14px;
       font-weight: 900;
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 1.5px;
       cursor: pointer;
       -webkit-app-region: no-drag;
-      transition: all 0.3s;
+      transition: all 0.2s;
     }
-
-    .spawn-btn:hover { background: var(--accent); color: #fff; box-shadow: 0 0 20px var(--accent); }
-    .spawn-btn:active { transform: scale(0.92); }
-
+    .spawn-btn:hover { background: var(--accent); color: #fff; box-shadow: 0 0 25px var(--accent); }
   </style>
 </head>
-<body class="theme-cyber">
+<body>
   <div class="remote-container">
-    <div class="theme-dots">
-      <div class="dot cyber" onclick="setTheme('cyber')" title="Cyber Neon"></div>
-      <div class="dot gold" onclick="setTheme('gold')" title="Wall Street Gold"></div>
-      <div class="dot comic" onclick="setTheme('comic')" title="Classic Comic"></div>
+    <div class="input-wrapper">
+      <input type="text" id="broadcast-input" placeholder="Broadcast command to selected agents..." />
     </div>
-    <div class="remote-strip">
-      <div class="btn-group">
-        <button class="agent-btn xavier" onclick="toggle('xavier', this)" title="Deploy Xavier">
-          <object data="assets/xavier.svg" type="image/svg+xml"></object>
-        </button>
-        <button class="agent-btn lucius" onclick="toggle('lucius', this)" title="Deploy Lucius">
-          <object data="assets/lucius.svg" type="image/svg+xml"></object>
-        </button>
-        <button class="agent-btn gekko" onclick="toggle('gekko', this)" title="Deploy Gekko">
-          <object data="assets/gekko.svg" type="image/svg+xml"></object>
-        </button>
-        <button class="agent-btn swarmy" onclick="toggle('swarmy', this)" title="Deploy Swarmy">
-          <object data="assets/swarmy.svg" type="image/svg+xml"></object>
-        </button>
+
+    <div class="dashboard-container">
+      <div class="btn-group" id="agent-buttons">
+        <!-- Buttons rendered from agents.json by the script below. -->
       </div>
-      <button class="spawn-btn" onclick="spawn()">Deploy</button>
+
+      <div class="control-group">
+        <!-- Trigger Icon -->
+        <div class="icon-btn command-trigger" id="mode-trigger" onclick="toggleCommandMode()" title="Broadcast Mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6M12 19h8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <!-- Select All Icon -->
+        <div class="icon-btn select-all-btn" onclick="toggleSelectAll()" title="Select All Agents">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 13l3 3 7-7M7 6l3 3 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+
+      <button class="spawn-btn" id="main-action-btn" onclick="executeMainAction()">Deploy</button>
     </div>
   </div>
 
   <script>
     const { ipcRenderer } = require('electron');
-    let selected = new Set();
 
-    function setTheme(t) {
-      document.body.className = 'theme-' + t;
+    // agents object — populated from main.js's get-agents IPC handler at boot.
+    // Shape: { [id]: { id, displayName, tmuxTarget, color, selected } }.
+    let agents = {};
+    let commandMode = false;
+
+    async function init() {
+      let registry = [];
+      try {
+        registry = await ipcRenderer.invoke('get-agents');
+      } catch (err) {
+        console.error('failed to load registry:', err);
+      }
+      if (!registry || registry.length === 0) {
+        // Fallback: hardcoded list so the dashboard isn't empty if registry
+        // load fails. Matches the canonical five.
+        registry = [
+          { id: 'xavier', displayName: 'Xavier', tmuxTarget: 'xavier' },
+          { id: 'lucius', displayName: 'Lucius', tmuxTarget: 'lucius' },
+          { id: 'gekko',  displayName: 'Gekko',  tmuxTarget: 'gekko' },
+          { id: 'swarmy', displayName: 'Swarmy', tmuxTarget: 'overlordswarmy' },
+          { id: 'gemini', displayName: 'Gemini', tmuxTarget: 'gemini' }
+        ];
+      }
+
+      const container = document.getElementById('agent-buttons');
+      container.innerHTML = '';
+      registry.forEach(a => {
+        agents[a.id] = { ...a, selected: false };
+        const btn = document.createElement('button');
+        btn.className = `agent-btn ${a.id}`;
+        btn.id = `btn-${a.id}`;
+        btn.title = a.displayName;
+        btn.addEventListener('click', () => agentClick(a.id, btn));
+        const obj = document.createElement('object');
+        obj.setAttribute('data', `assets/${a.id}.svg`);
+        obj.setAttribute('type', 'image/svg+xml');
+        btn.appendChild(obj);
+        container.appendChild(btn);
+      });
     }
 
-    function toggle(id, btn) {
-      if (selected.has(id)) { selected.delete(id); btn.classList.remove('active'); }
-      else { selected.add(id); btn.classList.add('active'); }
+    function toggleCommandMode() {
+      commandMode = !commandMode;
+      document.body.classList.toggle('command-mode', commandMode);
+      document.getElementById('mode-trigger').classList.toggle('active', commandMode);
+      document.getElementById('main-action-btn').innerText = commandMode ? 'Broadcast' : 'Deploy';
+      if (commandMode) document.getElementById('broadcast-input').focus();
+      else resetSelection();
     }
 
-    function spawn() {
-      if (selected.size === 0) return;
-      const agents = Array.from(selected).map(id => id === 'gekko' ? 'trading' : id);
-      ipcRenderer.send('spawn-agents', agents);
-      selected.clear();
+    function toggleSelectAll() {
+      const allSelected = Object.values(agents).every(a => a.selected);
+      Object.keys(agents).forEach(id => {
+        agents[id].selected = !allSelected;
+        const el = document.getElementById(`btn-${id}`);
+        if (el) el.classList.toggle('active', !allSelected);
+      });
+    }
+
+    function agentClick(id, btn) {
+      agents[id].selected = !agents[id].selected;
+      btn.classList.toggle('active', agents[id].selected);
+    }
+
+    function resetSelection() {
+      Object.values(agents).forEach(a => a.selected = false);
       document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
     }
+
+    function executeMainAction() {
+      if (commandMode) broadcast();
+      else {
+        // Pass canonical registry ids straight through — chq-tmux.sh now
+        // reads the same registry, so no per-id rewrites needed.
+        const selectedIds = Object.values(agents).filter(a => a.selected).map(a => a.id);
+        if (selectedIds.length > 0) { ipcRenderer.send('spawn-agents', selectedIds); resetSelection(); }
+      }
+    }
+
+    function broadcast() {
+      const msg = document.getElementById('broadcast-input').value;
+      const selectedAgents = Object.values(agents).filter(a => a.selected);
+      if (!msg || selectedAgents.length === 0) return;
+      // "isAll" = every agent in the registry is selected. main.js fans out
+      // to every pane in every tmux session in that case.
+      const isAll = selectedAgents.length === Object.keys(agents).length;
+      // Strip the metadata keys main.js doesn't need so we don't leak DOM
+      // refs across the IPC boundary.
+      const payload = selectedAgents.map(a => ({ id: a.id, tmuxTarget: a.tmuxTarget }));
+      ipcRenderer.send('broadcast-message', { message: msg, selectedAgents: payload, isAll });
+      document.getElementById('broadcast-input').value = '';
+      toggleCommandMode();
+    }
+
+    document.getElementById('broadcast-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') broadcast();
+    });
+
+    init();
   </script>
 </body>
 </html>
