@@ -188,14 +188,15 @@
     .status-dot.on { background: var(--status-on); box-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
 
     /* ---------------------------------------------------------------------
-       Edit-mode badges — only visible when body.editing is on.
+       Edit-mode badge — only visible when body.editing is on.
        --------------------------------------------------------------------- */
-    /* Two badges per tile, both hidden by default:
+    /* One badge per tile, hidden by default:
          .remove-badge (top-right, red) — destructive, deletes from registry
-         .restart-badge (top-left, amber) — non-destructive, SIGINTs the pane
-       They never appear unless the user has explicitly entered edit mode by
-       clicking the pencil. This is the fix for the "× looked harmless, deleted
-       claude registry entry on a stray click" trap. */
+       Restart / kill / cwd-change / attach live in the right-click radial
+       menu, not here. Edit mode's only job is to gate registry deletion.
+       Fixes the "× looked harmless, deleted claude entry on a stray click"
+       trap by requiring deliberate Edit-mode entry before × is even shown,
+       plus an inline ✓/✗ confirm before fire. */
     .badge {
       position: absolute;
       width: 18px;
@@ -221,14 +222,6 @@
       background: rgba(255, 60, 90, 0.92);
     }
     .remove-badge:hover { background: rgba(255, 80, 110, 1); }
-    .restart-badge {
-      top: -6px;
-      left: -6px;
-      background: rgba(255, 170, 0, 0.92);
-      font-size: 10px;
-      line-height: 17px;
-    }
-    .restart-badge:hover { background: rgba(255, 190, 40, 1); }
     body.editing .agent-btn .badge { opacity: 1; transform: scale(1); pointer-events: auto; }
 
     /* In edit mode, the tile itself shows it's not selectable (subtle
@@ -474,6 +467,135 @@
       font-size: 11px;
       padding-top: 4px;
     }
+
+    /* ---------------------------------------------------------------------
+       Right-click radial fan menu (per-agent context menu)
+       --------------------------------------------------------------------- */
+    /* The menu lives at #radial-menu, a fixed-position container we move to
+       the right-clicked tile. Items are positioned absolutely relative to
+       that container; they animate in from --start-* and rest at --end-*
+       (CSS custom properties set per-item by JS). The container is hidden
+       by default (display:none) and shown by toggling .open. */
+    #radial-menu {
+      position: fixed;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+    }
+    #radial-menu.open { display: block; }
+
+    .radial-item {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform: translate(var(--start-x, 0px), var(--start-y, 0px)) scale(0.4);
+      opacity: 0;
+      pointer-events: auto;
+      -webkit-app-region: no-drag;
+
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px 7px 9px;
+      background: rgba(18, 18, 26, 0.88);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 12px;
+      box-shadow:
+        0 12px 36px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition:
+        transform 0.32s var(--ease),
+        opacity 0.28s var(--ease),
+        border-color 0.18s var(--ease),
+        box-shadow 0.18s var(--ease),
+        background 0.18s var(--ease);
+      user-select: none;
+    }
+    #radial-menu.open .radial-item {
+      transform: translate(var(--end-x, 0px), var(--end-y, 0px)) scale(1);
+      opacity: 1;
+    }
+    .radial-item:hover {
+      border-color: var(--accent);
+      background: rgba(28, 28, 38, 0.92);
+      box-shadow:
+        0 0 24px var(--accent-glow),
+        0 12px 36px rgba(0, 0, 0, 0.55);
+    }
+    .radial-item .icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .radial-item .label {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .radial-item .label .key {
+      color: var(--text-muted);
+      font-size: 9.5px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+    .radial-item.danger:hover {
+      border-color: rgba(255, 80, 110, 0.85);
+      box-shadow:
+        0 0 24px rgba(255, 60, 90, 0.45),
+        0 12px 36px rgba(0, 0, 0, 0.55);
+    }
+    .radial-item.danger .icon { color: rgba(255, 110, 130, 0.95); }
+
+    /* Inline confirm-replace inside a radial item (for the destructive
+       "Close active sessions" action). Replaces the item's content with a
+       compact ✓ ✗ pair without changing the item's position. */
+    .radial-item.confirming { padding: 6px 10px; }
+    .radial-item .confirm {
+      display: none;
+      align-items: center;
+      gap: 6px;
+    }
+    .radial-item.confirming .icon,
+    .radial-item.confirming .label { display: none; }
+    .radial-item.confirming .confirm { display: flex; }
+    .radial-item .confirm .ok,
+    .radial-item .confirm .no {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 20px;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid rgba(0, 0, 0, 0.4);
+    }
+    .radial-item .confirm .ok { background: var(--status-on); color: #062b10; }
+    .radial-item .confirm .no { background: rgba(255, 255, 255, 0.18); color: #fff; }
+    .radial-item .confirm .prompt {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      margin-right: 4px;
+    }
   </style>
 </head>
 <body>
@@ -539,12 +661,17 @@
         <span class="pill">no agents selected</span>
       </div>
       <div class="util-buttons">
-        <button class="util-btn" id="edit-btn" title="Edit agents (toggle remove / restart controls)">Edit</button>
+        <button class="util-btn" id="edit-btn" title="Edit mode — reveal × buttons to remove agents from registry">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all">All</button>
         <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
       </div>
     </div>
   </div>
+
+  <!-- Right-click radial menu — fixed-positioned container, items animate
+       outward from a center point that JS sets to the right-clicked tile.
+       Hidden by default; .open class triggers the staggered fan-out. -->
+  <div id="radial-menu" aria-hidden="true"></div>
 
   <script>
     const { ipcRenderer } = require('electron');
@@ -640,12 +767,18 @@
           if (t && t.classList) {
             if (t.classList.contains('badge') ||
                 t.classList.contains('remove-badge') ||
-                t.classList.contains('restart-badge') ||
                 t.classList.contains('ok') ||
                 t.classList.contains('no') ||
                 t.classList.contains('confirm-overlay')) return;
           }
           toggleAgent(id);
+        });
+        // Right-click → open radial fan menu for this agent. Suppress the
+        // default Electron context menu (Reload / Quit) so it doesn't compete.
+        btn.addEventListener('contextmenu', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openRadialMenu(id, btn);
         });
 
         const avatar = document.createElement('div');
@@ -667,20 +800,12 @@
         dot.id = `dot-${id}`;
         btn.appendChild(dot);
 
-        // Restart badge (left, amber). Non-destructive — sends SIGINT, the
-        // pane_loop respawns claude in 3s. Visible only in edit mode.
-        const restart = document.createElement('div');
-        restart.className = 'badge restart-badge';
-        restart.textContent = '⟳';
-        restart.title = 'Restart pane (SIGINT, restart loop respawns)';
-        restart.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          requestConfirm(btn, 'restart', () => doRestart(id, btn));
-        });
-        btn.appendChild(restart);
-
         // Remove badge (right, red). Destructive — deletes from agents.json.
-        // Visible only in edit mode AND requires inline confirm.
+        // ONLY visible in edit mode AND requires inline confirm. This is now
+        // the sole job of edit mode: gating registry-deletion behind an
+        // explicit toggle. Restart / kill / cwd-change / attach all moved to
+        // the right-click radial menu so they don't compete for the same
+        // edit-mode real estate.
         const x = document.createElement('div');
         x.className = 'badge remove-badge';
         x.textContent = '×';
@@ -768,6 +893,254 @@
 
       // Auto-cancel after 4s so a forgotten confirm doesn't sit there waiting.
       confirmTimer = setTimeout(() => cleanup(), 4000);
+    }
+
+    // ---------------------------------------------------------------------
+    // Right-click radial menu — fan-out per-agent action menu
+    // ---------------------------------------------------------------------
+    // Items, in order (matches Richard's spec):
+    //   1. CWD: <current> → opens directory picker, writes back to registry
+    //   2. Close active sessions → tmux kill-pane (destructive, inline confirm)
+    //   3. Restart session → SIGINT, restart-loop respawns
+    //   4. Attach → osascript opens iTerm tab with tmux attach + select-pane
+    //
+    // Items are positioned absolutely inside #radial-menu, which is fixed-
+    // positioned at the right-clicked tile's center. Each item gets a stagger
+    // delay so they fan out one after another, not all at once.
+
+    const RADIAL_RADIUS = 95;
+    // Four angles in the down-right quadrant. 0° = east, 90° = south.
+    // Default sweep: ESE → SSW so menu hangs below the tile without colliding
+    // with the dock above. If the tile is too close to the right edge for
+    // those items to fit, openRadialMenu mirrors the angles to the left side.
+    const RADIAL_ANGLES_RIGHT = [10, 45, 80, 115];
+    const RADIAL_ANGLES_LEFT  = [170, 135, 100, 65];   // mirror across vertical axis
+
+    let radialOpenForId = null;
+    let radialDismissCleanup = null;
+
+    function tildeCollapse(p) {
+      if (!p) return '';
+      // Renderer doesn't have process.env.HOME but we can guess via the
+      // registry path stripping. The IPC tilde-collapses on save, so any
+      // freshly-loaded registry value is already collapsed; this only matters
+      // if a hand-edited registry has a literal /Users/... path. Best-effort.
+      const home = (window.process && window.process.env && window.process.env.HOME) || '';
+      if (home && p.startsWith(home + '/')) return '~' + p.slice(home.length);
+      if (home && p === home) return '~';
+      return p;
+    }
+    function truncatePath(p, max = 30) {
+      if (!p || p.length <= max) return p;
+      return '…' + p.slice(p.length - (max - 1));
+    }
+
+    function openRadialMenu(id, tileBtn) {
+      // Tell main to suppress its native Reload/Quit context menu for this click.
+      ipcRenderer.send('tile-rightclick-suppress');
+
+      // If a menu is already open (for another tile), close it first.
+      if (radialOpenForId) closeRadialMenu();
+
+      const agent = agents[id];
+      if (!agent) return;
+      const menu = document.getElementById('radial-menu');
+      menu.innerHTML = '';
+      menu.classList.remove('open');
+
+      // Position the container at the center of the right-clicked tile.
+      const r = tileBtn.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      menu.style.left = `${cx}px`;
+      menu.style.top = `${cy}px`;
+
+      const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 30);
+      const items = [
+        {
+          icon: '📁',
+          html: `<span class="key">CWD</span>${cwdDisplay || '(unset)'}`,
+          action: () => doChangeCwd(id),
+          danger: false
+        },
+        {
+          icon: '⏹',
+          html: `<span class="key">Close</span>active sessions`,
+          action: (itemEl) => requestRadialConfirm(itemEl, 'kill?', () => doKillPane(id, tileBtn)),
+          danger: true,
+          // requestRadialConfirm handles its own cleanup; menu stays open until
+          // confirm fires or auto-cancels.
+          keepOpenOnClick: true
+        },
+        {
+          icon: '⟳',
+          html: `<span class="key">Restart</span>session`,
+          action: () => doRestart(id, tileBtn),
+          danger: false
+        },
+        {
+          icon: '↗',
+          html: `<span class="key">Attach</span>iTerm`,
+          action: () => doAttach(id, tileBtn),
+          danger: false
+        }
+      ];
+
+      // Pick fan direction based on available space. If the tile is too close
+      // to the right edge for the right-leaning fan to fit, mirror to the left.
+      const fanLeft = cx + RADIAL_RADIUS + 220 > window.innerWidth;
+      const angles = fanLeft ? RADIAL_ANGLES_LEFT : RADIAL_ANGLES_RIGHT;
+
+      items.forEach((item, idx) => {
+        const el = document.createElement('div');
+        el.className = 'radial-item' + (item.danger ? ' danger' : '');
+        el.innerHTML = `
+          <div class="icon">${item.icon}</div>
+          <div class="label">${item.html}</div>
+          <div class="confirm">
+            <span class="prompt"></span>
+            <span class="ok">✓</span>
+            <span class="no">✗</span>
+          </div>
+        `;
+        // Per-item stagger via inline transition-delay. Closing animations
+        // (when .open is removed) play in reverse order so the last-out is
+        // the first-back.
+        el.style.transitionDelay = `${idx * 60}ms`;
+
+        // End position (open state): polar coord -> Cartesian, offset from the
+        // item's own size so the icon roughly sits on the arc rather than the
+        // item's top-left corner.
+        const angle = angles[idx] * Math.PI / 180;
+        const ex = Math.cos(angle) * RADIAL_RADIUS;
+        const ey = Math.sin(angle) * RADIAL_RADIUS;
+        // Anchor: items have label+icon, ~140px wide x ~32px tall. When fanning
+        // left, anchor by the item's right edge so labels grow leftward
+        // instead of overlapping the avatar.
+        const anchorX = fanLeft ? -140 : -8;
+        el.style.setProperty('--end-x', `${ex + anchorX}px`);
+        el.style.setProperty('--end-y', `${ey - 16}px`);
+        // Start at ~10% of the way out toward the destination so the fan looks
+        // intentional — items appear to spring outward, not pop in place.
+        el.style.setProperty('--start-x', `${ex * 0.1 + anchorX}px`);
+        el.style.setProperty('--start-y', `${ey * 0.1 - 16}px`);
+
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          item.action(el);
+          if (!item.keepOpenOnClick) closeRadialMenu();
+        });
+        menu.appendChild(el);
+      });
+
+      // The menu items live in a fixed-position container — they're clipped
+      // by the BrowserWindow viewport. Temporarily expand the window so the
+      // fan-out has room to render. Compute the expanded bounds from the
+      // menu's center and the maximum item end-position. closeRadialMenu()
+      // restores via syncWindowSize().
+      const maxOffset = RADIAL_RADIUS + 200;   // longest possible end-position
+      const neededRight = cx + maxOffset;
+      const neededBottom = cy + maxOffset;
+      const curW = window.innerWidth;
+      const curH = window.innerHeight;
+      const expandW = Math.max(curW, Math.ceil(neededRight) + 28);
+      const expandH = Math.max(curH, Math.ceil(neededBottom) + 28);
+      if (expandW > curW || expandH > curH) {
+        ipcRenderer.send('resize-window', { width: expandW, height: expandH });
+      }
+
+      // Force a reflow so the start positions land before .open animates.
+      void menu.offsetWidth;
+      menu.classList.add('open');
+      radialOpenForId = id;
+
+      // Dismiss handlers: outside click, Escape, scroll, window blur.
+      const onPointerDown = (ev) => {
+        if (!menu.contains(ev.target)) closeRadialMenu();
+      };
+      const onKey = (ev) => { if (ev.key === 'Escape') closeRadialMenu(); };
+      const onScroll = () => closeRadialMenu();
+      const onBlur = () => closeRadialMenu();
+      // Use capture phase for pointerdown so we catch the click before any
+      // tile's own handler retoggles selection.
+      document.addEventListener('mousedown', onPointerDown, true);
+      document.addEventListener('keydown', onKey);
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('blur', onBlur);
+      radialDismissCleanup = () => {
+        document.removeEventListener('mousedown', onPointerDown, true);
+        document.removeEventListener('keydown', onKey);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('blur', onBlur);
+      };
+    }
+
+    function closeRadialMenu() {
+      const menu = document.getElementById('radial-menu');
+      menu.classList.remove('open');
+      radialOpenForId = null;
+      if (radialDismissCleanup) { radialDismissCleanup(); radialDismissCleanup = null; }
+      // Hide the container after the closing animation finishes (keeps items
+      // from blocking pointer events while invisible) and shrink the window
+      // back to the panel's natural size.
+      setTimeout(() => {
+        if (!menu.classList.contains('open')) {
+          menu.innerHTML = '';
+          syncWindowSize();
+        }
+      }, 320);
+    }
+
+    // Inline confirm inside a radial item — used by the destructive "Close
+    // active sessions" action. Replaces the item's icon + label with a
+    // ✓ ✗ pair until one is clicked or 4s elapse.
+    function requestRadialConfirm(itemEl, prompt, onConfirm) {
+      const promptEl = itemEl.querySelector('.confirm .prompt');
+      promptEl.textContent = prompt;
+      itemEl.classList.add('confirming');
+      const ok = itemEl.querySelector('.confirm .ok');
+      const no = itemEl.querySelector('.confirm .no');
+      let cancelled = false;
+      const cleanup = () => {
+        cancelled = true;
+        itemEl.classList.remove('confirming');
+        ok.removeEventListener('click', okHandler);
+        no.removeEventListener('click', noHandler);
+      };
+      const okHandler = (ev) => { ev.stopPropagation(); cleanup(); onConfirm(); closeRadialMenu(); };
+      const noHandler = (ev) => { ev.stopPropagation(); cleanup(); };
+      ok.addEventListener('click', okHandler);
+      no.addEventListener('click', noHandler);
+      setTimeout(() => { if (!cancelled) cleanup(); }, 4000);
+    }
+
+    // ---------------------------------------------------------------------
+    // Right-click action implementations
+    // ---------------------------------------------------------------------
+    async function doChangeCwd(id) {
+      const dir = await ipcRenderer.invoke('pick-cwd');
+      if (!dir) return;
+      const result = await ipcRenderer.invoke('update-agent-cwd', { id, cwd: dir });
+      if (!result.ok) {
+        const tile = document.getElementById(`btn-${id}`);
+        if (tile) flashTileError(tile, result.error);
+        return;
+      }
+      // Refresh so the next radial-menu open shows the updated cwd, and any
+      // subsequent Deploy uses the new path.
+      await loadAndRender();
+    }
+
+    async function doKillPane(id, tileEl) {
+      const result = await ipcRenderer.invoke('kill-pane', id);
+      if (!result.ok) { flashTileError(tileEl, result.error); return; }
+      // Status dot will flip grey on the next 3s poll. Pane is gone — until
+      // re-Deploy.
+    }
+
+    async function doAttach(id, tileEl) {
+      const result = await ipcRenderer.invoke('attach-pane', id);
+      if (!result.ok) { flashTileError(tileEl, result.error); return; }
     }
 
     function toggleAgent(id) {

@@ -29,6 +29,7 @@ function loadAgents() {
       // whatever was passed to /rename — which equals tmux_target if set,
       // otherwise lowercased display_name. Match that here.
       tmuxTarget: a.tmux_target || a.display_name.toLowerCase(),
+      cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
       color: a.color || null,
       avatar: a.avatar || `${a.id}.svg`
     }));
@@ -78,8 +79,20 @@ function createWindow() {
     { type: 'separator' },
     { label: 'Quit', click: () => { app.quit(); } }
   ]);
-  mainWindow.webContents.on('context-menu', () => { contextMenu.popup(); });
+  mainWindow.webContents.on('context-menu', () => {
+    // Suppress the default Reload/Quit menu when the right-click was on an
+    // agent tile (the renderer pings us via IPC right before opening its
+    // radial menu). 250ms grace covers the gap between the DOM contextmenu
+    // event and Electron's native context-menu event.
+    if (lastTileRightClickAt && Date.now() - lastTileRightClickAt < 250) return;
+    contextMenu.popup();
+  });
 }
+
+// Set by renderer just before it opens the radial menu so the native
+// context-menu handler above can skip its popup. See comment there.
+let lastTileRightClickAt = 0;
+ipcMain.on('tile-rightclick-suppress', () => { lastTileRightClickAt = Date.now(); });
 
 app.on('ready', createWindow);
 app.on('window-all-closed', () => { app.quit(); });
@@ -365,4 +378,130 @@ ipcMain.handle('pick-cwd', async () => {
     properties: ['openDirectory']
   });
   return result.canceled ? null : result.filePaths[0];
+});
+
+// ---------------------------------------------------------------------------
+// Per-agent context-menu IPC (right-click fan-out actions)
+// ---------------------------------------------------------------------------
+
+// update-agent-cwd — change the cwd field of an existing registry entry. Used
+// by the right-click "CWD: …" action: opens pick-cwd, then this writes back.
+// Validation: entry must exist; cwd must be a non-empty string. We don't try
+// to verify the dir exists here (Richard might be picking a path that he'll
+// create later), but we tilde-collapse it for storage so the registry stays
+// portable across machines.
+ipcMain.handle('update-agent-cwd', async (event, { id, cwd }) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+    let next = String(cwd || '').trim();
+    if (!next) throw new Error('cwd required');
+    // Tilde-collapse if under $HOME so the registry value stays portable.
+    const home = process.env.HOME;
+    if (home && next.startsWith(home + '/')) next = '~' + next.slice(home.length);
+    else if (home && next === home) next = '~';
+
+    let updated = false;
+    writeRegistry(data => {
+      const entry = data.agents.find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent "${safeId}" not in registry`);
+      entry.cwd = next;
+      updated = true;
+    });
+    return { ok: true, cwd: next };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// kill-pane — destructive: tmux kill-pane on the agent's pane. Different from
+// restart-agent (Ctrl-C, restart loop respawns). kill-pane removes the bash
+// while-loop entirely — the pane is gone from chq until the user re-deploys.
+ipcMain.handle('kill-pane', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+
+    const agentList = loadAgents();
+    const agent = agentList.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const panes = await listPanes();
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    const matches = panes.filter(p => p.title.toLowerCase().includes(needle));
+    if (matches.length === 0) throw new Error(`no running pane for "${safeId}"`);
+
+    // Kill all matching panes (in case there are multiple — e.g. if the same
+    // agent ended up duplicated across windows). Each kill-pane is its own
+    // execFile call, no shell.
+    for (const m of matches) {
+      await new Promise((resolve, reject) => {
+        execFile('tmux', ['kill-pane', '-t', m.coord], (err, _o, ser) => {
+          if (err) return reject(new Error(ser || err.message));
+          resolve();
+        });
+      });
+    }
+    return { ok: true, killed: matches.map(m => m.coord) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// attach-pane — open iTerm, attach to chq, and select the agent's pane. We
+// resolve via tmux_target substring like the other IPCs so /rename mutations
+// don't break it. The osascript source is a single literal arg passed to
+// `osascript -e <script>`; only the resolved pane coord (validated to match
+// /^[a-z0-9_:.-]+$/) is interpolated into the script's `write text` line.
+ipcMain.handle('attach-pane', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+
+    const agentList = loadAgents();
+    const agent = agentList.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const panes = await listPanes();
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    if (!match) throw new Error(`no running pane for "${safeId}"`);
+
+    // Defense in depth: ensure the coord came back in the expected shape
+    // (session:window.pane like "chq:0.3") before letting it land in an
+    // osascript string. Belt + suspenders — listPanes already constructs it,
+    // but if a future tmux version returns something exotic, refuse rather
+    // than interpolate.
+    if (!/^[a-z0-9_:.-]+$/i.test(match.coord)) {
+      throw new Error(`refusing to attach to suspicious coord: ${match.coord}`);
+    }
+    // session:window.pane → session and pane-target separately. tmux's
+    // attach -t takes a session; select-pane -t takes the full coord.
+    const sessionName = match.coord.split(':')[0];
+    if (!/^[a-z0-9_-]+$/i.test(sessionName)) {
+      throw new Error(`refusing to attach to suspicious session: ${sessionName}`);
+    }
+
+    const apple = `tell application "iTerm"
+      activate
+      if (count of windows) is 0 then
+        set newWindow to (create window with default profile)
+      else
+        set newWindow to current window
+        tell newWindow to create tab with default profile
+      end if
+      tell current session of newWindow
+        write text "tmux attach -t ${sessionName} \\\\; select-pane -t ${match.coord}"
+      end tell
+    end tell`;
+    await new Promise((resolve, reject) => {
+      execFile('osascript', ['-e', apple], (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+    return { ok: true, coord: match.coord };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
