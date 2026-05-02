@@ -27,20 +27,46 @@ CLAUDE_FLAGS=(
 )
 
 # Department definitions: name|cwd|window-name|script
-# Xavier is the harness slot (not a department). Listed first so it is the
-# leftmost pane on `start all`. cwd = building root, script uses -n Xavier.
-# NOTE: Engineering, Marketing, R&D, Operations, and CEO_Office have moved to
-# the agent-factory repo at ~/ai_projects/agent-factory/. Scripts now live there.
+#
+# Two sources, merged into one DEPARTMENTS array:
+#   1. Registry-driven (agents.json) — xavier/lucius/gekko/swarmy/gemini.
+#      Each registry entry contributes ONE department whose script field is
+#      `bash launch-agent.sh <id>` so adding a new agent here is just an
+#      `agents.json` append.
+#   2. Static (this file) — agent-factory residents (mugatu, derek, hansel,
+#      maury) whose scripts live in the agent-factory repo. They're not in the
+#      registry because their launchers aren't owned by this repo.
+#
+# Xavier is the harness slot (not a department). The registry order puts it
+# first, so it lands as the leftmost pane on `start all`.
+REGISTRY="${AGENT_REGISTRY:-${HOME}/agent-launch-scripts/agents.json}"
+LAUNCH_AGENT="${HOME}/agent-launch-scripts/launch-agent.sh"
 AGENT_FACTORY="${HOME}/ai_projects/agent-factory"
-DEPARTMENTS=(
-  "xavier|${CHQ_ROOT}|xavier|${HOME}/agent-launch-scripts/xavier.sh"
+
+DEPARTMENTS=()
+if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
+  # Pull id|cwd from the registry. The DEPARTMENTS entry uses `id` for both
+  # the dept slug AND the initial pane title (wname) — claude's /rename
+  # overwrites the title to display_name afterward via launch-agent.sh's
+  # auto-inject. Broadcast targeting (Electron remote) reads tmux_target
+  # from the registry directly, so the initial wname only matters for the
+  # CLI (chq-tmux.sh start <name>) and the pane-border-format display.
+  while IFS=$'\t' read -r id cwd; do
+    [[ -z "$id" ]] && continue
+    cwd="${cwd/#\~/$HOME}"
+    DEPARTMENTS+=("${id}|${cwd}|${id}|bash ${LAUNCH_AGENT} ${id}")
+  done < <(jq -r '.agents[] | [.id, .cwd] | @tsv' "$REGISTRY")
+else
+  echo "WARN: agents.json registry not found or jq missing — registry agents unavailable" >&2
+fi
+
+# Static agent-factory entries (not in agents.json — their scripts live in the
+# agent-factory repo). Insert these after the registry agents.
+DEPARTMENTS+=(
   "ceo|${AGENT_FACTORY}/dogfood-agents/CEO_Office|mugatu|${AGENT_FACTORY}/Operations/scripts/mugatu.sh"
   "engineering|${AGENT_FACTORY}/Engineering|derek|${AGENT_FACTORY}/Operations/scripts/derek.sh"
   "marketing|${HOME}/ai_projects/adairlabs|hansel|${AGENT_FACTORY}/Operations/scripts/hansel.sh"
-  "rnd|${HOME}/ai_projects/research-and-development|lucius|${HOME}/agent-launch-scripts/lucius.sh"
   "operations|${AGENT_FACTORY}/Operations|maury|${AGENT_FACTORY}/Operations/scripts/maury.sh"
-  "swarmy|${HOME}/ai_projects/swarmy|swarmy|${HOME}/agent-launch-scripts/swarmy.sh"
-  "trading|${HOME}/ai_projects/trading|gekko|${HOME}/agent-launch-scripts/gekko.sh"
 )
 
 # ---------------------------------------------------------------------------
@@ -67,16 +93,27 @@ session_exists() {
 
 # Build the restart loop command for a department pane.
 # Claude runs, and when it exits the loop waits RESTART_DELAY seconds then relaunches.
-# Each iteration writes a timestamped banner + exit code to /tmp/chq-pane-<script>.log
+# Each iteration writes a timestamped banner + exit code to /tmp/chq-pane-<slug>.log
 # so post-mortem can tell whether the loop never started vs. started but was SIGKILL'd.
+#
+# `script` may be either a path to a .sh file (legacy static entries) OR a
+# command string like `bash launch-agent.sh <id>` (registry entries). The third
+# arg is the dept name, used as the log slug to keep one log file per agent.
 pane_loop() {
   local cwd="$1"
   local script="$2"
-  local slug
-  slug=$(basename "$script" .sh)
+  local slug="${3:-pane}"
   local log="/tmp/chq-pane-${slug}.log"
+  # If `script` is a single path (no spaces), prefix with `bash` for the legacy
+  # behavior. Otherwise it's already a full command — invoke as-is via sh -c.
+  local invoke
+  if [[ "$script" == *" "* ]]; then
+    invoke="$script"
+  else
+    invoke="bash \"$script\""
+  fi
   cat <<LOOP
-cd "${cwd}" && { echo "[\$(date '+%F %T')] pane_loop start script=${script} log=${log}" | tee -a "${log}"; while true; do echo "[\$(date '+%F %T')] -> bash ${script}" | tee -a "${log}"; bash "${script}"; rc=\$?; echo "[\$(date '+%F %T')] <- exit=\$rc, restarting in ${RESTART_DELAY}s" | tee -a "${log}"; sleep ${RESTART_DELAY}; done; }
+cd "${cwd}" && { echo "[\$(date '+%F %T')] pane_loop start cmd=${invoke} log=${log}" | tee -a "${log}"; while true; do echo "[\$(date '+%F %T')] -> ${invoke}" | tee -a "${log}"; ${invoke}; rc=\$?; echo "[\$(date '+%F %T')] <- exit=\$rc, restarting in ${RESTART_DELAY}s" | tee -a "${log}"; sleep ${RESTART_DELAY}; done; }
 LOOP
 }
 
@@ -131,7 +168,12 @@ cmd_start() {
       fi
     done
     if [[ -z "$found" ]]; then
-      echo "ERROR: Unknown executive '${name}'. Valid options: xavier, mugatu, derek, hansel, lucius, maury" >&2
+      local valid_names=()
+      for e in "${DEPARTMENTS[@]}"; do
+        IFS='|' read -r d _ wn _ <<< "$e"
+        valid_names+=("$wn")
+      done
+      echo "ERROR: Unknown executive '${name}'. Valid options: ${valid_names[*]}" >&2
       exit 1
     fi
     selected_entries+=("$found")
@@ -148,7 +190,7 @@ cmd_start() {
 
   tmux new-session -d -s "$SESSION" -n "chq" -c "$cwd" -x 220 -y 50
   tmux select-pane -t "${SESSION}:chq.0" -T "$wname"
-  tmux send-keys -t "${SESSION}:chq.0" "$(pane_loop "$cwd" "$script")" Enter
+  tmux send-keys -t "${SESSION}:chq.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
 
   # Only split if there are additional execs (skip split for single-exec mode)
   if [[ ${#selected_entries[@]} -gt 1 ]]; then
@@ -158,7 +200,7 @@ cmd_start() {
       tmux split-window -h -t "${SESSION}:chq" -c "$cwd"
       pane_idx=$((pane_idx + 1))
       tmux select-pane -t "${SESSION}:chq.${pane_idx}" -T "$wname"
-      tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script")" Enter
+      tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script" "$dept")" Enter
     done
   fi
 
@@ -221,7 +263,12 @@ cmd_attach() {
 
 cmd_restart() {
   local target="${1:-}"
-  [[ -z "$target" ]] && die "Usage: $0 restart <dept-name>  (xavier|mugatu|derek|hansel|lucius|maury)"
+  local all_names=()
+  for entry in "${DEPARTMENTS[@]}"; do
+    IFS='|' read -r d _ wn _ <<< "$entry"
+    all_names+=("$wn")
+  done
+  [[ -z "$target" ]] && die "Usage: $0 restart <dept-name>  (${all_names[*]})"
 
   if ! session_exists; then
     die "No CHQ session running."
@@ -237,7 +284,7 @@ cmd_restart() {
     fi
   done
 
-  [[ -z "$found" ]] && die "Unknown department: ${target}. Options: xavier, mugatu, derek, hansel, lucius, maury"
+  [[ -z "$found" ]] && die "Unknown department: ${target}. Options: ${all_names[*]}"
 
   IFS='|' read -r dept cwd wname script <<< "$found"
 
@@ -257,6 +304,12 @@ case "${1:-}" in
   attach)  cmd_attach ;;
   restart) cmd_restart "${2:-}" ;;
   *)
+    all_names=()
+    for entry in "${DEPARTMENTS[@]}"; do
+      IFS='|' read -r d _ wn _ <<< "$entry"
+      all_names+=("$wn")
+    done
+    valid_csv="${all_names[*]}"
     echo "CHQ Tmux Launcher"
     echo ""
     echo "Usage: $0 <command> [args]"
@@ -264,14 +317,14 @@ case "${1:-}" in
     echo "Commands:"
     echo "  start [exec...]    Create tmux session. With no args, prompts interactively."
     echo "                     With names, spawns only those execs (left-to-right)."
-    echo "                     Execs: xavier, mugatu, derek, hansel, lucius, maury"
+    echo "                     Execs: ${valid_csv}"
     echo "                     Examples:"
     echo "                       $0 start            (interactive prompt)"
     echo "                       $0 start xavier mugatu derek"
-    echo "                       $0 start all        (xavier + all 5 execs)"
+    echo "                       $0 start all        (registry agents + agent-factory execs)"
     echo "  stop               Kill the entire CHQ session"
     echo "  status             Show running panes"
     echo "  attach             Attach to the CHQ session"
-    echo "  restart <name>     Restart a pane (xavier|mugatu|derek|hansel|lucius|maury)"
+    echo "  restart <name>     Restart a pane (${valid_csv})"
     ;;
 esac
