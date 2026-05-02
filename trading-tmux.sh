@@ -17,8 +17,10 @@ RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
 # Department definitions: name|cwd|window-name|script
+# script is a full command (registry-driven via launch-agent.sh + agents.json),
+# not a path. pane_loop runs it as-is rather than prefixing with `bash`.
 DEPARTMENTS=(
-  "gekko|${TRADING_ROOT}|gekko|${HOME}/agent-launch-scripts/gekko.sh"
+  "gekko|${TRADING_ROOT}|gekko|bash ${HOME}/agent-launch-scripts/launch-agent.sh gekko"
 )
 
 # ---------------------------------------------------------------------------
@@ -46,8 +48,10 @@ session_exists() {
 pane_loop() {
   local cwd="$1"
   local script="$2"
+  # script is a full command string (e.g. "bash launch-agent.sh gekko"); run
+  # it as-is rather than wrapping in another `bash ${script}`.
   cat <<LOOP
-cd "${cwd}" && while true; do bash ${script}; echo "--- session exited, restarting in ${RESTART_DELAY}s ---"; sleep ${RESTART_DELAY}; done
+cd "${cwd}" && while true; do ${script}; echo "--- session exited, restarting in ${RESTART_DELAY}s ---"; sleep ${RESTART_DELAY}; done
 LOOP
 }
 
