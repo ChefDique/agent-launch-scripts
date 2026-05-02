@@ -485,17 +485,31 @@
     }
 
     /* ---------------------------------------------------------------------
-       Right-click radial fan menu (per-agent context menu)
-       --------------------------------------------------------------------- */
-    /* The menu lives at #radial-menu, a fixed-position container we move to
-       the right-clicked tile. Items are positioned absolutely relative to
-       that container; they animate in from --start-* and rest at --end-*
-       (CSS custom properties set per-item by JS). The container is hidden
-       by default (display:none) and shown by toggling .open. */
+       Right-click context menu — fan-out per agent
+       ---------------------------------------------------------------------
+       Geometry: 4 items spread along a shallow downward smile-arc beneath
+       the right-clicked tile, in the transparent dead space below the
+       panel. Items occupy x-offsets [-180,-60,+60,+180] from the tile's
+       center, at y-offsets [+30,+60,+60,+30] below the panel's bottom
+       edge. Outer items hang slightly higher so the four resting points
+       form an arc rather than a horizontal line.
+
+       JS clamps the layout horizontally if the tile's center is too close
+       to a viewport edge for the symmetric spread to fit — so far-left
+       or far-right tiles still get all 4 items inside the window without
+       any items overlapping each other.
+
+       Each item is a glass card built from the same primitives as the
+       panel itself: backdrop-filter blur+saturate, --bg-deep background,
+       --border-medium border, inset 1px highlight, drop shadow. Default
+       state is neutral; orange accent only on hover/active. Matches the
+       panel's terminal-luxe glassmorphism. */
     #radial-menu {
       position: fixed;
-      width: 0;
-      height: 0;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
       pointer-events: none;
       z-index: 1000;
       display: none;
@@ -504,101 +518,124 @@
 
     .radial-item {
       position: absolute;
-      top: 0;
-      left: 0;
-      transform: translate(var(--start-x, 0px), var(--start-y, 0px)) scale(0.4);
+      /* JS sets --x and --y as the resting position (px from viewport top-left).
+         Initial state: items fly out FROM the right-clicked tile's center,
+         held in --start-x / --start-y, scaled down + transparent. The .open
+         state on #radial-menu transitions them out to (--x, --y) at scale 1. */
+      left: var(--start-x, 0px);
+      top: var(--start-y, 0px);
+      transform: translate3d(0, 0, 0) scale(0.5);
       opacity: 0;
       pointer-events: auto;
       -webkit-app-region: no-drag;
 
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 12px 7px 9px;
-      background: rgba(18, 18, 26, 0.88);
-      backdrop-filter: blur(28px) saturate(160%);
-      -webkit-backdrop-filter: blur(28px) saturate(160%);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 12px;
+      gap: 10px;
+      padding: 9px 14px 9px 11px;
+      min-width: 152px;
+
+      /* Glass card: same primitives as .panel */
+      background: var(--bg-deep);
+      backdrop-filter: blur(40px) saturate(140%);
+      -webkit-backdrop-filter: blur(40px) saturate(140%);
+      border: 1px solid var(--border-medium);
+      border-radius: 14px;
       box-shadow:
-        0 12px 36px rgba(0, 0, 0, 0.55),
+        0 18px 48px rgba(0, 0, 0, 0.55),
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
       color: var(--text-primary);
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.2px;
       cursor: pointer;
       white-space: nowrap;
-      transition:
-        transform 0.32s var(--ease),
-        opacity 0.28s var(--ease),
-        border-color 0.18s var(--ease),
-        box-shadow 0.18s var(--ease),
-        background 0.18s var(--ease);
       user-select: none;
+      transition:
+        left 0.42s var(--ease),
+        top 0.42s var(--ease),
+        transform 0.42s var(--ease),
+        opacity 0.32s var(--ease),
+        border-color 0.2s var(--ease),
+        box-shadow 0.2s var(--ease),
+        background 0.2s var(--ease);
     }
     #radial-menu.open .radial-item {
-      transform: translate(var(--end-x, 0px), var(--end-y, 0px)) scale(1);
+      left: var(--x, 0px);
+      top: var(--y, 0px);
+      transform: translate3d(0, 0, 0) scale(1);
       opacity: 1;
     }
     .radial-item:hover {
       border-color: var(--accent);
-      background: rgba(28, 28, 38, 0.92);
+      background: rgba(20, 16, 12, 0.85);
       box-shadow:
-        0 0 24px var(--accent-glow),
-        0 12px 36px rgba(0, 0, 0, 0.55);
+        0 0 28px var(--accent-glow),
+        0 18px 48px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     .radial-item .icon {
-      width: 18px;
-      height: 18px;
+      width: 22px;
+      height: 22px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
-      color: var(--accent);
+      font-size: 14px;
+      color: var(--text-muted);          /* neutral by default */
       flex-shrink: 0;
+      transition: color 0.18s var(--ease);
     }
+    .radial-item:hover .icon { color: var(--accent); }
     .radial-item .label {
-      max-width: 200px;
+      max-width: 220px;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
     }
-    .radial-item .label .key {
+    .radial-item .label .verb {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .radial-item .label .detail {
       color: var(--text-muted);
-      font-size: 9.5px;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-      margin-right: 6px;
+      font-weight: 400;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;   /* mono for paths/values */
     }
     .radial-item.danger:hover {
-      border-color: rgba(255, 80, 110, 0.85);
+      border-color: rgba(255, 90, 120, 0.8);
+      background: rgba(28, 12, 16, 0.85);
       box-shadow:
-        0 0 24px rgba(255, 60, 90, 0.45),
-        0 12px 36px rgba(0, 0, 0, 0.55);
+        0 0 28px rgba(255, 70, 100, 0.45),
+        0 18px 48px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
-    .radial-item.danger .icon { color: rgba(255, 110, 130, 0.95); }
+    .radial-item.danger:hover .icon { color: rgba(255, 110, 130, 0.95); }
 
     /* Inline confirm-replace inside a radial item (for the destructive
        "Close active sessions" action). Replaces the item's content with a
        compact ✓ ✗ pair without changing the item's position. */
-    .radial-item.confirming { padding: 6px 10px; }
+    .radial-item.confirming { padding: 8px 12px; }
     .radial-item .confirm {
       display: none;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
     .radial-item.confirming .icon,
     .radial-item.confirming .label { display: none; }
     .radial-item.confirming .confirm { display: flex; }
     .radial-item .confirm .ok,
     .radial-item .confirm .no {
-      width: 20px;
-      height: 20px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       font-size: 11px;
       font-weight: 700;
-      line-height: 20px;
+      line-height: 22px;
       text-align: center;
       cursor: pointer;
       border: 1px solid rgba(0, 0, 0, 0.4);
@@ -606,7 +643,7 @@
     .radial-item .confirm .ok { background: var(--status-on); color: #062b10; }
     .radial-item .confirm .no { background: rgba(255, 255, 255, 0.18); color: #fff; }
     .radial-item .confirm .prompt {
-      font-size: 10px;
+      font-size: 11px;
       color: var(--text-muted);
       letter-spacing: 0.4px;
       text-transform: uppercase;
@@ -764,6 +801,15 @@
       return LABEL_ALIASES[dn.toLowerCase()] || dn;
     }
 
+    // HTML-escape helper for user/registry-supplied strings going into
+    // innerHTML. Keeps a registry value containing `<`, `>`, `&`, `"` from
+    // breaking the markup or opening an injection vector.
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
     function renderDock() {
       const dock = document.getElementById('dock');
       dock.innerHTML = '';
@@ -912,50 +958,44 @@
     }
 
     // ---------------------------------------------------------------------
-    // Right-click radial menu — fan-out per-agent action menu
+    // Right-click context menu — fan-out per-agent action menu
     // ---------------------------------------------------------------------
-    // Items, in order (matches Richard's spec):
-    //   1. CWD: <current> → opens directory picker, writes back to registry
-    //   2. Close active sessions → tmux kill-pane (destructive, inline confirm)
-    //   3. Restart session → SIGINT, restart-loop respawns
-    //   4. Attach → osascript opens iTerm tab with tmux attach + select-pane
+    // Final positions form a smile-arc beneath the tile, in transparent dead
+    // space below the panel. Items don't overlap; the panel content stays
+    // unobstructed. The fan-out animation is the items springing outward
+    // from the tile center to their resting positions, with 60ms stagger.
     //
-    // Items are positioned absolutely inside #radial-menu, which is fixed-
-    // positioned at the right-clicked tile's center. Each item gets a stagger
-    // delay so they fan out one after another, not all at once.
+    // Items, in order:
+    //   1. CWD — opens directory picker, writes back to registry
+    //   2. Close — tmux kill-pane (destructive, inline confirm)
+    //   3. Restart — SIGINT, pane_loop respawns
+    //   4. Attach — osascript opens iTerm tab focused on the agent's pane
 
-    const RADIAL_RADIUS = 95;
-    // Four angles in the down-right quadrant. 0° = east, 90° = south.
-    // Default sweep: ESE → SSW so menu hangs below the tile without colliding
-    // with the dock above. If the tile is too close to the right edge for
-    // those items to fit, openRadialMenu mirrors the angles to the left side.
-    const RADIAL_ANGLES_RIGHT = [10, 45, 80, 115];
-    const RADIAL_ANGLES_LEFT  = [170, 135, 100, 65];   // mirror across vertical axis
+    // Vertical cascade with diagonal x-stagger. Items 200px wide × ~40px tall.
+    // Vertical spacing 50px (no overlap), x-stagger ±60px around tile center
+    // so the four resting positions trace a gentle diagonal — reads as a fan
+    // dealt sideways. Animation springs each item out from the tile center
+    // with 80ms stagger so the cascade visibly cascades.
+    const RADIAL_X_OFFSETS = [-90, -30, 30, 90];
+    const RADIAL_Y_OFFSETS = [0, 50, 100, 150];
 
     let radialOpenForId = null;
     let radialDismissCleanup = null;
 
     function tildeCollapse(p) {
       if (!p) return '';
-      // Renderer doesn't have process.env.HOME but we can guess via the
-      // registry path stripping. The IPC tilde-collapses on save, so any
-      // freshly-loaded registry value is already collapsed; this only matters
-      // if a hand-edited registry has a literal /Users/... path. Best-effort.
       const home = (window.process && window.process.env && window.process.env.HOME) || '';
       if (home && p.startsWith(home + '/')) return '~' + p.slice(home.length);
       if (home && p === home) return '~';
       return p;
     }
-    function truncatePath(p, max = 30) {
+    function truncatePath(p, max = 28) {
       if (!p || p.length <= max) return p;
       return '…' + p.slice(p.length - (max - 1));
     }
 
     function openRadialMenu(id, tileBtn) {
-      // Tell main to suppress its native Reload/Quit context menu for this click.
       ipcRenderer.send('tile-rightclick-suppress');
-
-      // If a menu is already open (for another tile), close it first.
       if (radialOpenForId) closeRadialMenu();
 
       const agent = agents[id];
@@ -964,82 +1004,103 @@
       menu.innerHTML = '';
       menu.classList.remove('open');
 
-      // Position the container at the center of the right-clicked tile.
+      // Tile center (viewport coords) = animation origin.
       const r = tileBtn.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      menu.style.left = `${cx}px`;
-      menu.style.top = `${cy}px`;
+      const tileCx = r.left + r.width / 2;
+      const tileCy = r.top + r.height / 2;
 
-      const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 30);
+      // Anchor the cascade beneath the panel. The first item sits 18px below
+      // the panel's bottom edge; each subsequent item drops another 50px.
+      const panelEl = document.getElementById('panel');
+      const panelRect = panelEl.getBoundingClientRect();
+      const arcBaseY = panelRect.bottom + 18;
+
+      const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 28);
       const items = [
         {
           icon: '📁',
-          html: `<span class="key">CWD</span>${cwdDisplay || '(unset)'}`,
+          verb: 'Change CWD',
+          detail: cwdDisplay || '(unset)',
           action: () => doChangeCwd(id),
           danger: false
         },
         {
           icon: '⏹',
-          html: `<span class="key">Close</span>active sessions`,
+          verb: 'Close session',
+          detail: '',
           action: (itemEl) => requestRadialConfirm(itemEl, 'kill?', () => doKillPane(id, tileBtn)),
           danger: true,
-          // requestRadialConfirm handles its own cleanup; menu stays open until
-          // confirm fires or auto-cancels.
           keepOpenOnClick: true
         },
         {
           icon: '⟳',
-          html: `<span class="key">Restart</span>session`,
+          verb: 'Restart session',
+          detail: '',
           action: () => doRestart(id, tileBtn),
           danger: false
         },
         {
           icon: '↗',
-          html: `<span class="key">Attach</span>iTerm`,
+          verb: 'Attach',
+          detail: 'iTerm',
           action: () => doAttach(id, tileBtn),
           danger: false
         }
       ];
 
-      // Pick fan direction based on available space. If the tile is too close
-      // to the right edge for the right-leaning fan to fit, mirror to the left.
-      const fanLeft = cx + RADIAL_RADIUS + 220 > window.innerWidth;
-      const angles = fanLeft ? RADIAL_ANGLES_LEFT : RADIAL_ANGLES_RIGHT;
+      // Item dimensions used for clamping. Match CSS min-width / typical height.
+      const ITEM_WIDTH = 200;
+      const ITEM_HEIGHT = 40;
+      const MARGIN = 12;
+
+      // Symmetric x-offsets centered on the tile. If the tile is far-left or
+      // far-right of the window, the symmetric layout would clip; shift the
+      // entire group to keep all items inside the viewport.
+      const groupCx = tileCx;
+      const minRequired = groupCx + Math.min(...RADIAL_X_OFFSETS) - ITEM_WIDTH / 2;
+      const maxRequired = groupCx + Math.max(...RADIAL_X_OFFSETS) + ITEM_WIDTH / 2;
+      let shiftX = 0;
+      if (minRequired < MARGIN) shiftX = MARGIN - minRequired;
+      else if (maxRequired > window.innerWidth - MARGIN) shiftX = (window.innerWidth - MARGIN) - maxRequired;
+
+      // Pre-compute resting positions so we can pass max-y into the resize call.
+      const positions = items.map((_, idx) => {
+        // Item top-left coordinates (subtracting half item w/h so the offset
+        // refers to item center, not corner).
+        const x = groupCx + RADIAL_X_OFFSETS[idx] + shiftX - ITEM_WIDTH / 2;
+        const y = arcBaseY + RADIAL_Y_OFFSETS[idx] - ITEM_HEIGHT / 2;
+        return { x, y };
+      });
+      const maxBottom = Math.max(...positions.map(p => p.y)) + ITEM_HEIGHT;
 
       items.forEach((item, idx) => {
         const el = document.createElement('div');
         el.className = 'radial-item' + (item.danger ? ' danger' : '');
+        const detailHtml = item.detail ? `<span class="detail">${escapeHtml(item.detail)}</span>` : '';
         el.innerHTML = `
           <div class="icon">${item.icon}</div>
-          <div class="label">${item.html}</div>
+          <div class="label">
+            <span class="verb">${escapeHtml(item.verb)}</span>
+            ${detailHtml}
+          </div>
           <div class="confirm">
             <span class="prompt"></span>
             <span class="ok">✓</span>
             <span class="no">✗</span>
           </div>
         `;
-        // Per-item stagger via inline transition-delay. Closing animations
-        // (when .open is removed) play in reverse order so the last-out is
-        // the first-back.
-        el.style.transitionDelay = `${idx * 60}ms`;
+        // Cascade stagger: top item lands first, each subsequent item 80ms
+        // later. Total reveal ~320ms. Reads as deal-out animation.
+        el.style.transitionDelay = `${idx * 80}ms`;
 
-        // End position (open state): polar coord -> Cartesian, offset from the
-        // item's own size so the icon roughly sits on the arc rather than the
-        // item's top-left corner.
-        const angle = angles[idx] * Math.PI / 180;
-        const ex = Math.cos(angle) * RADIAL_RADIUS;
-        const ey = Math.sin(angle) * RADIAL_RADIUS;
-        // Anchor: items have label+icon, ~140px wide x ~32px tall. When fanning
-        // left, anchor by the item's right edge so labels grow leftward
-        // instead of overlapping the avatar.
-        const anchorX = fanLeft ? -140 : -8;
-        el.style.setProperty('--end-x', `${ex + anchorX}px`);
-        el.style.setProperty('--end-y', `${ey - 16}px`);
-        // Start at ~10% of the way out toward the destination so the fan looks
-        // intentional — items appear to spring outward, not pop in place.
-        el.style.setProperty('--start-x', `${ex * 0.1 + anchorX}px`);
-        el.style.setProperty('--start-y', `${ey * 0.1 - 16}px`);
+        const { x, y } = positions[idx];
+        // Resting position
+        el.style.setProperty('--x', `${x}px`);
+        el.style.setProperty('--y', `${y}px`);
+        // Spring origin: tile center, slightly offset so each item starts
+        // visually anchored to the right-clicked tile.
+        el.style.setProperty('--start-x', `${tileCx - ITEM_WIDTH / 2}px`);
+        el.style.setProperty('--start-y', `${tileCy - ITEM_HEIGHT / 2}px`);
 
         el.addEventListener('click', (ev) => {
           ev.stopPropagation();
@@ -1049,23 +1110,18 @@
         menu.appendChild(el);
       });
 
-      // The menu items live in a fixed-position container — they're clipped
-      // by the BrowserWindow viewport. Temporarily expand the window so the
-      // fan-out has room to render. Compute the expanded bounds from the
-      // menu's center and the maximum item end-position. closeRadialMenu()
-      // restores via syncWindowSize().
-      const maxOffset = RADIAL_RADIUS + 200;   // longest possible end-position
-      const neededRight = cx + maxOffset;
-      const neededBottom = cy + maxOffset;
-      const curW = window.innerWidth;
-      const curH = window.innerHeight;
-      const expandW = Math.max(curW, Math.ceil(neededRight) + 28);
-      const expandH = Math.max(curH, Math.ceil(neededBottom) + 28);
-      if (expandW > curW || expandH > curH) {
-        ipcRenderer.send('resize-window', { width: expandW, height: expandH });
+      // Expand window so the fan has room to render. The frameless transparent
+      // window has no visible bounds, so growing it just unlocks more usable
+      // viewport — the panel itself stays where it was.
+      const neededWidth = Math.max(window.innerWidth, Math.ceil(maxRequired + shiftX + MARGIN));
+      const neededHeight = Math.max(window.innerHeight, Math.ceil(maxBottom + MARGIN));
+      if (neededWidth > window.innerWidth || neededHeight > window.innerHeight) {
+        ipcRenderer.send('resize-window', { width: neededWidth, height: neededHeight });
       }
 
-      // Force a reflow so the start positions land before .open animates.
+      // Force reflow so the start positions are committed before .open
+      // transitions to resting. Without this, the browser may collapse the
+      // start+end into a single frame and skip the spring animation.
       void menu.offsetWidth;
       menu.classList.add('open');
       radialOpenForId = id;
