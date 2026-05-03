@@ -338,10 +338,10 @@
        directly to that one agent. Esc during hold = cancel without sending.
        --------------------------------------------------------------------- */
 
-    /* Tiny mechanical-keycap badge stacked below the avatar label inside the
-       tile's flex column. Reads "press this key, get this agent" without
-       competing with the avatar or status dot. Inset shadows + dual gradient
-       give a real-keycap depth feel; monospace character. */
+    /* Tiny mechanical-keycap badge stacked ABOVE the avatar inside the tile's
+       flex column (Richard 2026-05-03 — keycap-then-face reads better as
+       "press this key, get this agent"). Inset shadows + dual gradient give
+       a real-keycap depth feel; monospace character. */
     .fkey-badge {
       font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
       font-size: 8.5px;
@@ -361,7 +361,7 @@
         0 1px 2px rgba(0, 0, 0, 0.5);
       pointer-events: none;
       user-select: none;
-      margin-top: 1px;
+      margin-bottom: 2px;
       transition:
         color 0.18s var(--ease),
         transform 0.18s var(--ease),
@@ -2605,6 +2605,20 @@
         tile.className = 'agent-tile';
         tile.dataset.agentId = id;
         tile.draggable = true;
+
+        // F-key keycap badge sits ABOVE the avatar (Richard 2026-05-03) — reads
+        // as "press this key, get this agent" before your eye reaches the face.
+        // Tap = toggle select for that tile (same as click); hold > 250ms =
+        // voice-record targeting that agent. Only the first 5 dock slots get
+        // a badge; F6+ no-op. tagFkeyBadges() populates the label live so
+        // drag-reorder updates assignments.
+        const fkey = document.createElement('div');
+        fkey.className = 'fkey-badge';
+        fkey.id = `fkey-${id}`;
+        fkey.textContent = '';     // populated by tagFkeyBadges()
+        fkey.title = `Tap F-key to select · hold to dictate`;
+        tile.appendChild(fkey);
+
         tile.appendChild(btn);
 
         const nameLabel = document.createElement('div');
@@ -2612,19 +2626,6 @@
         nameLabel.id = `label-${id}`;
         nameLabel.textContent = labelTextFor(a);
         tile.appendChild(nameLabel);
-
-        // F-key keycap badge — small mechanical-keycap affordance below the
-        // label showing F1..F5 by dock position. Tap = toggle select for that
-        // tile (same as click); hold > 250ms = voice-record targeting that
-        // agent. Only the first 5 dock slots get a badge; F6+ no-op. The
-        // index is set after the dock is populated by tagFkeyBadges() so
-        // drag-reorder updates the assignment live.
-        const fkey = document.createElement('div');
-        fkey.className = 'fkey-badge';
-        fkey.id = `fkey-${id}`;
-        fkey.textContent = '';     // populated by tagFkeyBadges()
-        fkey.title = `Tap F-key to select · hold to dictate`;
-        tile.appendChild(fkey);
 
         // Drag-and-reorder wiring (v2.5). HTML5 DnD on the tile itself.
         // Source-side: dim the tile + suppress the default drag-image (which
