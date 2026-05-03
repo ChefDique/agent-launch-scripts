@@ -48,6 +48,31 @@ Already shipped recent: registry-driven launcher, Edit-mode-gated destructive op
 - **Ctrl+Shift+Space requires Input Monitoring permission** for the Electron binary at `remote-app/node_modules/electron/dist/Electron.app`. macOS 26 Tahoe routes synthesized osascript events differently from real keypresses; the shortcut silently no-ops without the grant. Fallbacks ship: `bash launch-remote.sh toggle`, `kill -SIGUSR1 <pid>`, `touch remote-app/.toggle`.
 - **`remoteControlAtStartup: true`** in `~/.claude/settings.json` — Remote Control bridge auto-starts every session. `isolatePeerMachines` and `autoUploadSessions` deliberately left off.
 
+## Session-end housekeeping (run before `/done` or exit)
+
+Required every session before exit. `/chores` and `/done` should pick this up automatically; if running them manually, do these three checks:
+
+1. **Single-instance check on AgentRemote.** Duplicate Electron processes accumulate when `launch-remote.sh` is called twice in a session — visible as two floating panels.
+   ```bash
+   pgrep -fl "Electron\.app/Contents/MacOS/Electron \." | grep remote-app
+   ```
+   Should print one PID, or none if AgentRemote isn't running. If more than one, `bash launch-remote.sh stop` to kill all, then `bash launch-remote.sh` to restart cleanly.
+
+2. **Clear AgentRemote Chromium caches.** They balloon over time and aren't user state. The `Local Storage/` dir holds prefs (`agentRemoteLayoutMode`, etc.) — leave it.
+   ```bash
+   rm -rf "$HOME/Library/Application Support/AgentRemote/Cache" \
+          "$HOME/Library/Application Support/AgentRemote/Code Cache" \
+          "$HOME/Library/Application Support/AgentRemote/GPUCache"
+   ```
+
+3. **Branches + worktrees.** Per `~/.claude/rules/git-workflow.md`, no lingering branches or worktrees after merge. End-of-session belt-and-suspenders:
+   ```bash
+   git branch --merged main | grep -vE '^\*|^  main$' | xargs -r git branch -d
+   git worktree list
+   git worktree prune
+   ```
+   If `git branch -d` fails on something, investigate before forcing — may be unmerged work.
+
 ## What this repo is
 
 System-level launchers and a floating Electron controller for AdairLabs Claude Code agent sessions. Consolidated 2026-04-18 from scattered project repos. Agents live elsewhere (`~/ai_projects/CorporateHQ`, `~/ai_projects/research-and-development`, `~/ai_projects/trading`, `~/ai_projects/swarmy`, `~/ai_projects/agent-factory`); this repo only owns how they are spawned, supervised, and controlled.
