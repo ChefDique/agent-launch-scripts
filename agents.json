@@ -3,7 +3,7 @@
   "_field_docs": {
     "id": "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
     "display_name": "Value passed to claude's -n <Name> flag. Load-bearing — used by ps-grep detection and pane targeting.",
-    "tmux_target": "Pane title used for broadcast targeting. Defaults to lowercased display_name; only set explicitly when claude's /rename mutates it (e.g. swarmy renames to overlordswarmy).",
+    "tmux_target": "Pane title used for broadcast + status targeting. Defaults to lowercased rename_to when present, otherwise lowercased display_name. Only set explicitly to override that derivation.",
     "cwd": "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
     "color": "Argument to claude's /color slash command. Set during the auto-inject sequence.",
     "rename_to": "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
@@ -44,7 +44,6 @@
     {
       "id": "swarmy",
       "display_name": "overlordswarmy",
-      "tmux_target": "overlordswarmy",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
       "rename_to": "OVERLORD-SWARMY",
@@ -54,7 +53,6 @@
     {
       "id": "claude",
       "display_name": "Claude",
-      "tmux_target": "claude",
       "cwd": "~/agent-launch-scripts",
       "color": "orange",
       "rename_to": "TMUX-MASTA",

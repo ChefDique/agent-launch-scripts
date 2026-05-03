@@ -56,11 +56,13 @@ function loadAgents() {
     return data.agents.map(a => ({
       id: a.id,
       displayName: a.display_name,
-      // tmux pane title after claude's /rename runs. launch-agent.sh defaults
-      // /rename to display_name uppercased, but the pane title is then
-      // whatever was passed to /rename — which equals tmux_target if set,
-      // otherwise lowercased display_name. Match that here.
-      tmuxTarget: a.tmux_target || a.display_name.toLowerCase(),
+      // tmux pane title after claude's /rename runs. launch-agent.sh sends
+      // `/rename $RENAME_TO` where RENAME_TO is rename_to from the registry
+      // (or display_name uppercased as the fallback). The pane title becomes
+      // that string verbatim, so the substring needle is its lowercased form.
+      // Explicit tmux_target wins if a registry entry needs to override.
+      tmuxTarget: a.tmux_target
+        || (a.rename_to ? a.rename_to.toLowerCase() : a.display_name.toLowerCase()),
       cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
       color: a.color || null,
       // Auto-restart defaults to true when the field is omitted (matches the
