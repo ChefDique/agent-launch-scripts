@@ -202,8 +202,12 @@ cmd_start() {
   #   panes            — every agent as a horizontal split-pane in window
   #                      "chq". Original behavior. Cramped at 5+ agents but
   #                      keeps everything in a single iTerm tab.
+  #   tiled            — every agent as a pane in window "chq", but after all
+  #                      panes are spawned `tmux select-layout tiled` runs to
+  #                      auto-balance into a grid. Works well at 4+ agents.
+  #                      Added 2026-05-03 for the deploy-preview overlay.
   local layout="${CHQ_LAYOUT:-ittab}"
-  case "$layout" in panes|windows|ittab) ;; *) die "invalid CHQ_LAYOUT: $layout (panes|windows|ittab)";; esac
+  case "$layout" in panes|windows|ittab|tiled) ;; *) die "invalid CHQ_LAYOUT: $layout (panes|windows|ittab|tiled)";; esac
 
   echo "Starting CHQ tmux session (layout=${layout})..."
 
@@ -223,7 +227,9 @@ cmd_start() {
     for entry in "${selected_entries[@]:1}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
       case "$layout" in
-        panes)
+        panes|tiled)
+          # Both layouts spawn as horizontal splits inside chq:0; tiled gets
+          # an extra `select-layout tiled` after all panes exist (below).
           tmux split-window -h -t "${SESSION}:chq" -c "$cwd"
           pane_idx=$((pane_idx + 1))
           tmux select-pane -t "${SESSION}:chq.${pane_idx}" -T "$wname"
@@ -247,7 +253,14 @@ cmd_start() {
 
   tmux set -t "$SESSION" pane-border-status top
   tmux set -t "$SESSION" pane-border-format " #T "
-  tmux select-layout -t "${SESSION}:chq" even-horizontal
+  # Apply the chosen pane layout. `tiled` auto-balances into a grid; `panes`
+  # keeps the historical even-horizontal split. `windows`/`ittab` only have
+  # one pane in chq:0, so even-horizontal is a no-op for them but harmless.
+  if [[ "$layout" == "tiled" ]]; then
+    tmux select-layout -t "${SESSION}:chq" tiled
+  else
+    tmux select-layout -t "${SESSION}:chq" even-horizontal
+  fi
   tmux select-pane -t "${SESSION}:chq.0"
 
   # Navigation: mouse + Alt-number + Alt-arrow, no prefix chord required.
@@ -354,7 +367,7 @@ cmd_add() {
   local layout
   layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
   [[ -z "$layout" ]] && layout="${CHQ_LAYOUT:-ittab}"
-  case "$layout" in panes|windows|ittab) ;; *) layout="ittab";; esac
+  case "$layout" in panes|windows|ittab|tiled) ;; *) layout="ittab";; esac
 
   # Existing-titles check — substring match across ALL panes in the session
   # (not just chq:0) so an agent already in a detached window isn't re-spawned.
@@ -370,10 +383,11 @@ cmd_add() {
     fi
     local new_pane_id
     case "$layout" in
-      panes)
+      panes|tiled)
         # split-window -P -F '#{pane_id}' prints the new pane's stable id (e.g.
         # "%47") to stdout. Stable id is safer than pane_index because indexes
-        # renumber on every split.
+        # renumber on every split. Both `panes` and `tiled` go via split-window;
+        # `tiled` gets an additional `select-layout tiled` re-balance below.
         new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
         ;;
       windows|ittab)
@@ -391,7 +405,15 @@ cmd_add() {
   done
 
   if [[ $added -gt 0 ]]; then
-    tmux select-layout -t "${SESSION}:0" even-horizontal
+    # Re-balance based on the session's chosen layout. `tiled` auto-grids;
+    # everything else falls back to even-horizontal. windows/ittab only added
+    # whole windows (no panes inside chq:0), so the call is a harmless no-op
+    # for them.
+    if [[ "$layout" == "tiled" ]]; then
+      tmux select-layout -t "${SESSION}:0" tiled
+    else
+      tmux select-layout -t "${SESSION}:0" even-horizontal
+    fi
   fi
   echo "Added ${added} pane(s) to existing CHQ session."
 }

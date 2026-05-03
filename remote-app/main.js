@@ -554,7 +554,9 @@ ipcMain.on('spawn-agents', (event, payload) => {
   if (safeAgents.length === 0) return;
 
   // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
-  const layout = ['panes', 'windows', 'ittab'].includes(layoutRaw) ? layoutRaw : 'panes';
+  // 'tiled' added 2026-05-03 for the deploy-preview overlay (auto-balanced grid
+  // via tmux select-layout tiled after spawn).
+  const layout = ['panes', 'windows', 'ittab', 'tiled'].includes(layoutRaw) ? layoutRaw : 'panes';
 
   execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout } }, (err, stdout, stderr) => {
     if (err) {
