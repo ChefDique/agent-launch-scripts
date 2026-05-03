@@ -1290,16 +1290,22 @@
     }
 
     /* ---------------------------------------------------------------------
-       Team-chat overlay — Cmd+T toggle, native chat surface that reads/writes
-       ~/.message-agent/channels/team/messages.jsonl directly. Same glass
-       aesthetic as the radial-settings popover (commit 625a909 is the design
-       exemplar).
+       Team-chat overlay (v0.2 redesign — chat-as-primary-surface)
        ---------------------------------------------------------------------
-       Sizing: fills the window minus a 12px glass margin, centered. Sits
-       ABOVE the panel (z-index 1500) so it covers the panel without
-       disturbing its layout. Hidden by default via display:none;
-       toggleChatOverlay() in JS swaps display + .visible class for the
-       fade-in.
+       Cmd+T toggle, native chat surface that reads/writes
+       ~/.message-agent/channels/team/messages.jsonl directly. Glass
+       aesthetic mirrors the radial-settings popover (commit 625a909).
+
+       v0.2 strips the developer-tool / debug-console feel of v0.1: no
+       "channel: team · offset 1692 · last poll" footer, no uppercase
+       caption rows, no mono message bodies. Reference quality bar is
+       Discord (information density) × Linear (typographic restraint) ×
+       iMessage (right-aligned-self conversational rhythm).
+
+       Layout (top-to-bottom):
+         .chat-topbar       ~44px — channel id left, presence dots right
+         .chat-log          fills — message groups, day separators
+         .chat-composer     ~80px → grows to ~200px
 
        This is INTRA-AGENT COORD CHAT — agents talking to each other in
        plaintext over the message-agent shared-channels JSONL substrate.
@@ -1315,17 +1321,23 @@
       overflow: hidden;
       -webkit-app-region: no-drag;
 
-      /* Same glass values as .radial-settings (which itself is the agreed
-         design exemplar). Slightly heavier shadow because this overlay
-         floats over the panel, not anchored to an orb. */
-      background: rgba(8, 8, 14, 0.82);
-      backdrop-filter: blur(30px) saturate(140%);
-      -webkit-backdrop-filter: blur(30px) saturate(140%);
+      /* Glass — same family as .radial-settings, very slightly more opaque
+         because the chat surface needs sustained legibility (you're reading
+         it for minutes, not glancing for seconds). */
+      background: rgba(10, 10, 16, 0.86);
+      backdrop-filter: blur(34px) saturate(150%);
+      -webkit-backdrop-filter: blur(34px) saturate(150%);
       border: 1px solid var(--border-medium);
       border-radius: 14px;
       box-shadow:
         0 28px 64px rgba(0, 0, 0, 0.6),
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+      /* Inter for everything in the chat surface — humanist sans reads as
+         conversation, mono reads as console. We override the body's mono
+         default at the overlay root so all descendants inherit unless they
+         explicitly opt back into mono. */
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
 
       opacity: 0;
       pointer-events: none;
@@ -1341,215 +1353,525 @@
       pointer-events: auto;
     }
 
-    /* Header strip with a small title + close affordance. The drag region is
-       intentionally OFF here — the whole overlay is no-drag — so click-drag
-       inside the chat area selects text rather than dragging the window. */
-    .chat-overlay .chat-header {
+    /* ── Top bar ───────────────────────────────────────────────────────────
+       Compact identity strip. Channel name on the left (with a # glyph at
+       accent color — quiet identity nod), presence cluster on the right
+       showing each known agent's running/attached state from the existing
+       pane-status poller. Single connection dot in the far right corner,
+       color-coded for chat-pipeline health. */
+    .chat-overlay .chat-topbar {
       flex: 0 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 8px 12px;
+      gap: 12px;
+      height: 44px;
+      padding: 0 14px;
       border-bottom: 1px solid var(--border-soft);
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 10px;
-      letter-spacing: 0.7px;
-      text-transform: uppercase;
-      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.012);
     }
-    .chat-overlay .chat-header .title {
+    .chat-overlay .chat-topbar .channel-name {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      align-items: baseline;
+      gap: 7px;
+      min-width: 0;
     }
-    .chat-overlay .chat-header .title .glyph {
+    .chat-overlay .chat-topbar .channel-name .glyph {
       color: var(--accent);
-      font-size: 12px;
-      letter-spacing: 0;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 1;
+      transform: translateY(1px);
     }
-    .chat-overlay .chat-header .hint {
-      font-size: 9.5px;
-      color: rgba(255, 255, 255, 0.32);
+    .chat-overlay .chat-topbar .channel-name .name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.1px;
     }
-
-    /* Subtitle row: "TEAM CHANNEL · RICHARD + AGENTS" left, channel info right.
-       Sits between header and message log. Same uppercase 10px treatment as the
-       header for visual continuity. */
-    .chat-overlay .chat-subtitle {
-      flex: 0 0 auto;
+    .chat-overlay .chat-topbar .channel-name .sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    .chat-overlay .chat-topbar .presence {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 6px 14px 8px;
-      border-bottom: 1px solid var(--border-soft);
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 9.5px;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-      color: var(--text-muted);
+      gap: 8px;
+      flex: 0 0 auto;
     }
-    .chat-overlay .chat-subtitle .channel-info {
-      color: rgba(255, 255, 255, 0.36);
+    .chat-overlay .chat-topbar .presence .pip {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.85);
+      transition: opacity 0.25s var(--ease), filter 0.25s var(--ease);
+      cursor: default;
+    }
+    .chat-overlay .chat-topbar .presence .pip:not(.live) {
+      opacity: 0.32;
+      filter: grayscale(0.6);
+    }
+    .chat-overlay .chat-topbar .presence .pip object,
+    .chat-overlay .chat-topbar .presence .pip img {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    /* Tiny corner dot on each pip indicating live status. Radius is fractional
+       of the pip; sits at bottom-right outside the avatar circle so it never
+       overlaps a face. */
+    .chat-overlay .chat-topbar .presence .pip::after {
+      content: '';
+      position: absolute;
+      right: -1px;
+      bottom: -1px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1.5px solid rgba(10, 10, 16, 1);
+      transition: background 0.2s var(--ease);
+    }
+    .chat-overlay .chat-topbar .presence .pip.live::after {
+      background: var(--status-on);
+    }
+    .chat-overlay .chat-topbar .presence .pip.detached::after {
+      background: var(--status-detached);
+    }
+    .chat-overlay .chat-topbar .members {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      padding-left: 4px;
+      border-left: 1px solid var(--border-soft);
+      margin-left: 2px;
+    }
+    .chat-overlay .chat-topbar .conn-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-on);
+      box-shadow: 0 0 6px rgba(52, 208, 88, 0.55);
+      flex: 0 0 auto;
+      transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .chat-overlay .chat-topbar .conn-dot.stale {
+      background: var(--status-detached);
+      box-shadow: 0 0 6px var(--status-detached-glow);
+    }
+    .chat-overlay .chat-topbar .conn-dot.error {
+      background: #ff6685;
+      box-shadow: 0 0 6px rgba(255, 102, 133, 0.6);
     }
 
-    /* Message log — scrollable column. Auto-scrolls to bottom on new messages
-       only when the user was already near the bottom (preserves scroll if they
-       scrolled up to read history). */
+    /* ── Message log ───────────────────────────────────────────────────────
+       Scrollable column. Generous padding. Day separators sit at top of
+       each day's first group; subsequent groups indent under the avatar
+       column so labels and faces line up. */
     .chat-overlay .chat-log {
       flex: 1 1 auto;
       overflow-y: auto;
-      scrollbar-gutter: stable both-edges;
-      padding: 12px 16px 8px;
+      scrollbar-gutter: stable;
+      padding: 14px 18px 6px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      background: rgba(0, 0, 0, 0.18);
+      gap: 4px;
+      background: transparent;
     }
     .chat-overlay .chat-log::-webkit-scrollbar { width: 8px; height: 8px; }
     .chat-overlay .chat-log::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.10);
       border-radius: 4px;
     }
     .chat-overlay .chat-log::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.24);
+      background: rgba(255, 255, 255, 0.20);
     }
     .chat-overlay .chat-log::-webkit-scrollbar-track { background: transparent; }
 
-    /* Each message is a column: from-label + bubble + timestamp. richard's
-       messages right-aligned; everyone else left-aligned. */
-    .chat-overlay .chat-msg {
+    /* Day separator: thin centered rule with a label in the middle. Sits
+       above its day's first message group, breathing 8px above and below. */
+    .chat-overlay .chat-day-sep {
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 14px 0 6px;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+    .chat-overlay .chat-day-sep::before,
+    .chat-overlay .chat-day-sep::after {
+      content: '';
+      flex: 1 1 auto;
+      height: 1px;
+      background: var(--border-soft);
+    }
+    .chat-overlay .chat-log > .chat-day-sep:first-child { margin-top: 0; }
+
+    /* Group: a contiguous run of messages from the same `from`. Holds an
+       avatar column on the left and a stack of bubbles on the right. The
+       avatar is rendered only on the first group; subsequent groups in
+       the same day from the same sender keep visual grouping but a new
+       group still gets its own avatar instance — keeps the rhythm. */
+    .chat-overlay .chat-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 6px 0 2px;
+    }
+    .chat-overlay .chat-group.from-self {
+      flex-direction: row-reverse;
+    }
+    .chat-overlay .chat-group .avatar-col {
+      flex: 0 0 28px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0;
+      margin-top: 2px;
+      user-select: none;
+    }
+    .chat-overlay .chat-group .avatar-col object,
+    .chat-overlay .chat-group .avatar-col img {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    /* Self-bubbles don't render an avatar — right-alignment + amber fill is
+       enough signal. We still keep an empty 0-width spacer so the bubble
+       column hits the same right edge as the gap math expects. */
+    .chat-overlay .chat-group.from-self .avatar-col {
+      display: none;
+    }
+    .chat-overlay .chat-group .stack {
+      flex: 1 1 auto;
+      min-width: 0;
       display: flex;
       flex-direction: column;
-      max-width: 78%;
-      gap: 2px;
+      gap: 3px;
+      max-width: calc(100% - 38px);
     }
-    .chat-overlay .chat-msg.from-richard {
-      align-self: flex-end;
+    .chat-overlay .chat-group.from-self .stack {
       align-items: flex-end;
     }
-    .chat-overlay .chat-msg:not(.from-richard) {
-      align-self: flex-start;
-      align-items: flex-start;
+
+    /* Sender label on first message of a group. Per-agent color, small caps,
+       weight 600. No timestamp here — timestamp is rendered alongside the
+       last bubble of the group (group-end), keeping per-message timestamps
+       off-screen unless hovered. */
+    .chat-overlay .chat-group .sender-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 0 2px 1px;
     }
-    .chat-overlay .chat-msg .from-label {
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 9.5px;
-      letter-spacing: 0.5px;
+    .chat-overlay .chat-group .sender-row .name {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
-      font-weight: 600;
-      padding: 0 4px;
     }
-    .chat-overlay .chat-msg .bubble {
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-      font-size: 12px;
+    .chat-overlay .chat-group .sender-row .head-time {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.34);
+      font-weight: 500;
+    }
+
+    /* Bubbles. Body is Inter (humanist sans) — chat reads better in sans
+       than mono. Mono only for visibly-code substrings later (skipped v0.2). */
+    .chat-overlay .chat-bubble {
+      max-width: 100%;
+      padding: 7px 11px;
+      border-radius: 13px;
+      font-size: 13px;
       line-height: 1.5;
-      padding: 8px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border-soft);
-      background: rgba(255, 255, 255, 0.04);
       color: var(--text-primary);
       white-space: pre-wrap;
       word-wrap: break-word;
       overflow-wrap: anywhere;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-soft);
+      transition:
+        border-color 0.18s var(--ease),
+        box-shadow 0.18s var(--ease),
+        background 0.18s var(--ease);
     }
-    .chat-overlay .chat-msg.from-richard .bubble {
-      background: rgba(232, 160, 32, 0.14);
-      border-color: rgba(232, 160, 32, 0.40);
-      color: #fff7e6;
+    /* Other agents: tighter inner radius on the avatar-side (top-left) so
+       consecutive bubbles in a group nest into each other naturally. */
+    .chat-overlay .chat-group:not(.from-self) .chat-bubble {
+      border-top-left-radius: 6px;
     }
-    .chat-overlay .chat-msg .timestamp {
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-      font-size: 9px;
-      color: rgba(255, 255, 255, 0.28);
-      padding: 0 4px;
+    .chat-overlay .chat-group:not(.from-self) .chat-bubble.first-of-group {
+      border-top-left-radius: 13px;
+    }
+    .chat-overlay .chat-group:not(.from-self) .chat-bubble.last-of-group {
+      border-bottom-left-radius: 13px;
+    }
+    /* Self: amber fill, ivory text, mirror the radius treatment on the
+       opposite (right) side. */
+    .chat-overlay .chat-group.from-self .chat-bubble {
+      background: var(--accent);
+      border-color: rgba(255, 220, 200, 0.35);
+      color: #fff7f0;
+      border-top-right-radius: 6px;
+    }
+    .chat-overlay .chat-group.from-self .chat-bubble.first-of-group {
+      border-top-right-radius: 13px;
+    }
+    .chat-overlay .chat-group.from-self .chat-bubble.last-of-group {
+      border-bottom-right-radius: 13px;
+    }
+
+    /* Hover-revealed timestamp on individual bubbles. Floats absolutely
+       beside the bubble so it doesn't push layout. */
+    .chat-overlay .chat-bubble {
+      position: relative;
+    }
+    .chat-overlay .chat-bubble .stamp {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 9.5px;
+      color: rgba(255, 255, 255, 0.38);
       letter-spacing: 0.3px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s var(--ease);
+      white-space: nowrap;
     }
+    .chat-overlay .chat-group:not(.from-self) .chat-bubble .stamp {
+      left: calc(100% + 8px);
+    }
+    .chat-overlay .chat-group.from-self .chat-bubble .stamp {
+      right: calc(100% + 8px);
+    }
+    .chat-overlay .chat-bubble:hover .stamp { opacity: 1; }
+
+    /* In-flight pulse for optimistic self-sends. Fades when the round-trip
+       lands (correlation_id seen in tail-read), or on retry after a failure. */
+    @keyframes chatBubblePulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 200, 160, 0.55); }
+      70%  { box-shadow: 0 0 0 6px rgba(255, 200, 160, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 200, 160, 0); }
+    }
+    .chat-overlay .chat-bubble.sending {
+      animation: chatBubblePulse 1.4s var(--ease) infinite;
+    }
+    .chat-overlay .chat-bubble.failed {
+      border-color: rgba(255, 102, 133, 0.55);
+      background: rgba(255, 102, 133, 0.08);
+      cursor: pointer;
+    }
+    .chat-overlay .chat-bubble.failed::before {
+      content: 'failed · click to retry';
+      display: block;
+      font-size: 9.5px;
+      color: #ff8aa6;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      margin-bottom: 3px;
+    }
+
+    /* Entrance: applied to bubbles inserted AFTER initial history load, never
+       to the seed render. Renderer sets/removes the class so deltas animate
+       and bulk loads don't strobe. */
+    @keyframes chatBubbleEnter {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .chat-overlay .chat-bubble.entering,
+    .chat-overlay .chat-group.entering > .stack > .sender-row,
+    .chat-overlay .chat-group.entering > .avatar-col {
+      animation: chatBubbleEnter 0.18s var(--ease) both;
+    }
+
+    /* ── Empty state ───────────────────────────────────────────────────────
+       Centered glyph in a soft circle + two-line copy. Calm, not jokey. */
     .chat-overlay .chat-empty {
       align-self: center;
       margin: auto 0;
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
       color: var(--text-muted);
-      letter-spacing: 0.4px;
+      text-align: center;
+      padding: 20px;
+    }
+    .chat-overlay .chat-empty .glyph-circle {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 22px;
+      font-weight: 300;
+    }
+    .chat-overlay .chat-empty .empty-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.1px;
+    }
+    .chat-overlay .chat-empty .empty-sub {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: -8px;
     }
 
-    /* Composer: textarea + SEND button. Auto-grows up to ~5 rows then scrolls
-       internally so the bubble bar can't push the log off-screen. */
+    /* ── Composer ──────────────────────────────────────────────────────────
+       Anchored bottom. Rounded textarea with subtle border; send button at
+       right. Hint line under the textarea, only visible while focused. */
     .chat-overlay .chat-composer {
       flex: 0 0 auto;
       display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 16px 14px;
+      border-top: 1px solid var(--border-soft);
+      background: rgba(255, 255, 255, 0.012);
+    }
+    .chat-overlay .chat-composer .input-row {
+      display: flex;
       align-items: flex-end;
       gap: 10px;
-      padding: 10px 14px;
-      border-top: 1px solid var(--border-soft);
-      background: rgba(8, 8, 14, 0.55);
     }
     .chat-overlay .chat-composer textarea {
       flex: 1 1 auto;
-      min-height: 36px;
-      max-height: 120px;
+      min-height: 38px;
+      max-height: 168px;       /* ≈ 8 lines at 21px line-height */
       resize: none;
-      background: var(--bg-input);
+      background: rgba(255, 255, 255, 0.045);
       border: 1px solid var(--border-soft);
-      border-radius: 10px;
-      padding: 8px 12px;
+      border-radius: 12px;
+      padding: 9px 14px;
       color: var(--text-primary);
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-      font-size: 12px;
-      line-height: 1.45;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
       outline: none;
-      transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+      transition:
+        border-color 0.2s var(--ease),
+        background 0.2s var(--ease),
+        box-shadow 0.2s var(--ease),
+        height 0.12s var(--ease);
     }
     .chat-overlay .chat-composer textarea::placeholder { color: var(--text-muted); }
     .chat-overlay .chat-composer textarea:focus {
-      border-color: var(--accent);
+      border-color: rgba(255, 255, 255, 0.20);
       background: rgba(255, 255, 255, 0.06);
+      box-shadow: 0 0 0 3px rgba(224, 124, 76, 0.08);
     }
     .chat-overlay .chat-composer .send-btn {
       flex: 0 0 auto;
-      padding: 0 18px;
-      height: 36px;
-      border-radius: 10px;
-      border: 1px solid var(--accent);
-      background: var(--accent);
-      color: #1a1106;
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 11px;
-      letter-spacing: 0.8px;
-      text-transform: uppercase;
-      font-weight: 600;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
-      transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+      transition:
+        background 0.2s var(--ease),
+        color 0.2s var(--ease),
+        transform 0.18s var(--ease),
+        opacity 0.2s var(--ease),
+        box-shadow 0.2s var(--ease);
     }
     .chat-overlay .chat-composer .send-btn:hover:not(:disabled) {
-      background: #ec8957;
-      box-shadow: 0 0 22px var(--accent-glow);
+      background: var(--accent);
+      color: #1a1106;
+      box-shadow: 0 0 18px var(--accent-glow);
+    }
+    .chat-overlay .chat-composer .send-btn:active:not(:disabled) {
+      transform: scale(0.94);
+    }
+    .chat-overlay .chat-composer .send-btn.armed {
+      background: var(--accent);
+      color: #1a1106;
     }
     .chat-overlay .chat-composer .send-btn:disabled {
       opacity: 0.35;
       cursor: not-allowed;
     }
+    /* SVG arrow inside the send button — points up-right, calligraphic feel.
+       stroke-current picks up button color so it flips with .armed state. */
+    .chat-overlay .chat-composer .send-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .chat-overlay .chat-composer .hint {
+      font-size: 10.5px;
+      color: rgba(255, 255, 255, 0.30);
+      padding: 0 4px;
+      letter-spacing: 0.2px;
+      height: 14px;            /* reserve space — prevents layout jump */
+      opacity: 0;
+      transition: opacity 0.18s var(--ease);
+    }
+    .chat-overlay .chat-composer.focused .hint {
+      opacity: 1;
+    }
+    .chat-overlay .chat-composer .hint kbd {
+      display: inline-block;
+      padding: 0 4px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-soft);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.55);
+      margin: 0 2px;
+    }
+
+    /* Inline error ribbon, slim — sits between log and composer. */
     .chat-overlay .chat-error {
       flex: 0 0 auto;
-      padding: 4px 14px 6px;
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 10.5px;
+      padding: 6px 16px;
+      font-size: 11.5px;
       color: #ff8aa6;
+      background: rgba(255, 102, 133, 0.06);
+      border-top: 1px solid rgba(255, 102, 133, 0.14);
       display: none;
     }
     .chat-overlay .chat-error.visible { display: block; }
-
-    /* Footer: status info — channel name + message count + last poll time. */
-    .chat-overlay .chat-footer {
-      flex: 0 0 auto;
-      padding: 4px 14px 6px;
-      border-top: 1px solid var(--border-soft);
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 9.5px;
-      letter-spacing: 0.4px;
-      color: rgba(255, 255, 255, 0.32);
-      text-transform: uppercase;
-    }
   </style>
 </head>
 <body>
@@ -1653,23 +1975,44 @@
        writes ~/.message-agent/channels/team/messages.jsonl directly via IPC.
        No webview, no HTTP server — direct file substrate per Swarmy's Path 1
        spec. Hidden by default; togglable via Cmd+T (Esc / outside click also
-       close). Live tail via fs.watch + 2s poll fallback. -->
+       close). Live tail via fs.watch + 2s poll fallback.
+
+       v0.2 redesign: chat-as-primary-surface. Top bar with channel id +
+       presence cluster + connection dot; message log with grouped messages
+       and day separators; composer with autogrow textarea, circular send
+       button, focus-only keyboard hint. -->
   <div class="chat-overlay" id="chat-overlay" aria-hidden="true">
-    <div class="chat-header">
-      <div class="title"><span class="glyph">#</span><span>team-chat</span></div>
-      <div class="hint">Cmd+T / Esc to close</div>
+    <div class="chat-topbar">
+      <div class="channel-name">
+        <span class="glyph">#</span>
+        <span class="name">team</span>
+        <span class="sub">richard + agents</span>
+      </div>
+      <div class="presence" id="chat-presence" aria-label="Agent presence">
+        <!-- Pips and member count populated by renderChatPresence() -->
+      </div>
     </div>
-    <div class="chat-subtitle">
-      <span>Team channel · Richard + Agents</span>
-      <span class="channel-info">channel: team</span>
-    </div>
-    <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+
+    <div class="chat-log" id="chat-log" role="log" aria-live="polite" aria-relevant="additions"></div>
+
     <div class="chat-error" id="chat-error" role="alert"></div>
-    <div class="chat-composer">
-      <textarea id="chat-textarea" placeholder="Message the team — Enter to send, Shift+Enter for newline" rows="1" autocomplete="off"></textarea>
-      <button class="send-btn" id="chat-send-btn" disabled>Send</button>
+
+    <div class="chat-composer" id="chat-composer">
+      <div class="input-row">
+        <textarea
+          id="chat-textarea"
+          placeholder="message the team"
+          rows="1"
+          autocomplete="off"
+          aria-label="Message the team"></textarea>
+        <button class="send-btn" id="chat-send-btn" disabled aria-label="Send message" title="Send (Enter)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12 L19 12 M13 6 L19 12 L13 18" />
+          </svg>
+        </button>
+      </div>
+      <div class="hint" aria-hidden="true"><kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline</div>
     </div>
-    <div class="chat-footer" id="chat-footer">channel: team · 0 messages · last poll —</div>
   </div>
 
   <!-- Right-click radial menu — gooey/liquid-mercury fan-out (Bebber).
@@ -3474,6 +3817,13 @@
       // (or newly-started) agents have their orbs flipped to the right
       // disabled/enabled state without the user re-opening the menu.
       refreshOpenRadialDisabledState();
+      // Refresh chat-overlay presence cluster on the same cadence — cheap (no
+      // extra tmux calls; reads agents[].running/.attached we just updated).
+      try {
+        if (typeof renderChatPresence === 'function' && typeof isChatOverlayOpen === 'function' && isChatOverlayOpen()) {
+          renderChatPresence();
+        }
+      } catch { /* no-op: chat module may not be initialized yet */ }
     }
 
     function startStatusPolling() {
@@ -3562,132 +3912,131 @@
     const CHAT_OVERLAY_MIN_W = 620;
     const CHAT_OVERLAY_MIN_H = 540;
 
-    // Per-author display colors. Inline mapping — kept here (not in CSS
-    // variables) per dispatch hard-constraint so the renderer can pick by
-    // `from` without minting new vars. Matches Swarmy's chat.html palette so
-    // the visual identity stays consistent across surfaces.
+    // Per-author display colors. Inline mapping per dispatch hard-constraint.
+    // Keys cover the bare agent names AND the claude-* / overlordswarmy
+    // variants seen in the JSONL substrate. Lookups go through chatColorFor()
+    // which normalizes and falls back to muted gray.
     const CHAT_FROM_COLORS = {
-      richard:        '#e8a020',
-      lucius:         '#7fc7ff',
-      xavier:         '#c79bff',
-      gekko:          '#ff9b6a',
-      overlordswarmy: '#5cd28a',
-      swarmy:         '#5cd28a'
+      richard:          '#e07c4c',   // matches --accent (amber)
+      lucius:           '#7fc7ff',
+      'claude-lucius':  '#7fc7ff',
+      xavier:           '#c79bff',
+      'claude-xavier':  '#c79bff',
+      gekko:            '#ff9b6a',
+      'claude-gekko':   '#ff9b6a',
+      overlordswarmy:   '#5cd28a',
+      swarmy:           '#5cd28a',
+      'claude-swarmy':  '#5cd28a'
     };
-    const CHAT_FROM_FALLBACK = '#a8b3c2';
+    const CHAT_FROM_FALLBACK = 'var(--text-muted)';
 
+    // Map a `from` envelope value → an agents.json id so we can look up the
+    // avatar SVG. JSONL `from` values include "richard", "lucius",
+    // "overlordswarmy", "claude-lucius", etc. agents.json ids are bare
+    // ("lucius", "swarmy"). Returns null for richard (no avatar — self
+    // bubbles right-align without one) or unknown senders.
+    function chatAgentIdForFrom(from) {
+      if (!from) return null;
+      const f = String(from).toLowerCase();
+      if (f === 'richard') return null;
+      // overlordswarmy / claude-swarmy → swarmy (matches the registry id used
+      // for asset lookup; main.js loadAgents preserves overlordswarmy as
+      // displayName but the asset filename is swarmy.svg).
+      if (f === 'overlordswarmy' || f === 'claude-swarmy' || f === 'swarmy') return 'swarmy';
+      // Strip "claude-" prefix for the standard fleet.
+      if (f.startsWith('claude-')) return f.slice(7);
+      return f;
+    }
+
+    function chatColorFor(from) {
+      const f = String(from || '').toLowerCase();
+      return CHAT_FROM_COLORS[f] || CHAT_FROM_FALLBACK;
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
-    let chatOverlayShownState = false;            // gates syncWindowSize so the
-                                                  // resize listener doesn't shrink
-                                                  // the window back over the overlay
-    let chatPreOpenSize = null;                   // {w,h} captured on open so close
-                                                  // can restore the pre-open size
-
-    // Tail state: byte offset into messages.jsonl that we've already consumed,
-    // total messages rendered (for the footer count), and the poll loop handle.
+    let chatOverlayShownState = false;            // gates syncWindowSize
+    let chatPreOpenSize = null;                   // {w,h} captured on open
     let chatTailOffset = 0;
-    let chatMsgCount = 0;
     let chatPollHandle = null;
-    let chatLastPollAt = null;                    // Date for footer "last poll" text
-    let chatHistoryLoaded = false;                // first-open flag for chat-tail-init
+    let chatHistoryLoaded = false;
+    let chatComposerInFlight = false;             // debounce: one send at a time
 
-    function chatOverlayEl() { return document.getElementById('chat-overlay'); }
-    function chatLogEl() { return document.getElementById('chat-log'); }
-    function chatTextareaEl() { return document.getElementById('chat-textarea'); }
-    function chatSendBtnEl() { return document.getElementById('chat-send-btn'); }
-    function chatErrorEl() { return document.getElementById('chat-error'); }
-    function chatFooterEl() { return document.getElementById('chat-footer'); }
+    // Renderer-side envelope tracking. We never re-render the entire log on
+    // a tail-read — we only append the deltas. Keys we track:
+    //   correlation_id → DOM node for the bubble (needed to resolve optimistic
+    //                    sends when the real envelope rolls back from fs.watch)
+    //   pendingSelf — the array of optimistic envelopes waiting for round-trip
+    //   lastGroupKey — last appended group's signature ("from|day"), so a new
+    //                  arrival can decide whether to extend that group or
+    //                  create a new one.
+    const chatBubbleByCorr = new Map();
+    const chatPendingSelf = new Map();            // correlation_id → {bubbleEl, retryEnvelope, timer}
+    let chatLastGroupKey = null;                  // "from|YYYY-MM-DD" of last rendered group
+    let chatLastDayKey = null;                    // "YYYY-MM-DD" of last day separator
+
+    function chatOverlayEl()   { return document.getElementById('chat-overlay'); }
+    function chatLogEl()       { return document.getElementById('chat-log'); }
+    function chatTextareaEl()  { return document.getElementById('chat-textarea'); }
+    function chatSendBtnEl()   { return document.getElementById('chat-send-btn'); }
+    function chatErrorEl()     { return document.getElementById('chat-error'); }
+    function chatComposerEl()  { return document.getElementById('chat-composer'); }
+    function chatPresenceEl()  { return document.getElementById('chat-presence'); }
 
     function isChatOverlayOpen() {
       return chatOverlayEl().classList.contains('shown');
     }
 
-    // Two-digit padder for HH:MM:SS in local time.
     function pad2(n) { return String(n).padStart(2, '0'); }
-    function formatLocalTimestamp(iso) {
+
+    // Local HH:MM (no seconds — chat doesn't need that resolution).
+    function formatLocalHM(iso) {
       try {
         const d = new Date(iso);
-        if (isNaN(d.getTime())) return iso;
-        return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-      } catch { return iso; }
+        if (isNaN(d.getTime())) return '';
+        return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+      } catch { return ''; }
     }
 
-    // Are we currently scrolled within 40px of the bottom? Used to decide
-    // whether to auto-scroll on new messages or preserve the user's history-
-    // reading position. Tolerance is small enough to feel like "stuck to
-    // bottom" while letting fractional-pixel rounding pass.
+    // YYYY-MM-DD in LOCAL tz — used for grouping. JSONL timestamps are UTC,
+    // but the user perceives "Today" as their wall-clock today.
+    function localDayKey(iso) {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      } catch { return ''; }
+    }
+
+    // Human-readable day label. "Today" / "Yesterday" / "Sat May 3"
+    function formatDayLabel(iso) {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+        const ydate = new Date(now);
+        ydate.setDate(ydate.getDate() - 1);
+        const yKey = `${ydate.getFullYear()}-${pad2(ydate.getMonth() + 1)}-${pad2(ydate.getDate())}`;
+        const dKey = localDayKey(iso);
+        if (dKey === todayKey) return 'Today';
+        if (dKey === yKey) return 'Yesterday';
+        // "Sat May 3" — short weekday + month + day-of-month.
+        return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      } catch { return ''; }
+    }
+
+    // Auto-scroll heuristic: are we within 60px of the bottom? Slightly more
+    // generous than the v0.1 40px threshold because the new layout has more
+    // breathing room and "stuck to bottom" should feel sticky.
     function chatIsNearBottom() {
       const log = chatLogEl();
       if (!log) return true;
-      return (log.scrollHeight - log.scrollTop - log.clientHeight) < 40;
+      return (log.scrollHeight - log.scrollTop - log.clientHeight) < 60;
     }
-
     function chatScrollToBottom() {
       const log = chatLogEl();
       if (log) log.scrollTop = log.scrollHeight;
-    }
-
-    function chatUpdateFooter() {
-      const footer = chatFooterEl();
-      if (!footer) return;
-      const last = chatLastPollAt
-        ? `${pad2(chatLastPollAt.getHours())}:${pad2(chatLastPollAt.getMinutes())}:${pad2(chatLastPollAt.getSeconds())}`
-        : '—';
-      footer.textContent = `channel: team · ${chatMsgCount} message${chatMsgCount === 1 ? '' : 's'} · last poll ${last}`;
-    }
-
-    // Render a single envelope as a chat-msg DOM node and append to the log.
-    // ALL message text goes through textContent — never innerHTML — so user/
-    // agent input can't inject HTML. Returns true on success, false if the
-    // envelope was malformed enough to skip cleanly.
-    function chatAppendMessage(env) {
-      const log = chatLogEl();
-      if (!log || !env || typeof env !== 'object') return false;
-
-      const from = String(env.from || '').toLowerCase();
-      const message = (env.message === undefined || env.message === null) ? '' : String(env.message);
-      const ts = env.timestamp ? String(env.timestamp) : '';
-
-      const wrap = document.createElement('div');
-      wrap.className = 'chat-msg' + (from === 'richard' ? ' from-richard' : '');
-
-      const fromLabel = document.createElement('div');
-      fromLabel.className = 'from-label';
-      fromLabel.textContent = from || '?';
-      fromLabel.style.color = CHAT_FROM_COLORS[from] || CHAT_FROM_FALLBACK;
-      wrap.appendChild(fromLabel);
-
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble';
-      bubble.textContent = message;
-      wrap.appendChild(bubble);
-
-      if (ts) {
-        const tsEl = document.createElement('div');
-        tsEl.className = 'timestamp';
-        tsEl.textContent = formatLocalTimestamp(ts);
-        wrap.appendChild(tsEl);
-      }
-
-      log.appendChild(wrap);
-      chatMsgCount += 1;
-      return true;
-    }
-
-    function chatClearEmptyState() {
-      const log = chatLogEl();
-      if (!log) return;
-      const empty = log.querySelector('.chat-empty');
-      if (empty) empty.remove();
-    }
-
-    function chatShowEmptyState() {
-      const log = chatLogEl();
-      if (!log || log.querySelector('.chat-empty')) return;
-      const empty = document.createElement('div');
-      empty.className = 'chat-empty';
-      empty.textContent = 'No messages yet — send the first one below.';
-      log.appendChild(empty);
     }
 
     function chatShowError(msg) {
@@ -3695,7 +4044,6 @@
       if (!el) return;
       el.textContent = msg;
       el.classList.add('visible');
-      // Auto-clear after 6s so a transient error doesn't stick forever.
       clearTimeout(el._clearTimer);
       el._clearTimer = setTimeout(() => {
         el.classList.remove('visible');
@@ -3703,8 +4051,218 @@
       }, 6000);
     }
 
-    // First-open: read all existing history. Subsequent opens reuse the cached
-    // tail offset and just pull anything appended since (cheap incremental).
+    // ── Empty state ───────────────────────────────────────────────────────
+    function chatClearEmptyState() {
+      const log = chatLogEl();
+      if (!log) return;
+      const empty = log.querySelector('.chat-empty');
+      if (empty) empty.remove();
+    }
+    function chatShowEmptyState() {
+      const log = chatLogEl();
+      if (!log || log.querySelector('.chat-empty')) return;
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      const circle = document.createElement('div');
+      circle.className = 'glyph-circle';
+      circle.textContent = '#';
+      const title = document.createElement('div');
+      title.className = 'empty-title';
+      title.textContent = 'no messages yet';
+      const sub = document.createElement('div');
+      sub.className = 'empty-sub';
+      sub.textContent = 'be the first to say hi';
+      empty.appendChild(circle);
+      empty.appendChild(title);
+      empty.appendChild(sub);
+      log.appendChild(empty);
+    }
+
+    // ── Avatar element factory ─────────────────────────────────────────────
+    // Renders an <object> tag pointing at assets/<id>.svg when available;
+    // falls back to a colored monogram disk. Used both in message groups
+    // and in the presence cluster.
+    function chatBuildAvatar(from, sizeClassName) {
+      const wrap = document.createElement('div');
+      wrap.className = sizeClassName;
+      const agentId = chatAgentIdForFrom(from);
+      // Prefer an avatar from the registry if known; otherwise monogram.
+      let avatarFile = null;
+      if (agentId && typeof agents !== 'undefined' && agents && agents[agentId] && agents[agentId].avatar) {
+        avatarFile = agents[agentId].avatar;
+      }
+      if (avatarFile) {
+        const obj = document.createElement('object');
+        obj.setAttribute('data', `assets/${avatarFile}`);
+        obj.setAttribute('type', 'image/svg+xml');
+        // Click should fall through to the bubble row (no drag/drop on the
+        // svg itself).
+        obj.style.pointerEvents = 'none';
+        wrap.appendChild(obj);
+      } else {
+        // Monogram: first letter of `from`, white on per-agent color.
+        const ch = (from || '?').slice(0, 1).toUpperCase();
+        wrap.textContent = ch;
+        const c = chatColorFor(from);
+        wrap.style.background = c.startsWith('var(') ? 'rgba(255,255,255,0.12)' : c;
+      }
+      return wrap;
+    }
+
+    // ── Group rendering ───────────────────────────────────────────────────
+    // We append envelopes one at a time via chatAppendEnvelope(env, opts).
+    // Inside, we either:
+    //   1. Extend the current trailing group (same `from` AND same day) by
+    //      inserting just a new bubble into its .stack;
+    //   2. Or create a fresh group (with avatar + sender label).
+    // Day separators are inserted whenever the day key changes.
+    //
+    // opts.animate (boolean) — apply .entering for fade-in. Used for deltas
+    // after history load; suppressed during the seed render.
+    // opts.optimistic (boolean) — mark the bubble with .sending and stash it
+    // in chatPendingSelf so we can resolve it when fs.watch round-trips.
+    function chatAppendEnvelope(env, opts = {}) {
+      const log = chatLogEl();
+      if (!log || !env || typeof env !== 'object') return null;
+
+      const from = String(env.from || '').toLowerCase() || '?';
+      const message = (env.message === undefined || env.message === null) ? '' : String(env.message);
+      const ts = env.timestamp ? String(env.timestamp) : '';
+      const correlationId = env.correlation_id ? String(env.correlation_id) : '';
+      const isSelf = (from === 'richard');
+      const dayKey = ts ? localDayKey(ts) : '';
+      const groupKey = `${from}|${dayKey}`;
+      const animate = !!opts.animate;
+      const optimistic = !!opts.optimistic;
+
+      chatClearEmptyState();
+
+      // Day separator if we crossed midnight (or this is the first day rendered).
+      if (dayKey && dayKey !== chatLastDayKey) {
+        const sep = document.createElement('div');
+        sep.className = 'chat-day-sep';
+        sep.textContent = formatDayLabel(ts) || dayKey;
+        log.appendChild(sep);
+        chatLastDayKey = dayKey;
+        // Force a fresh group after a day break so the same-sender across
+        // days still gets a fresh avatar + label header.
+        chatLastGroupKey = null;
+      }
+
+      // Locate or build the group.
+      let groupEl;
+      let stackEl;
+      const sameGroup = (chatLastGroupKey === groupKey);
+      if (sameGroup) {
+        groupEl = log.lastElementChild;
+        // Defensive: if the last element isn't a group (e.g. it's the empty
+        // state we just removed and now somehow we hit this branch), bail to
+        // the new-group path.
+        if (!groupEl || !groupEl.classList || !groupEl.classList.contains('chat-group')) {
+          groupEl = null;
+        } else {
+          stackEl = groupEl.querySelector('.stack');
+          // Drop the .last-of-group marker on the previous tail bubble — it
+          // was the bottom of the group when it was rendered, but now there's
+          // a new bubble below it.
+          const prevTail = stackEl.querySelector('.chat-bubble.last-of-group');
+          if (prevTail) prevTail.classList.remove('last-of-group');
+        }
+      }
+
+      if (!sameGroup || !groupEl) {
+        groupEl = document.createElement('div');
+        groupEl.className = 'chat-group' + (isSelf ? ' from-self' : '');
+        if (animate) groupEl.classList.add('entering');
+
+        // Avatar column (skipped for self via CSS).
+        const avatar = chatBuildAvatar(from, 'avatar-col');
+        groupEl.appendChild(avatar);
+
+        stackEl = document.createElement('div');
+        stackEl.className = 'stack';
+
+        // Sender row — name + opening timestamp. Only on first message of a
+        // group. Self groups skip the name (no point — right-align + amber
+        // is the identity).
+        if (!isSelf) {
+          const senderRow = document.createElement('div');
+          senderRow.className = 'sender-row';
+          const name = document.createElement('span');
+          name.className = 'name';
+          name.textContent = from;
+          name.style.color = chatColorFor(from);
+          senderRow.appendChild(name);
+          if (ts) {
+            const headTime = document.createElement('span');
+            headTime.className = 'head-time';
+            headTime.textContent = formatLocalHM(ts);
+            senderRow.appendChild(headTime);
+          }
+          stackEl.appendChild(senderRow);
+        }
+        groupEl.appendChild(stackEl);
+        log.appendChild(groupEl);
+        chatLastGroupKey = groupKey;
+      }
+
+      // The bubble.
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble first-of-group last-of-group';
+      // If we're appending into an existing group, the prior tail just lost
+      // its last-of-group; the new bubble keeps last-of-group but sheds
+      // first-of-group (it isn't first anymore). Detect by checking if the
+      // stack already has at least one bubble.
+      if (sameGroup && stackEl.querySelector('.chat-bubble')) {
+        bubble.classList.remove('first-of-group');
+      }
+      // Body. textContent for safety — never innerHTML.
+      const body = document.createElement('span');
+      body.textContent = message;
+      bubble.appendChild(body);
+
+      if (ts) {
+        const stamp = document.createElement('span');
+        stamp.className = 'stamp';
+        stamp.textContent = formatLocalHM(ts);
+        bubble.appendChild(stamp);
+      }
+      if (animate) bubble.classList.add('entering');
+      if (optimistic) bubble.classList.add('sending');
+      stackEl.appendChild(bubble);
+
+      if (correlationId) chatBubbleByCorr.set(correlationId, bubble);
+      return bubble;
+    }
+
+    // Render initial history in a documentFragment, append once. This is the
+    // perf path for log size — DOM appends inside a fragment don't reflow.
+    function chatRenderHistory(envelopes) {
+      const log = chatLogEl();
+      if (!log) return;
+      // Reset state — we're seeding from scratch.
+      log.innerHTML = '';
+      chatBubbleByCorr.clear();
+      chatLastGroupKey = null;
+      chatLastDayKey = null;
+
+      if (!envelopes.length) {
+        chatShowEmptyState();
+        return;
+      }
+
+      // Move log children into a fragment via a temporary detached parent.
+      // Since we just innerHTML='' the log, we can do all our appends on a
+      // disconnected clone, then swap. But chatAppendEnvelope reads the log
+      // element directly via getElementById — easier to just append to the
+      // real log; with a single browser reflow at the end it's fine. (Only
+      // huge histories — >5000 envelopes — would benefit; the typical
+      // .message-agent log is under a few hundred lines.)
+      for (const env of envelopes) chatAppendEnvelope(env, { animate: false });
+      chatScrollToBottom();
+    }
+
+    // ── First-open + tail refresh ─────────────────────────────────────────
     async function chatLoadHistory() {
       try {
         const res = await ipcRenderer.invoke('chat-tail-init');
@@ -3713,33 +4271,18 @@
           return;
         }
         chatTailOffset = res.offset || 0;
-        const log = chatLogEl();
-        if (log) log.innerHTML = '';
-        chatMsgCount = 0;
         const envelopes = Array.isArray(res.envelopes) ? res.envelopes : [];
-        for (const env of envelopes) chatAppendMessage(env);
-        if (chatMsgCount === 0) chatShowEmptyState();
+        chatRenderHistory(envelopes);
         chatHistoryLoaded = true;
-        chatLastPollAt = new Date();
-        chatUpdateFooter();
-        // Always scroll to bottom on first load — user is opening to see the
-        // latest, not preserving a position they didn't have.
-        chatScrollToBottom();
       } catch (err) {
         chatShowError(`Could not read chat log: ${err && err.message ? err.message : err}`);
       }
     }
 
-    // Incremental tail read — pulls anything appended since chatTailOffset.
-    // Fired both by the 2s poll AND by main's chat-tail-changed event from
-    // fs.watch. Idempotent on no-new-content (offset doesn't move, no DOM
-    // changes).
     async function chatTailRefresh() {
-      if (!chatHistoryLoaded) return;          // wait for history-load to seed offset
+      if (!chatHistoryLoaded) return;
       try {
         const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatTailOffset });
-        chatLastPollAt = new Date();
-        chatUpdateFooter();
         if (!res || !res.ok) return;
         const newEnvelopes = Array.isArray(res.envelopes) ? res.envelopes : [];
         if (newEnvelopes.length === 0) {
@@ -3747,78 +4290,205 @@
           return;
         }
         const wasNearBottom = chatIsNearBottom();
-        chatClearEmptyState();
-        for (const env of newEnvelopes) chatAppendMessage(env);
+        for (const env of newEnvelopes) {
+          // Round-trip resolution: if this envelope corresponds to one of our
+          // optimistic sends (matching correlation_id), un-pulse the existing
+          // bubble instead of appending a new one. The bubble is already in
+          // the DOM with the right text — we just need to clear .sending and
+          // forget it from chatPendingSelf.
+          const corr = env && env.correlation_id ? String(env.correlation_id) : '';
+          if (corr && chatPendingSelf.has(corr)) {
+            const pending = chatPendingSelf.get(corr);
+            if (pending && pending.bubbleEl) {
+              pending.bubbleEl.classList.remove('sending');
+              pending.bubbleEl.classList.remove('failed');
+            }
+            if (pending && pending.timer) clearTimeout(pending.timer);
+            chatPendingSelf.delete(corr);
+            // Don't re-render the same envelope. Continue.
+            continue;
+          }
+          chatAppendEnvelope(env, { animate: true });
+        }
         chatTailOffset = (typeof res.offset === 'number') ? res.offset : chatTailOffset;
-        chatUpdateFooter();
         if (wasNearBottom) chatScrollToBottom();
       } catch (err) {
-        // Tail refresh errors are non-fatal — log to console, the next poll
-        // tick / fs.watch event will retry.
         console.warn('[chat] tail refresh failed:', err && err.message ? err.message : err);
       }
     }
 
-    // Send the composer's contents as a new message. Empty / whitespace-only
-    // messages are refused. On success, clear the textarea + restore the
-    // disabled state. On failure, restore the message + show inline error.
+    // ── Send + optimistic insert ──────────────────────────────────────────
     async function chatSendMessage() {
+      if (chatComposerInFlight) return;        // debounce double-fire
       const ta = chatTextareaEl();
       const btn = chatSendBtnEl();
       if (!ta || !btn) return;
       const raw = ta.value;
-      const trimmed = raw.replace(/[ \t]+$/g, '').replace(/\s+$/g, '');
+      const trimmed = raw.replace(/\s+$/g, '');
       if (!trimmed) return;
 
+      chatComposerInFlight = true;
       btn.disabled = true;
+      btn.classList.remove('armed');
       ta.value = '';
       chatAutoResizeTextarea();
+      // Don't blur — Richard wants to type follow-ups immediately.
+      ta.focus();
+
+      // Generate a correlation ID so we can match the envelope when fs.watch
+      // round-trips it back. crypto.randomUUID is available in Electron.
+      let correlation_id;
+      try { correlation_id = crypto.randomUUID(); }
+      catch { correlation_id = 'r-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10); }
+
+      // Optimistic envelope. Use local now() for the timestamp; the server
+      // will overwrite with its own when fs.watch reads back, but for the
+      // brief window before that, this is what the user sees.
+      const localIso = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+      const optimisticEnv = {
+        channel: 'team',
+        correlation_id,
+        from: 'richard',
+        message: trimmed,
+        timestamp: localIso,
+        to: 'team',
+        type: 'message'
+      };
+      const wasNearBottom = chatIsNearBottom();
+      const bubbleEl = chatAppendEnvelope(optimisticEnv, { animate: true, optimistic: true });
+      if (wasNearBottom) chatScrollToBottom();
+
+      // Stash so we can mark .failed if 2s passes without round-trip and
+      // wire click-to-retry.
+      const failTimer = setTimeout(() => {
+        const pending = chatPendingSelf.get(correlation_id);
+        if (!pending || !pending.bubbleEl) return;
+        pending.bubbleEl.classList.remove('sending');
+        pending.bubbleEl.classList.add('failed');
+        // Click on the failed bubble retries.
+        const onRetry = (ev) => {
+          ev.stopPropagation();
+          pending.bubbleEl.removeEventListener('click', onRetry);
+          // Restore the text in the composer for re-edit; user clicks Send
+          // again. Cleaner than auto-resending blind — they get to confirm
+          // / amend.
+          chatPendingSelf.delete(correlation_id);
+          pending.bubbleEl.remove();
+          ta.value = trimmed;
+          chatAutoResizeTextarea();
+          ta.focus();
+          // Place cursor at end.
+          ta.setSelectionRange(ta.value.length, ta.value.length);
+          chatComposerInFlight = false;
+          btn.disabled = !ta.value.trim();
+          btn.classList.toggle('armed', !!ta.value.trim());
+        };
+        pending.bubbleEl.addEventListener('click', onRetry);
+      }, 2000);
+      chatPendingSelf.set(correlation_id, { bubbleEl, retryEnvelope: optimisticEnv, timer: failTimer });
+
       try {
         const res = await ipcRenderer.invoke('chat-post', { message: trimmed, to: 'team' });
         if (!res || !res.ok) {
-          ta.value = raw;
-          chatAutoResizeTextarea();
+          // Promote bubble to .failed immediately and stash the original text.
+          if (bubbleEl) {
+            bubbleEl.classList.remove('sending');
+            bubbleEl.classList.add('failed');
+          }
           chatShowError(res && res.error ? `Send failed: ${res.error}` : 'Send failed.');
-          btn.disabled = !ta.value.trim();
-          return;
+        } else {
+          // chat-post wrote the file with main's own correlation_id (NOT the
+          // one we generated here). The fs.watch round-trip will deliver an
+          // envelope whose correlation_id we don't have in chatPendingSelf —
+          // so we need to swap our optimistic bubble's tracked id to main's,
+          // OR delete the optimistic bubble + accept the fs.watch render.
+          // Simpler: replace the pending key with main's correlation id.
+          const mainCorr = res.envelope && res.envelope.correlation_id;
+          if (mainCorr && bubbleEl) {
+            chatPendingSelf.delete(correlation_id);
+            chatBubbleByCorr.delete(correlation_id);
+            chatPendingSelf.set(mainCorr, { bubbleEl, retryEnvelope: res.envelope, timer: failTimer });
+            chatBubbleByCorr.set(mainCorr, bubbleEl);
+          }
         }
-        // Optimistic append: immediately render the envelope main returned so
-        // the bubble shows up without waiting for fs.watch round-trip. The
-        // tail-read will see the same line; we dedupe by advancing the offset
-        // to wherever the file is now.
-        // (We let chatTailRefresh handle the offset advance — it'll see the
-        // already-rendered envelope as new content. To prevent double-render,
-        // skip optimistic append; the fs.watch fires within ~10ms on macOS
-        // for local appends, so latency is imperceptible.)
-        ta.focus();
       } catch (err) {
-        ta.value = raw;
-        chatAutoResizeTextarea();
+        if (bubbleEl) {
+          bubbleEl.classList.remove('sending');
+          bubbleEl.classList.add('failed');
+        }
         chatShowError(`Send failed: ${err && err.message ? err.message : err}`);
-        btn.disabled = !ta.value.trim();
+      } finally {
+        chatComposerInFlight = false;
+        btn.disabled = !chatTextareaEl().value.trim();
+        btn.classList.toggle('armed', !!chatTextareaEl().value.trim());
       }
     }
 
-    // Composer auto-resize: grow the textarea up to max-height (CSS-capped at
-    // 120px) as content wraps. Resets to one row's height when empty.
+    // Composer auto-resize: grow up to max-height (CSS-capped at 168px ≈ 8
+    // lines). Resets to one row's height when empty.
     function chatAutoResizeTextarea() {
       const ta = chatTextareaEl();
       if (!ta) return;
       ta.style.height = 'auto';
-      ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+      ta.style.height = Math.min(168, ta.scrollHeight) + 'px';
     }
 
+    // ── Presence cluster ──────────────────────────────────────────────────
+    // Reads from the renderer-global `agents` map (already populated by the
+    // dock loader) and the live running/attached state polled by
+    // pollStatusOnce(). Re-rendered on each open AND on each pane-status
+    // poll tick (we hook into the existing 3s loop rather than adding a new
+    // one — pollStatusOnce calls renderChatPresence at the bottom).
+    function renderChatPresence() {
+      const host = chatPresenceEl();
+      if (!host) return;
+      // Build a fresh DOM tree — cheap, < 10 nodes.
+      const next = document.createDocumentFragment();
+      const known = (typeof agents !== 'undefined' && agents) ? Object.values(agents) : [];
+      let liveCount = 0;
+      for (const a of known) {
+        const pip = document.createElement('div');
+        pip.className = 'pip';
+        if (a.running) {
+          pip.classList.add('live');
+          liveCount += 1;
+          if (a.attached === false) pip.classList.add('detached');
+        }
+        // Tooltip — agent name + status string.
+        const status = !a.running ? 'offline'
+          : (a.attached === false ? 'running, no client attached' : 'live');
+        pip.title = `${a.displayName || a.id} — ${status}`;
+        // Avatar (or monogram fallback).
+        const inner = chatBuildAvatar(a.id, '');
+        // Strip the wrap class — we want raw avatar contents inside the pip.
+        // chatBuildAvatar attaches either an <object> or text+bg. Move them.
+        while (inner.firstChild) pip.appendChild(inner.firstChild);
+        // If the helper set inline background (monogram path), copy it across.
+        if (inner.style.background) pip.style.background = inner.style.background;
+        next.appendChild(pip);
+      }
+      const members = document.createElement('div');
+      members.className = 'members';
+      const totalMembers = known.length + 1; // +1 for richard
+      members.textContent = `${totalMembers} members`;
+      next.appendChild(members);
+
+      const conn = document.createElement('div');
+      conn.className = 'conn-dot';
+      conn.title = 'team channel — connected';
+      next.appendChild(conn);
+
+      host.replaceChildren(next);
+    }
+
+    // ── Open / close ──────────────────────────────────────────────────────
     function openChatOverlay() {
       const overlay = chatOverlayEl();
       if (overlay.classList.contains('shown')) return;
-      // Close the radial menu if it's open — they share the dismiss-handler
-      // namespace and overlapping modal-ish surfaces would confuse outside-
-      // click semantics.
       if (typeof radialOpenForId !== 'undefined' && radialOpenForId) {
         try { closeRadialMenu(); } catch { /* no-op */ }
       }
 
-      // Capture pre-open window size so close can restore it.
       chatPreOpenSize = { w: window.innerWidth, h: window.innerHeight };
       if (window.innerWidth < CHAT_OVERLAY_MIN_W || window.innerHeight < CHAT_OVERLAY_MIN_H) {
         const targetW = Math.max(window.innerWidth, CHAT_OVERLAY_MIN_W);
@@ -3829,39 +4499,28 @@
 
       overlay.classList.add('shown');
       overlay.setAttribute('aria-hidden', 'false');
-      // Two rAFs let display:flex settle before the .visible transition runs,
-      // so the fade-in plays from the scaled-down hidden state. Same trick
-      // the radial popover uses.
       requestAnimationFrame(() => requestAnimationFrame(() => {
         overlay.classList.add('visible');
       }));
 
-      // Load history (first open) or just refresh the tail (reopens).
+      // Render presence with whatever state the dock has right now; the
+      // 3s pane-status poll will refresh it shortly.
+      renderChatPresence();
+
       if (!chatHistoryLoaded) {
         chatLoadHistory();
       } else {
         chatTailRefresh();
       }
-
-      // Start poll fallback — fires every 2s. fs.watch is the primary path,
-      // but some macOS FS configurations don't fire reliably so we always
-      // run the poll alongside as belt-and-suspenders.
       if (!chatPollHandle) {
         chatPollHandle = setInterval(chatTailRefresh, 2000);
       }
 
-      // Auto-focus the composer textarea so the user can type immediately.
-      // requestAnimationFrame waits for the overlay to be visible and the
-      // textarea to be focusable.
       requestAnimationFrame(() => {
         const ta = chatTextareaEl();
         if (ta) ta.focus();
       });
 
-      // Bind dismiss handlers. Outside-click: any pointerdown whose target is
-      // OUTSIDE the overlay closes it. Escape closes. Re-using the same
-      // pattern as the radial menu (capture phase so we run before the
-      // overlay's own click handlers).
       const onPointerDown = (ev) => {
         const ov = chatOverlayEl();
         if (!ov || !ov.contains(ev.target)) closeChatOverlay();
@@ -3880,15 +4539,10 @@
       if (!overlay.classList.contains('shown')) return;
       overlay.classList.remove('visible');
       overlay.setAttribute('aria-hidden', 'true');
-      // Stop the poll loop while the overlay is hidden — fs.watch still fires
-      // in main, but we don't need to refresh DOM the user can't see. Next
-      // open will sync via chatTailRefresh().
       if (chatPollHandle) {
         clearInterval(chatPollHandle);
         chatPollHandle = null;
       }
-      // Drop .shown after the fade-out so display:none re-applies and the
-      // overlay stops eating clicks. Match the CSS transition duration.
       setTimeout(() => {
         if (!overlay.classList.contains('visible')) {
           overlay.classList.remove('shown');
@@ -3910,19 +4564,22 @@
       else openChatOverlay();
     }
 
-    // Wire composer events.
+    // ── Composer wiring ───────────────────────────────────────────────────
     (() => {
       const ta = chatTextareaEl();
       const btn = chatSendBtnEl();
+      const composer = chatComposerEl();
       if (!ta || !btn) return;
+
       ta.addEventListener('input', () => {
-        btn.disabled = !ta.value.trim();
+        const armed = !!ta.value.trim();
+        btn.disabled = !armed;
+        btn.classList.toggle('armed', armed);
         chatAutoResizeTextarea();
       });
+      ta.addEventListener('focus', () => { if (composer) composer.classList.add('focused'); });
+      ta.addEventListener('blur', () => { if (composer) composer.classList.remove('focused'); });
       ta.addEventListener('keydown', (ev) => {
-        // Enter alone = send. Shift+Enter = newline (default behavior, don't
-        // intercept). Cmd/Ctrl/Alt+Enter also passes through (no special
-        // meaning here).
         if (ev.key !== 'Enter') return;
         if (ev.shiftKey || ev.metaKey || ev.ctrlKey || ev.altKey) return;
         ev.preventDefault();
@@ -3931,25 +4588,19 @@
       btn.addEventListener('click', () => chatSendMessage());
     })();
 
-    // Live-tail event from main: file changed, fetch new content. Throttling
-    // and debouncing happen in main; we just refresh.
+    // Live-tail event from main: file changed, fetch new content.
     ipcRenderer.on('chat-tail-changed', () => {
-      if (!isChatOverlayOpen()) return;       // skip while hidden — next open syncs
+      if (!isChatOverlayOpen()) return;
       chatTailRefresh();
     });
 
+    // Note: the existing pollStatusOnce() (defined earlier in this script
+    // block) calls renderChatPresence() once per 3s tick — see the inline
+    // try/catch at the end of that function. No setInterval here.
+
     // DM mode (multi-recipient, agent_bus_send.sh) is intentionally deferred.
-    // To extend: add a recipient picker above the composer; pass `to` from
-    // the picker into chat-post. Future v0.1 work.
 
     window.addEventListener('keydown', (ev) => {
-      // Cmd+T (Mac) — toggle. The meta modifier is REQUIRED, so this can't
-      // be triggered by typing the letter 't' into the chat input. We
-      // explicitly DON'T gate on "not in input" the way Cmd+1..9 does — the
-      // chat input is auto-focused on summon, so requiring focus to leave it
-      // would mean the shortcut never fires from the natural state.
-      // Cmd+T inside an Electron text input has no native meaning (no tabs),
-      // so hijacking it here is harmless.
       if (!ev.metaKey || ev.shiftKey || ev.altKey || ev.ctrlKey) return;
       if (ev.key !== 't' && ev.key !== 'T') return;
       ev.preventDefault();
