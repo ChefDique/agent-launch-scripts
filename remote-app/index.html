@@ -4186,6 +4186,28 @@
     document.getElementById('chat-input').addEventListener('keydown', (e) => {
       if (e.key === 'Escape') e.target.blur();
     });
+
+    // Bare-letter shortcuts: E = Edit, A = Select All, D = Deploy. Same gating
+    // as the number-key voice handler — skip when any modifier is held or when
+    // a text input has focus (use Escape first to bail out of chat-input).
+    window.addEventListener('keydown', (ev) => {
+      if (ev.metaKey || ev.shiftKey || ev.altKey || ev.ctrlKey) return;
+      if (ev.repeat) return;
+      const t = ev.target;
+      const tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      const k = ev.key.toLowerCase();
+      if (k === 'e') {
+        ev.preventDefault();
+        toggleEditMode();
+      } else if (k === 'a') {
+        ev.preventDefault();
+        selectAll();
+      } else if (k === 'd') {
+        ev.preventDefault();
+        deploy();
+      }
+    });
     document.getElementById('edit-btn').addEventListener('click', toggleEditMode);
     document.getElementById('select-all-btn').addEventListener('click', selectAll);
     document.getElementById('deploy-btn').addEventListener('click', deploy);
