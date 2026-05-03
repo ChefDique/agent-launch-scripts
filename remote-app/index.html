@@ -3915,45 +3915,37 @@
     const CHAT_OVERLAY_MIN_W = 620;
     const CHAT_OVERLAY_MIN_H = 540;
 
-    // Per-author display colors. Inline mapping per dispatch hard-constraint.
-    // Keys cover the bare agent names AND the claude-* / overlordswarmy
-    // variants seen in the JSONL substrate. Lookups go through chatColorFor()
-    // which normalizes and falls back to muted gray.
+    // Bare-name canonical identities. Substrate is migrating off the
+    // `claude-` prefix per Richard 2026-05-03 — Hermes returns in a different
+    // shape so the disambiguator no longer earns its keep. Normalization
+    // below handles legacy `claude-*` and `overlordswarmy` for historical
+    // JSONL display until those rows age out.
     const CHAT_FROM_COLORS = {
-      richard:          '#e07c4c',   // matches --accent (amber)
-      lucius:           '#7fc7ff',
-      'claude-lucius':  '#7fc7ff',
-      xavier:           '#c79bff',
-      'claude-xavier':  '#c79bff',
-      gekko:            '#ff9b6a',
-      'claude-gekko':   '#ff9b6a',
-      overlordswarmy:   '#5cd28a',
-      swarmy:           '#5cd28a',
-      'claude-swarmy':  '#5cd28a'
+      richard: '#e07c4c',  // matches --accent (amber)
+      lucius:  '#7fc7ff',
+      xavier:  '#c79bff',
+      gekko:   '#ff9b6a',
+      swarmy:  '#5cd28a'
     };
     const CHAT_FROM_FALLBACK = 'var(--text-muted)';
 
-    // Map a `from` envelope value → an agents.json id so we can look up the
-    // avatar SVG. JSONL `from` values include "richard", "lucius",
-    // "overlordswarmy", "claude-lucius", etc. agents.json ids are bare
-    // ("lucius", "swarmy"). Returns null for richard (no avatar — self
-    // bubbles right-align without one) or unknown senders.
-    function chatAgentIdForFrom(from) {
-      if (!from) return null;
+    function chatNormalizeSender(from) {
+      if (!from) return '';
       const f = String(from).toLowerCase();
-      if (f === 'richard') return null;
-      // overlordswarmy / claude-swarmy → swarmy (matches the registry id used
-      // for asset lookup; main.js loadAgents preserves overlordswarmy as
-      // displayName but the asset filename is swarmy.svg).
-      if (f === 'overlordswarmy' || f === 'claude-swarmy' || f === 'swarmy') return 'swarmy';
-      // Strip "claude-" prefix for the standard fleet.
+      if (f === 'overlordswarmy') return 'swarmy';
       if (f.startsWith('claude-')) return f.slice(7);
       return f;
     }
 
+    // Returns the agents.json id for avatar lookup; richard returns null
+    // because self-bubbles right-align without an avatar.
+    function chatAgentIdForFrom(from) {
+      const id = chatNormalizeSender(from);
+      return id === 'richard' ? null : id;
+    }
+
     function chatColorFor(from) {
-      const f = String(from || '').toLowerCase();
-      return CHAT_FROM_COLORS[f] || CHAT_FROM_FALLBACK;
+      return CHAT_FROM_COLORS[chatNormalizeSender(from)] || CHAT_FROM_FALLBACK;
     }
 
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
