@@ -2113,13 +2113,12 @@
       // a resize event in the renderer, which would re-enter this function.
       if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
       // Same skip for the team-chat overlay — it grows the window to fit its
-      // chat surface (composer + log); if we measure the panel here we'd
-      // shrink the window back and clip the overlay. Gate matches the
-      // radial-menu gate above.
-      if (typeof chatOverlayShownState !== 'undefined' && chatOverlayShownState) return;
+      // chat surface; measuring the panel here would shrink the window back
+      // and clip the overlay. Gate matches the radial-menu gate above.
+      if (typeof isChatOverlayOpen === 'function' && isChatOverlayOpen()) return;
       const measure = () => {
         if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
-        if (typeof chatOverlayShownState !== 'undefined' && chatOverlayShownState) return;
+        if (typeof isChatOverlayOpen === 'function' && isChatOverlayOpen()) return;
         const panel = document.getElementById('panel');
         if (!panel) return;
         const rect = panel.getBoundingClientRect();
@@ -3953,25 +3952,17 @@
       return CHAT_FROM_COLORS[f] || CHAT_FROM_FALLBACK;
     }
 
-    // ── State ─────────────────────────────────────────────────────────────
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
-    let chatOverlayShownState = false;            // gates syncWindowSize
     let chatPreOpenSize = null;                   // {w,h} captured on open
     let chatTailOffset = 0;
-    let chatPollHandle = null;
+    let chatPollHandle = null;                    // heartbeat fallback if fs.watch goes silent
+    let chatLastTailAt = 0;                       // ms timestamp of last successful tail-read
     let chatHistoryLoaded = false;
     let chatComposerInFlight = false;             // debounce: one send at a time
 
-    // Renderer-side envelope tracking. We never re-render the entire log on
-    // a tail-read — we only append the deltas. Keys we track:
-    //   correlation_id → DOM node for the bubble (needed to resolve optimistic
-    //                    sends when the real envelope rolls back from fs.watch)
-    //   pendingSelf — the array of optimistic envelopes waiting for round-trip
-    //   lastGroupKey — last appended group's signature ("from|day"), so a new
-    //                  arrival can decide whether to extend that group or
-    //                  create a new one.
-    const chatBubbleByCorr = new Map();
-    const chatPendingSelf = new Map();            // correlation_id → {bubbleEl, retryEnvelope, timer}
+    // correlation_id → {bubbleEl, retryEnvelope, timer} for self-sent optimistic
+    // bubbles awaiting fs.watch round-trip. Resolved → entry deleted; stale → retry.
+    const chatPendingSelf = new Map();
     let chatLastGroupKey = null;                  // "from|YYYY-MM-DD" of last rendered group
     let chatLastDayKey = null;                    // "YYYY-MM-DD" of last day separator
 
@@ -4230,19 +4221,13 @@
       if (animate) bubble.classList.add('entering');
       if (optimistic) bubble.classList.add('sending');
       stackEl.appendChild(bubble);
-
-      if (correlationId) chatBubbleByCorr.set(correlationId, bubble);
       return bubble;
     }
 
-    // Render initial history in a documentFragment, append once. This is the
-    // perf path for log size — DOM appends inside a fragment don't reflow.
     function chatRenderHistory(envelopes) {
       const log = chatLogEl();
       if (!log) return;
-      // Reset state — we're seeding from scratch.
       log.innerHTML = '';
-      chatBubbleByCorr.clear();
       chatLastGroupKey = null;
       chatLastDayKey = null;
 
@@ -4251,13 +4236,6 @@
         return;
       }
 
-      // Move log children into a fragment via a temporary detached parent.
-      // Since we just innerHTML='' the log, we can do all our appends on a
-      // disconnected clone, then swap. But chatAppendEnvelope reads the log
-      // element directly via getElementById — easier to just append to the
-      // real log; with a single browser reflow at the end it's fine. (Only
-      // huge histories — >5000 envelopes — would benefit; the typical
-      // .message-agent log is under a few hundred lines.)
       for (const env of envelopes) chatAppendEnvelope(env, { animate: false });
       chatScrollToBottom();
     }
@@ -4284,6 +4262,7 @@
       try {
         const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatTailOffset });
         if (!res || !res.ok) return;
+        chatLastTailAt = Date.now();
         const newEnvelopes = Array.isArray(res.envelopes) ? res.envelopes : [];
         if (newEnvelopes.length === 0) {
           chatTailOffset = (typeof res.offset === 'number') ? res.offset : chatTailOffset;
@@ -4399,16 +4378,12 @@
         } else {
           // chat-post wrote the file with main's own correlation_id (NOT the
           // one we generated here). The fs.watch round-trip will deliver an
-          // envelope whose correlation_id we don't have in chatPendingSelf —
-          // so we need to swap our optimistic bubble's tracked id to main's,
-          // OR delete the optimistic bubble + accept the fs.watch render.
-          // Simpler: replace the pending key with main's correlation id.
+          // Main rewrites correlation_id; re-key the pending entry so the
+          // fs.watch round-trip lookup matches.
           const mainCorr = res.envelope && res.envelope.correlation_id;
           if (mainCorr && bubbleEl) {
             chatPendingSelf.delete(correlation_id);
-            chatBubbleByCorr.delete(correlation_id);
             chatPendingSelf.set(mainCorr, { bubbleEl, retryEnvelope: res.envelope, timer: failTimer });
-            chatBubbleByCorr.set(mainCorr, bubbleEl);
           }
         }
       } catch (err) {
@@ -4433,52 +4408,46 @@
       ta.style.height = Math.min(168, ta.scrollHeight) + 'px';
     }
 
-    // ── Presence cluster ──────────────────────────────────────────────────
-    // Reads from the renderer-global `agents` map (already populated by the
-    // dock loader) and the live running/attached state polled by
-    // pollStatusOnce(). Re-rendered on each open AND on each pane-status
-    // poll tick (we hook into the existing 3s loop rather than adding a new
-    // one — pollStatusOnce calls renderChatPresence at the bottom).
+    // Pip DOM is built once per agent and cached. Subsequent calls only
+    // toggle live/detached classes + update the tooltip — no SVG refetch,
+    // no DOM thrash on every 3s pane-status tick.
+    const chatPresencePips = new Map();   // agentId → pip element
+    let chatPresenceMembersEl = null;
     function renderChatPresence() {
       const host = chatPresenceEl();
       if (!host) return;
-      // Build a fresh DOM tree — cheap, < 10 nodes.
-      const next = document.createDocumentFragment();
       const known = (typeof agents !== 'undefined' && agents) ? Object.values(agents) : [];
-      let liveCount = 0;
-      for (const a of known) {
-        const pip = document.createElement('div');
-        pip.className = 'pip';
-        if (a.running) {
-          pip.classList.add('live');
-          liveCount += 1;
-          if (a.attached === false) pip.classList.add('detached');
+
+      if (chatPresencePips.size === 0) {
+        host.innerHTML = '';
+        for (const a of known) {
+          const pip = document.createElement('div');
+          pip.className = 'pip';
+          const inner = chatBuildAvatar(a.id, '');
+          while (inner.firstChild) pip.appendChild(inner.firstChild);
+          if (inner.style.background) pip.style.background = inner.style.background;
+          host.appendChild(pip);
+          chatPresencePips.set(a.id, pip);
         }
-        // Tooltip — agent name + status string.
+        chatPresenceMembersEl = document.createElement('div');
+        chatPresenceMembersEl.className = 'members';
+        host.appendChild(chatPresenceMembersEl);
+        const conn = document.createElement('div');
+        conn.className = 'conn-dot';
+        conn.title = 'team channel — connected';
+        host.appendChild(conn);
+      }
+
+      for (const a of known) {
+        const pip = chatPresencePips.get(a.id);
+        if (!pip) continue;
+        pip.classList.toggle('live', !!a.running);
+        pip.classList.toggle('detached', !!a.running && a.attached === false);
         const status = !a.running ? 'offline'
           : (a.attached === false ? 'running, no client attached' : 'live');
         pip.title = `${a.displayName || a.id} — ${status}`;
-        // Avatar (or monogram fallback).
-        const inner = chatBuildAvatar(a.id, '');
-        // Strip the wrap class — we want raw avatar contents inside the pip.
-        // chatBuildAvatar attaches either an <object> or text+bg. Move them.
-        while (inner.firstChild) pip.appendChild(inner.firstChild);
-        // If the helper set inline background (monogram path), copy it across.
-        if (inner.style.background) pip.style.background = inner.style.background;
-        next.appendChild(pip);
       }
-      const members = document.createElement('div');
-      members.className = 'members';
-      const totalMembers = known.length + 1; // +1 for richard
-      members.textContent = `${totalMembers} members`;
-      next.appendChild(members);
-
-      const conn = document.createElement('div');
-      conn.className = 'conn-dot';
-      conn.title = 'team channel — connected';
-      next.appendChild(conn);
-
-      host.replaceChildren(next);
+      if (chatPresenceMembersEl) chatPresenceMembersEl.textContent = `${known.length + 1} members`;
     }
 
     // ── Open / close ──────────────────────────────────────────────────────
@@ -4495,7 +4464,6 @@
         const targetH = Math.max(window.innerHeight, CHAT_OVERLAY_MIN_H);
         ipcRenderer.send('resize-window', { width: targetW, height: targetH });
       }
-      chatOverlayShownState = true;
 
       overlay.classList.add('shown');
       overlay.setAttribute('aria-hidden', 'false');
@@ -4503,8 +4471,6 @@
         overlay.classList.add('visible');
       }));
 
-      // Render presence with whatever state the dock has right now; the
-      // 3s pane-status poll will refresh it shortly.
       renderChatPresence();
 
       if (!chatHistoryLoaded) {
@@ -4512,8 +4478,13 @@
       } else {
         chatTailRefresh();
       }
+      // Heartbeat fallback: if fs.watch hasn't fired for 8s, do a manual
+      // tail-read. Covers the edge case where macOS fs.watch goes silent
+      // on certain filesystems (network mounts, SMB) without raising 'error'.
       if (!chatPollHandle) {
-        chatPollHandle = setInterval(chatTailRefresh, 2000);
+        chatPollHandle = setInterval(() => {
+          if (Date.now() - chatLastTailAt > 8000) chatTailRefresh();
+        }, 4000);
       }
 
       requestAnimationFrame(() => {
@@ -4543,10 +4514,15 @@
         clearInterval(chatPollHandle);
         chatPollHandle = null;
       }
+      // Cancel any in-flight optimistic-send retry timers — otherwise they
+      // fire after close and mutate detached / hidden bubble DOM.
+      for (const pending of chatPendingSelf.values()) {
+        if (pending && pending.timer) clearTimeout(pending.timer);
+      }
+      chatPendingSelf.clear();
       setTimeout(() => {
         if (!overlay.classList.contains('visible')) {
           overlay.classList.remove('shown');
-          chatOverlayShownState = false;
           if (chatPreOpenSize) {
             ipcRenderer.send('resize-window', {
               width: chatPreOpenSize.w,
@@ -4564,7 +4540,6 @@
       else openChatOverlay();
     }
 
-    // ── Composer wiring ───────────────────────────────────────────────────
     (() => {
       const ta = chatTextareaEl();
       const btn = chatSendBtnEl();
@@ -4588,17 +4563,10 @@
       btn.addEventListener('click', () => chatSendMessage());
     })();
 
-    // Live-tail event from main: file changed, fetch new content.
     ipcRenderer.on('chat-tail-changed', () => {
       if (!isChatOverlayOpen()) return;
       chatTailRefresh();
     });
-
-    // Note: the existing pollStatusOnce() (defined earlier in this script
-    // block) calls renderChatPresence() once per 3s tick — see the inline
-    // try/catch at the end of that function. No setInterval here.
-
-    // DM mode (multi-recipient, agent_bus_send.sh) is intentionally deferred.
 
     window.addEventListener('keydown', (ev) => {
       if (!ev.metaKey || ev.shiftKey || ev.altKey || ev.ctrlKey) return;

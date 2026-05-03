@@ -132,14 +132,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      backgroundThrottling: false,
-      // Left enabled even though the team-chat overlay is now native (no
-      // <webview> embed). Cheap to keep — only enables the <webview> tag in
-      // the renderer; doesn't change the renderer's own context. Leaving it
-      // on means future surfaces that genuinely need an isolated browsing
-      // context (e.g. an embed of an external dashboard) can drop in without
-      // a BrowserWindow config change.
-      webviewTag: true
+      backgroundThrottling: false
     }
   });
 
@@ -1131,15 +1124,13 @@ ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) 
 //
 // Three IPC handlers:
 //   chat-tail-init   → read entire file, return all envelopes + EOF byte offset
-//   chat-tail-read   → read from caller's offset to EOF, return new envelopes
-//                      + new offset (used by the 2s poll AND fs.watch event)
+//   chat-tail-read   → read from caller's offset to EOF, return new envelopes + new offset
 //   chat-post        → append a new envelope authored as `from: "richard"`
 //
 // Live tail: fs.watch fires chat-tail-changed to the renderer; renderer pulls
-// via chat-tail-read with its cached offset. macOS fs.watch reliability is
-// uneven, so the renderer also runs a 2s poll loop — both converge on
-// chat-tail-read. Watcher events are debounced 50ms to coalesce rapid-fire
-// writes (one append from agent_bus_send.sh can land as multiple change events).
+// via chat-tail-read with its cached offset. The renderer also runs an 8s
+// heartbeat fallback in case fs.watch goes silent on a flaky filesystem.
+// Watcher events are debounced 50ms — one append can land as multiple events.
 
 const TEAM_CHAT_PATH = path.join(os.homedir(), '.message-agent', 'channels', 'team', 'messages.jsonl');
 
@@ -1303,34 +1294,36 @@ ipcMain.handle('chat-post', async (_event, payload = {}) => {
 // fs.watch on a non-existent file throws, so we watch the parent directory
 // and filter for our filename. Same trick as watchToggleFile().
 let chatWatchDebounce = null;
+let chatWatcher = null;
 function startChatWatcher() {
   const dir = path.dirname(TEAM_CHAT_PATH);
   const filename = path.basename(TEAM_CHAT_PATH);
-  // Make sure the dir exists before watching — fs.watch on a missing dir
-  // throws ENOENT and we'd lose the live-tail entirely.
   try {
     fs.mkdirSync(dir, { recursive: true });
   } catch (err) {
     logToOutLog(`startChatWatcher: mkdir ${dir} failed (${err.message}); skipping watcher`);
     return;
   }
-  let watcher;
   try {
-    watcher = fs.watch(dir, { persistent: false }, (eventType, name) => {
+    chatWatcher = fs.watch(dir, { persistent: false }, (eventType, name) => {
       if (name !== filename) return;
       if (chatWatchDebounce) clearTimeout(chatWatchDebounce);
       chatWatchDebounce = setTimeout(() => {
         chatWatchDebounce = null;
         if (mainWindow && !mainWindow.isDestroyed()) {
           try { mainWindow.webContents.send('chat-tail-changed'); }
-          catch { /* renderer not ready yet — poll loop covers it */ }
+          catch { /* renderer not ready yet — heartbeat fallback covers it */ }
         }
       }, 50);
     });
-    watcher.on('error', (err) => {
+    chatWatcher.on('error', (err) => {
       logToOutLog(`chat fs.watch error: ${err.message}`);
     });
   } catch (err) {
-    logToOutLog(`startChatWatcher: fs.watch failed (${err.message}); poll fallback in renderer covers it`);
+    logToOutLog(`startChatWatcher: fs.watch failed (${err.message}); heartbeat fallback in renderer covers it`);
   }
 }
+app.on('before-quit', () => {
+  if (chatWatchDebounce) { clearTimeout(chatWatchDebounce); chatWatchDebounce = null; }
+  if (chatWatcher) { try { chatWatcher.close(); } catch { /* already closed */ } chatWatcher = null; }
+});
