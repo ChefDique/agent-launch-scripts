@@ -24,8 +24,14 @@
       --text-muted:    #8a8a98;
       --accent:        #e07c4c;     /* anthropic orange */
       --accent-glow:   rgba(224, 124, 76, 0.55);
-      --status-on:     #34d058;
-      --status-off:    rgba(255, 255, 255, 0.18);
+      --status-on:            #34d058;
+      --status-off:           rgba(255, 255, 255, 0.18);
+      /* Detached / headless: process running in tmux but no client attached
+         to the session. Amber warm enough to read against the dark glass,
+         soft enough not to compete with the orange accent. Glow alpha mirrors
+         --status-on's intensity. */
+      --status-detached:      #f4c542;
+      --status-detached-glow: rgba(244, 197, 66, 0.7);
       --xavier:        #00f2ff;
       --lucius:        #ffaa00;
       --gekko:         #00ff88;
@@ -220,6 +226,19 @@
       transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
     }
     .status-dot.on { background: var(--status-on); box-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
+    /* Headless: agent running but no tmux client attached to its session.
+       A pulsing breath signals "alive but unattended" without screaming for
+       attention. Defaults to a steady glow; the keyframe gently modulates
+       the box-shadow alpha. */
+    .status-dot.detached {
+      background: var(--status-detached);
+      box-shadow: 0 0 8px var(--status-detached-glow);
+      animation: status-detached-pulse 2.4s var(--ease) infinite;
+    }
+    @keyframes status-detached-pulse {
+      0%, 100% { box-shadow: 0 0 6px rgba(244, 197, 66, 0.5); }
+      50%      { box-shadow: 0 0 12px rgba(244, 197, 66, 0.85); }
+    }
 
     /* ---------------------------------------------------------------------
        Edit-mode badge — only visible when body.editing is on.
@@ -1546,7 +1565,14 @@
         // hover surfaces what it does. The avatar's primary action is
         // toggle-select; the secondary action is the right-click radial
         // (CWD / kill / restart / attach / settings). Hint both.
-        btn.title = `${a.displayName} — right-click for actions`;
+        btn.title = `${a.displayName} — double-click to attach, right-click for actions`;
+        // Click defers the selection-toggle by ~220ms so a follow-up
+        // dblclick (attach) can cancel it. Without this, the user sees a
+        // brief active flash on every double-click before attach fires —
+        // visually noisy and feels broken. The single-click case is still
+        // "snappy enough" at 220ms (a hair under the typical OS dblclick
+        // window) for power-user feel.
+        let _selectClickTimer = null;
         btn.addEventListener('click', (ev) => {
           // Edit mode disables tile-body selection — only badges and overlay
           // controls are interactive. This prevents the "click a tile in edit
@@ -1561,14 +1587,32 @@
                 t.classList.contains('no') ||
                 t.classList.contains('confirm-overlay')) return;
           }
-          toggleAgent(id);
+          if (_selectClickTimer) clearTimeout(_selectClickTimer);
+          _selectClickTimer = setTimeout(() => { _selectClickTimer = null; toggleAgent(id); }, 220);
         });
+        // Stash the timer-clear hook on the element so the dblclick handler
+        // (registered separately below) can cancel a pending toggle.
+        btn._cancelPendingSelect = () => {
+          if (_selectClickTimer) { clearTimeout(_selectClickTimer); _selectClickTimer = null; }
+        };
         // Right-click → open radial fan menu for this agent. Suppress the
         // default Electron context menu (Reload / Quit) so it doesn't compete.
         btn.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
           openRadialMenu(id, btn);
+        });
+        // Double-click on a tile → attach to the agent's tmux pane in iTerm.
+        // Mirrors Cmd+1..9 (handled at the window level below). Edit-mode
+        // disables this since the avatar is in registry-config view, not
+        // operations view. Cancel the pending single-click selection-toggle
+        // (220ms debounce) so the tile doesn't flash active mid-attach.
+        btn.addEventListener('dblclick', (ev) => {
+          if (document.body.classList.contains('editing')) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (btn._cancelPendingSelect) btn._cancelPendingSelect();
+          doAttach(id, btn);
         });
 
         const avatar = document.createElement('div');
@@ -3117,8 +3161,20 @@
         statuses.forEach(s => {
           if (!agents[s.id]) return;
           agents[s.id].running = s.running;
+          agents[s.id].attached = !!s.attached;
           const dot = document.getElementById(`dot-${s.id}`);
-          if (dot) dot.classList.toggle('on', s.running);
+          if (dot) {
+            // Three states:
+            //   - .on        running + at least one tmux client attached
+            //   - .detached  running + zero clients attached (headless)
+            //   - (neither)  not running
+            // The classes are mutually exclusive so the CSS animations don't
+            // stack. Build the class list from scratch each tick.
+            dot.classList.remove('on', 'detached');
+            if (s.running) {
+              dot.classList.add(s.attached ? 'on' : 'detached');
+            }
+          }
         });
       } catch (err) {
         // Quiet: if tmux isn't running, all dots stay grey, nothing to do.
@@ -3162,6 +3218,33 @@
 
     loadAndRender().then(startStatusPolling);
     window.addEventListener('resize', syncWindowSize);
+
+    // ---------------------------------------------------------------------
+    // Cmd+1..9 → attach to the Nth agent in the dock display order.
+    // ---------------------------------------------------------------------
+    // Window-level (NOT globalShortcut) — Cmd+digit globally would clobber
+    // browser-tab / IDE tab-switching shortcuts in every other app on the
+    // machine. Here it only fires when AgentRemote has focus, which is the
+    // intended scope (Richard already has Cmd+Shift+Space to summon focus).
+    //
+    // Index maps to dock position: Cmd+1 = leftmost tile, Cmd+9 = ninth.
+    // Skip if a text input is focused so digits keep typing into chat / form
+    // fields as expected. Skip when edit mode is on (matching dblclick gate).
+    window.addEventListener('keydown', (ev) => {
+      if (!ev.metaKey || ev.shiftKey || ev.altKey || ev.ctrlKey) return;
+      if (ev.key < '1' || ev.key > '9') return;
+      // Don't hijack digits typed into the chat input or the add-agent form.
+      const t = ev.target;
+      const tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (document.body.classList.contains('editing')) return;
+      const idx = Number(ev.key) - 1;
+      if (idx < 0 || idx >= agentOrder.length) return;
+      ev.preventDefault();
+      const id = agentOrder[idx];
+      const btn = document.getElementById(`btn-${id}`);
+      doAttach(id, btn);
+    });
   </script>
 </body>
 </html>

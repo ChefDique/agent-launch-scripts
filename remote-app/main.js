@@ -422,18 +422,51 @@ function listPanes() {
   });
 }
 
-// pane-status — return [{ id, running }] for each registry agent. Used by the
-// renderer's 3s status-dot poller. Substring match against pane titles, same
-// rule as broadcast resolution. Cheap: one tmux call per poll.
+// pane-status — return [{ id, running, attached }] for each registry agent.
+// Used by the renderer's 3s status-dot poller. Substring match against pane
+// titles, same rule as broadcast resolution.
+//
+// `attached` is true when the agent's tmux session has at least one client
+// (someone is looking at it through a tmux client / iTerm tab). When running
+// is true but attached is false, the renderer renders a "headless" yellow
+// dot — the agent process is alive but no terminal is currently watching it.
+//
+// Cost: one list-panes call + one list-clients per distinct session. We
+// dedupe sessions across agents (5 chq-pane agents → 1 list-clients call).
 ipcMain.handle('pane-status', async () => {
   const agents = loadAgents();
   let panes = [];
-  try { panes = await listPanes(); } catch { return agents.map(a => ({ id: a.id, running: false })); }
-  return agents.map(a => {
+  try { panes = await listPanes(); } catch {
+    return agents.map(a => ({ id: a.id, running: false, attached: false }));
+  }
+
+  // Match each agent → its pane (if any), then derive the session.
+  const matches = agents.map(a => {
     const needle = (a.tmuxTarget || '').toLowerCase();
-    const running = needle ? panes.some(p => p.title.toLowerCase().includes(needle)) : false;
-    return { id: a.id, running };
+    if (!needle) return { id: a.id, running: false, session: null };
+    const pane = panes.find(p => p.title.toLowerCase().includes(needle));
+    if (!pane) return { id: a.id, running: false, session: null };
+    const session = pane.coord.split(':')[0];
+    return { id: a.id, running: true, session };
   });
+
+  // Dedupe sessions for the list-clients pass.
+  const sessions = [...new Set(matches.map(m => m.session).filter(Boolean))];
+  const attachedBySession = {};
+  await Promise.all(sessions.map(s => new Promise(resolve => {
+    if (!/^[a-z0-9_-]+$/i.test(s)) { attachedBySession[s] = false; return resolve(); }
+    execFile('tmux', ['list-clients', '-t', s, '-F', '#{client_name}'], (err, stdout) => {
+      if (err) { attachedBySession[s] = false; return resolve(); }
+      attachedBySession[s] = stdout.split('\n').some(l => l.trim().length > 0);
+      resolve();
+    });
+  })));
+
+  return matches.map(m => ({
+    id: m.id,
+    running: m.running,
+    attached: m.session ? !!attachedBySession[m.session] : false
+  }));
 });
 
 // ---------------------------------------------------------------------------
@@ -786,11 +819,33 @@ ipcMain.handle('kill-pane', async (event, id) => {
   }
 });
 
-// attach-pane — open iTerm, attach to chq, and select the agent's pane. We
-// resolve via tmux_target substring like the other IPCs so /rename mutations
-// don't break it. The osascript source is a single literal arg passed to
-// `osascript -e <script>`; only the resolved pane coord (validated to match
-// /^[a-z0-9_:.-]+$/) is interpolated into the script's `write text` line.
+// attach-pane — focus the user's cursor onto the agent's tmux pane in iTerm.
+// Layout-aware behavior:
+//
+//   1. ALWAYS run `tmux select-pane -t <coord>` first on the host so server-
+//      side state reflects the desired active pane. select-pane with a fully-
+//      qualified coord (session:window.pane) switches the active window AND
+//      pane in one call — works for `panes`, `windows`, and `ittab` layouts.
+//
+//   2. Try to focus an EXISTING iTerm session whose name contains the agent's
+//      tmuxTarget (iTerm session names mirror the tmux pane title). This is
+//      the right path when:
+//        - The user already has an iTerm window/tab attached (which they
+//          almost always do — the chq fleet boots into one), or
+//        - The agent is in `ittab` layout where each agent already has its
+//          own iTerm window from `tmux -CC` spawn.
+//      If found: select that session, no new tab spawn.
+//
+//   3. Only if no iTerm session matches do we open a new tab and run
+//      `tmux attach -t <session>` (panes/windows) or `tmux -CC attach`
+//      (ittab — matches `chq-tmux.sh attach` behavior so iTerm renders
+//      windows-per-tmux-window).
+//
+// The previous implementation chained `tmux attach \; select-pane` in one
+// shell command — but `\;` collapses to `;` in shell parse, splitting it
+// into two sequential commands. The first `tmux attach` BLOCKED, then on
+// detach the `select-pane` ran outside any tmux session. Fixed by running
+// `select-pane` server-side on the host BEFORE invoking iTerm at all.
 ipcMain.handle('attach-pane', async (event, id) => {
   try {
     const safeId = String(id || '').trim().toLowerCase();
@@ -813,14 +868,69 @@ ipcMain.handle('attach-pane', async (event, id) => {
     if (!/^[a-z0-9_:.-]+$/i.test(match.coord)) {
       throw new Error(`refusing to attach to suspicious coord: ${match.coord}`);
     }
-    // session:window.pane → session and pane-target separately. tmux's
-    // attach -t takes a session; select-pane -t takes the full coord.
     const sessionName = match.coord.split(':')[0];
     if (!/^[a-z0-9_-]+$/i.test(sessionName)) {
       throw new Error(`refusing to attach to suspicious session: ${sessionName}`);
     }
 
-    const apple = `tell application "iTerm"
+    // Step 1 — set active pane server-side. Works across panes/windows/ittab.
+    await new Promise((resolve, reject) => {
+      execFile('tmux', ['select-pane', '-t', match.coord], (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+
+    // Step 2 — try to focus an existing iTerm session whose name matches the
+    // agent's pane title needle. Returns "found" or "not-found".
+    //
+    // Quoting note: the needle goes through agentList's tmuxTarget, which is
+    // derived from registry rename_to / display_name (validated lowercased
+    // ascii in writeRegistry). Belt + suspenders — re-validate before letting
+    // it touch an AppleScript literal.
+    if (!/^[a-z0-9_-]+$/i.test(needle)) {
+      throw new Error(`refusing to interpolate suspicious needle: ${needle}`);
+    }
+    const focusScript = `tell application "iTerm"
+      activate
+      repeat with w in windows
+        repeat with t in tabs of w
+          repeat with s in sessions of t
+            if (name of s) contains "${needle}" then
+              tell w to select
+              tell t to select
+              tell s to select
+              return "found"
+            end if
+          end repeat
+        end repeat
+      end repeat
+      return "not-found"
+    end tell`;
+    const focusResult = await new Promise((resolve) => {
+      execFile('osascript', ['-e', focusScript], (err, stdout) => {
+        if (err) return resolve('not-found');                  // graceful fallback
+        resolve((stdout || '').trim());
+      });
+    });
+
+    if (focusResult === 'found') {
+      return { ok: true, coord: match.coord, mode: 'focused-existing' };
+    }
+
+    // Step 3 — no existing iTerm session matched. Open a new one and attach.
+    // Read the layout for ittab → tmux -CC; everything else → plain attach.
+    const layout = await new Promise((resolve) => {
+      execFile('tmux', ['show-option', '-t', sessionName, '-v', '-q', '@chq_layout'], (err, stdout) => {
+        if (err) return resolve('');
+        resolve((stdout || '').trim());
+      });
+    });
+    const attachCmd = (layout === 'ittab')
+      ? `tmux -CC attach -t ${sessionName}`
+      : `tmux attach -t ${sessionName}`;
+
+    const spawnScript = `tell application "iTerm"
       activate
       if (count of windows) is 0 then
         set newWindow to (create window with default profile)
@@ -829,16 +939,16 @@ ipcMain.handle('attach-pane', async (event, id) => {
         tell newWindow to create tab with default profile
       end if
       tell current session of newWindow
-        write text "tmux attach -t ${sessionName} \\\\; select-pane -t ${match.coord}"
+        write text "${attachCmd}"
       end tell
     end tell`;
     await new Promise((resolve, reject) => {
-      execFile('osascript', ['-e', apple], (err, _o, ser) => {
+      execFile('osascript', ['-e', spawnScript], (err, _o, ser) => {
         if (err) return reject(new Error(ser || err.message));
         resolve();
       });
     });
-    return { ok: true, coord: match.coord };
+    return { ok: true, coord: match.coord, mode: 'spawned-new' };
   } catch (err) {
     return { ok: false, error: err.message };
   }
