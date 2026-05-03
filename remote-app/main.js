@@ -160,6 +160,9 @@ function createWindow() {
   mainWindow.loadFile('index.html');
   mainWindow.center();
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.webContents.on('console-message', (_e, level, message, line, source) => {
+    logToOutLog(`[renderer ${level}] ${message} @ ${source.split('/').pop()}:${line}`);
+  });
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Reload', click: () => { mainWindow.webContents.reloadIgnoringCache(); } },
