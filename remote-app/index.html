@@ -2666,10 +2666,595 @@
       display: none;
     }
     .chat-overlay .chat-error.visible { display: block; }
+
+    /* =========================================================================
+       Stitch design layer — gear + settings drawer + theme/background system.
+       Layered onto the existing panel chrome without touching IPC, voice,
+       radial menu, deploy overlay, or chat overlay. Theme accent now
+       JS-driven (--accent set on .panel inline); backgrounds opt in via
+       .panel.has-bg + a .bg-base child.
+
+       Z-stack (overrides `.panel > * { z-index: 1 }` for bg layers):
+         z:0  .bg-base                — animated background fill
+         z:1  existing children       — dock, chat-row, meta-row, etc
+         z:3  .texture-overlay        — sharp patterns above glass
+         z:8  .gear-btn               — must stay clickable
+       ========================================================================= */
+
+    /* Disable the existing soft aurora when a design background is active. */
+    .panel.has-bg::before { display: none; }
+
+    /* Background base layer — sits behind all interactive content. */
+    .bg-base {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: var(--bg-opacity, 1);
+    }
+    /* Texture overlay — sharp patterns rendered ABOVE glass blur. */
+    .texture-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      overflow: hidden;
+      border-radius: inherit;
+    }
+
+    /* --- BG: flat / mesh / aurora / particles / bands / noir / topo --- */
+    .bg-flat   { background: #08080e; }
+
+    .bg-mesh   { background: #08080e; }
+    .bg-mesh::before, .bg-mesh::after, .bg-mesh > .blob {
+      content: ''; position: absolute; border-radius: 50%;
+    }
+    .bg-mesh::before {
+      width: 700px; height: 700px; left: -25%; top: -120%;
+      background: radial-gradient(circle, var(--accent) 0%, var(--accent-soft) 35%, transparent 70%);
+      animation: meshDriftA 14s ease-in-out infinite alternate;
+    }
+    .bg-mesh::after {
+      width: 640px; height: 640px; right: -25%; top: -50%;
+      background: radial-gradient(circle, #8a6cff 0%, rgba(108,76,242,0.4) 35%, transparent 70%);
+      animation: meshDriftB 18s ease-in-out infinite alternate;
+      opacity: 0.85;
+    }
+    .bg-mesh .blob {
+      width: 600px; height: 600px; left: 20%; bottom: -200%;
+      background: radial-gradient(circle, #4cd6e0 0%, rgba(44,198,214,0.4) 35%, transparent 70%);
+      animation: meshDriftC 16s ease-in-out infinite alternate;
+      opacity: 0.7;
+    }
+    @keyframes meshDriftA { 0%{transform:translate(0,0) scale(1);} 100%{transform:translate(120px,90px) scale(1.15);} }
+    @keyframes meshDriftB { 0%{transform:translate(0,0) scale(1);} 100%{transform:translate(-100px,60px) scale(1.1);} }
+    @keyframes meshDriftC { 0%{transform:translate(-60px,0) scale(0.95);} 100%{transform:translate(80px,-40px) scale(1.15);} }
+
+    .bg-aurora { background: #07070d; }
+    .bg-aurora::before, .bg-aurora::after {
+      content: ''; position: absolute; inset: -50%;
+      animation: auroraSway 12s ease-in-out infinite alternate;
+    }
+    .bg-aurora::before {
+      background:
+        radial-gradient(50% 60% at 25% 35%, var(--accent) 0%, var(--accent-soft) 35%, transparent 65%),
+        radial-gradient(40% 50% at 80% 75%, var(--accent) 0%, transparent 60%),
+        radial-gradient(55% 45% at 60% 110%, var(--accent-glow) 0%, transparent 60%);
+      opacity: 0.95;
+    }
+    .bg-aurora::after {
+      background:
+        radial-gradient(35% 55% at 70% 20%, #ff9a6a 0%, transparent 60%),
+        radial-gradient(50% 40% at 10% 80%, #b85a30 0%, transparent 60%);
+      animation-duration: 16s;
+      animation-direction: alternate-reverse;
+      mix-blend-mode: screen;
+      opacity: 0.75;
+    }
+    @keyframes auroraSway { 0%{transform:translate(0,0) scale(1);} 100%{transform:translate(-60px,30px) scale(1.12);} }
+
+    .bg-particles { background: radial-gradient(circle at 50% 50%, #0e0e18, #06060c 80%); }
+    .tex-particles { width: 100%; height: 100%; position: relative; }
+    .tex-particles .dot {
+      position: absolute;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px 2px var(--accent-glow);
+      opacity: 0.85;
+    }
+    @keyframes dotFloat {
+      0%   { transform: translate(0,0); opacity: 0.5; }
+      50%  { opacity: 0.85; }
+      100% { transform: translate(var(--dx, 30px), var(--dy, -20px)); opacity: 0.4; }
+    }
+
+    .bg-bands { background: #08080e; }
+    .bg-bands::before {
+      content: ''; position: absolute; inset: -50% -50%;
+      background: linear-gradient(100deg,
+        transparent 20%, var(--accent-glow) 42%, var(--accent) 50%,
+        var(--accent-glow) 58%, transparent 80%);
+      animation: bandsSweep 14s ease-in-out infinite;
+      opacity: 0.85;
+    }
+    .bg-bands::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(8,8,14,0) 0%, rgba(8,8,14,0.55) 100%);
+    }
+    @keyframes bandsSweep {
+      0% { transform: translateX(-15%); }
+      50% { transform: translateX(15%); }
+      100% { transform: translateX(-15%); }
+    }
+
+    .bg-noir { background: linear-gradient(180deg, #0a0a12 0%, #050509 100%); }
+    .bg-noir::after {
+      content: ''; position: absolute;
+      width: 110%; height: 160%; left: -25%; top: 0;
+      background: radial-gradient(circle, var(--accent) 0%, var(--accent-soft) 35%, transparent 65%);
+      animation: emberPulse 9s ease-in-out infinite alternate;
+      opacity: 0.85;
+    }
+    .tex-noir {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.10) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.10) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, black 30%, transparent 95%);
+      -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, black 30%, transparent 95%);
+    }
+    @keyframes emberPulse {
+      0%   { opacity: 0.55; transform: translate(0,0); }
+      100% { opacity: 0.85; transform: translate(20px,-10px); }
+    }
+
+    .bg-topo { background: #07070d; }
+    .bg-topo .topo-glow {
+      position: absolute; inset: -30%;
+      background: radial-gradient(50% 60% at 30% 60%, var(--accent) 0%, var(--accent-soft) 40%, transparent 70%);
+      animation: emberPulse 12s ease-in-out infinite alternate;
+      opacity: 0.85;
+    }
+    .tex-topo { position: absolute; inset: 0; }
+    .tex-topo svg { width: 100%; height: 100%; display: block; }
+
+    /* --- BG: iridescent / plasma / chrome --- */
+    @property --iri-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+    .bg-iridescent { background: #07070d; }
+    .bg-iridescent::before {
+      content: ''; position: absolute; inset: 0;
+      background: conic-gradient(from var(--iri-angle, 0deg),
+        #4a8fff 0%, #b96cff 14%, #ff5cd6 28%, #ff8b5c 42%,
+        #ffd86c 56%, #6cffae 70%, #5ce0ff 84%, #4a8fff 100%);
+      filter: saturate(1.3) blur(2px);
+      animation: iridAngle 12s linear infinite;
+      opacity: 0.95;
+    }
+    .bg-iridescent::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 80% at 50% 50%, rgba(8,8,14,0.85) 0%, rgba(8,8,14,0.45) 55%, transparent 80%);
+      pointer-events: none;
+    }
+    @keyframes iridAngle { 0%{--iri-angle:0deg;} 100%{--iri-angle:360deg;} }
+    @supports not (background: paint(_)) {
+      .bg-iridescent::before { animation: iridSpin 12s linear infinite; }
+    }
+    @keyframes iridSpin { 0%{transform:rotate(0deg);} 100%{transform:rotate(360deg);} }
+
+    .bg-plasma { background: #06060c; }
+    .bg-plasma::before {
+      content: ''; position: absolute; inset: -80%;
+      background:
+        radial-gradient(closest-side at 25% 35%, var(--accent) 0%, transparent 55%),
+        radial-gradient(closest-side at 75% 65%, #6c4cf2 0%, transparent 55%),
+        radial-gradient(closest-side at 50% 100%, #2cc6d6 0%, transparent 55%);
+      animation: plasmaDrift 14s ease-in-out infinite alternate;
+      filter: saturate(1.2);
+    }
+    .bg-plasma::after {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), transparent 50%),
+        linear-gradient(180deg, rgba(6,6,12,0) 0%, rgba(6,6,12,0.5) 100%);
+    }
+    @keyframes plasmaDrift {
+      0%   { transform: translate(0,0) scale(1) rotate(0deg); }
+      50%  { transform: translate(40px,-20px) scale(1.1) rotate(15deg); }
+      100% { transform: translate(-30px,30px) scale(1.05) rotate(-10deg); }
+    }
+
+    .bg-chrome { background: #08080e; }
+    .bg-chrome::before {
+      content: ''; position: absolute; inset: -30%;
+      background: linear-gradient(110deg,
+        #2a2a32 0%, #a8a8b8 18%, #f0f0f6 28%, #d8c47a 40%, #e8a85c 50%,
+        #d8c47a 60%, #f0f0f6 72%, #a8a8b8 82%, #2a2a32 100%);
+      background-size: 300% 100%;
+      animation: chromeShine 10s linear infinite;
+      opacity: 0.85;
+    }
+    .bg-chrome::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(8,8,14,0.45) 0%, rgba(8,8,14,0.65) 100%);
+    }
+    @keyframes chromeShine { 0%{background-position:0% 50%;} 100%{background-position:300% 50%;} }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bg-mesh::before, .bg-mesh::after, .bg-mesh .blob,
+      .bg-aurora::before, .bg-aurora::after,
+      .bg-bands::before, .bg-noir::after,
+      .bg-particles .dot, .bg-topo .topo-glow,
+      .bg-iridescent::before, .bg-plasma::before, .bg-chrome::before {
+        animation: none !important;
+      }
+    }
+    /* Motion off — kill all bg animations even outside reduced-motion. */
+    .panel.motion-off .bg-base *,
+    .panel.motion-off .bg-base::before,
+    .panel.motion-off .bg-base::after {
+      animation-play-state: paused !important;
+    }
+
+    /* --- Gear button (top-right of panel, z:8 above all content) --- */
+    .gear-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 8;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,0.04);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition:
+        transform 220ms var(--ease),
+        color 0.14s var(--ease),
+        background 0.14s var(--ease),
+        border-color 0.14s var(--ease);
+    }
+    .gear-btn:hover {
+      color: var(--accent);
+      border-color: var(--border-soft);
+      background: rgba(255,255,255,0.08);
+    }
+    .gear-btn.open {
+      transform: rotate(60deg);
+      color: var(--accent);
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    /* --- Settings drawer + backdrop --- */
+    .settings-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .settings-backdrop.open { pointer-events: auto; }
+
+    .settings-panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 360px;
+      max-height: 70vh;
+      z-index: 51;
+      background: rgba(10,10,16,0.94);
+      backdrop-filter: blur(40px) saturate(150%);
+      -webkit-backdrop-filter: blur(40px) saturate(150%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      box-shadow: 0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.96) translateY(-4px);
+      transform-origin: var(--anchor-x, 100%) var(--anchor-y, 0%);
+      transition:
+        opacity 160ms var(--ease),
+        transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      -webkit-app-region: no-drag;
+    }
+    .settings-panel.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+    }
+    .settings-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .settings-head h2 {
+      margin: 0;
+      font: 600 12px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+    .settings-close {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent;
+      color: #a8acba;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.14s var(--ease), border-color 0.14s var(--ease);
+    }
+    .settings-close:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+    .settings-body { overflow-y: auto; padding: 4px 0 8px; }
+    .settings-body::-webkit-scrollbar { width: 8px; }
+    .settings-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+    .settings-body::-webkit-scrollbar-track { background: transparent; }
+
+    .settings-section { padding: 14px 18px 4px; }
+    .settings-section + .settings-section { border-top: 1px solid rgba(255,255,255,0.05); }
+    .settings-section h3 {
+      margin: 0 0 10px;
+      font: 600 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #8a8d9e;
+    }
+
+    /* Theme rail */
+    .theme-rail { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 22px; }
+    .theme-chip-wrap { position: relative; }
+    .theme-chip {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      background: var(--chip-color);
+      cursor: pointer;
+      transition: transform 0.14s var(--ease), border-color 0.14s var(--ease);
+      padding: 0;
+    }
+    .theme-chip:hover { transform: scale(1.06); }
+    .theme-chip.selected {
+      border-color: #fff;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.6), 0 0 16px var(--chip-color);
+    }
+    .theme-chip-label {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      font: 500 9px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.06em;
+      color: #8a8d9e;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Background grid */
+    .bg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .bg-swatch {
+      position: relative;
+      aspect-ratio: 16/9;
+      border-radius: 8px;
+      border: 1.5px solid rgba(255,255,255,0.06);
+      overflow: hidden;
+      cursor: pointer;
+      background: #08080e;
+      transition: border-color 0.14s var(--ease), transform 0.14s var(--ease);
+      padding: 0;
+    }
+    .bg-swatch:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.16); }
+    .bg-swatch.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), 0 0 14px var(--accent-glow);
+    }
+    .bg-swatch .swatch-fill { position: absolute; inset: 0; pointer-events: none; }
+    .bg-swatch .swatch-label {
+      position: absolute;
+      bottom: 4px;
+      left: 6px;
+      right: 6px;
+      font: 500 9px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.08em;
+      color: #d8dae3;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+      pointer-events: none;
+    }
+    .bg-swatch.selected .swatch-label { color: var(--accent); }
+
+    /* Toggle */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 12px;
+      color: #d8dae3;
+    }
+    .toggle-row .label-sub {
+      display: block;
+      font-size: 10px;
+      color: #8a8d9e;
+      margin-top: 2px;
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    }
+    .toggle {
+      flex: none;
+      width: 36px;
+      height: 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      position: relative;
+      cursor: pointer;
+      transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #d8dae3;
+      transition: left 180ms cubic-bezier(0.2,0.8,0.2,1), background 0.14s var(--ease);
+    }
+    .toggle.on { background: var(--accent-soft); border-color: var(--accent); }
+    .toggle.on::after { left: 18px; background: var(--accent); }
+
+    /* Slider */
+    .slider-row { padding: 6px 0; }
+    .slider-row .slider-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #d8dae3;
+      margin-bottom: 6px;
+    }
+    .slider-row .slider-head .num {
+      font: 500 11px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      color: var(--accent);
+    }
+    .slider-row input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.08);
+      outline: none;
+    }
+    .slider-row input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #08080e;
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .reset-row { display: flex; gap: 8px; margin-top: 4px; padding: 0 18px 16px; }
+    .reset-btn {
+      flex: 1;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent;
+      color: #a8acba;
+      font: 600 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.14em;
+      cursor: pointer;
+      transition: color 0.14s var(--ease), border-color 0.14s var(--ease), background 0.14s var(--ease);
+    }
+    .reset-btn:hover {
+      color: #fff;
+      border-color: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.04);
+    }
+
+    .saved-flash {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font: 600 9px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--accent);
+      opacity: 0;
+      transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+      pointer-events: none;
+    }
+    .saved-flash.show { opacity: 1; transform: translateX(-50%) translateY(2px); }
+
+    /* --- Action toast (SEND / DEPLOY confirmation pill) --- */
+    .action-toast {
+      position: fixed;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      padding: 8px 16px;
+      border-radius: 100px;
+      background: rgba(20,20,28,0.92);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      font: 600 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.14em;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 14px var(--accent-glow);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+      transform: translateX(-50%) translateY(-6px);
+    }
+    .action-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Deploy flash on the panel border — 600ms accent ring + 32px glow. */
+    .panel.flash-deploy { animation: deployPulse 600ms ease; }
+    @keyframes deployPulse {
+      0%, 100% {
+        box-shadow:
+          0 30px 80px rgba(0,0,0,0.55),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+      }
+      40% {
+        box-shadow:
+          0 30px 80px rgba(0,0,0,0.55),
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          0 0 0 2px var(--accent),
+          0 0 32px var(--accent-glow);
+      }
+    }
+
+    /* App-level master opacity — applied to the panel only so the gear drawer
+       stays fully visible. */
+    .panel { opacity: var(--master-opacity, 1); }
+    /* Glass blur slider override — kept additive on top of existing
+       backdrop-filter declaration via inline style applied from JS. */
   </style>
 </head>
 <body>
   <div class="panel" id="panel">
+    <!-- Stitch design: background base + texture overlay containers. Empty by
+         default; populated by applyBackground() when a non-default theme is
+         active. The .has-bg class on .panel hides the existing soft aurora
+         (.panel::before) so this layer takes over. -->
+    <div class="bg-base" id="bg-base" aria-hidden="true"></div>
+    <div class="texture-overlay" id="texture-overlay" aria-hidden="true"></div>
+
+    <!-- Settings gear — anchors the appearance drawer at top-right. -->
+    <button class="gear-btn" id="gear-btn" aria-label="Appearance settings" title="Appearance">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M19.4 13a1.7 1.7 0 0 1 0-2L21 9.3l-2-3.5-2.2.7a1.7 1.7 0 0 1-1.7-1L14.4 3h-4l-.7 2.5a1.7 1.7 0 0 1-1.7 1l-2.2-.7-2 3.5L4.6 11a1.7 1.7 0 0 1 0 2L3 14.7l2 3.5 2.2-.7a1.7 1.7 0 0 1 1.7 1l.7 2.5h4l.7-2.5a1.7 1.7 0 0 1 1.7-1l2.2.7 2-3.5L19.4 13Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+    </button>
+
     <!-- Row 1: agent dock -->
     <div class="dock" id="dock"></div>
 
@@ -2764,6 +3349,53 @@
       </div>
     </div>
   </div>
+
+  <!-- Stitch design: appearance drawer + backdrop. Anchored to the gear
+       button; positioned and toggled in JS. Closed via gear click, Escape,
+       or backdrop click. -->
+  <div class="settings-backdrop" id="settings-backdrop" aria-hidden="true"></div>
+  <aside class="settings-panel" id="settings-panel" role="dialog" aria-label="Appearance" aria-hidden="true">
+    <div class="saved-flash" id="saved-flash">SAVED</div>
+    <div class="settings-head">
+      <h2>Appearance</h2>
+      <button class="settings-close" id="settings-close" aria-label="Close" title="Close (Esc)">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <h3>Accent color</h3>
+        <div class="theme-rail" id="theme-rail"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Background</h3>
+        <div class="bg-grid" id="bg-grid"></div>
+      </div>
+      <div class="settings-section">
+        <h3>Atmosphere</h3>
+        <div class="slider-row" id="slider-blur">
+          <div class="slider-head"><span>Glass blur</span><span class="num">28px</span></div>
+          <input type="range" min="0" max="60" step="1" value="28" />
+        </div>
+        <div class="slider-row" id="slider-opacity">
+          <div class="slider-head"><span>Panel opacity</span><span class="num">1.00</span></div>
+          <input type="range" min="0.4" max="1" step="0.05" value="1" />
+        </div>
+        <div class="toggle-row">
+          <div>Animate background<span class="label-sub">Honors prefers-reduced-motion</span></div>
+          <div class="toggle on" id="motion-toggle" role="switch" aria-checked="true"></div>
+        </div>
+      </div>
+    </div>
+    <div class="reset-row">
+      <button class="reset-btn" id="reset-btn">RESET TO DEFAULTS</button>
+    </div>
+  </aside>
+
+  <!-- Stitch design: action toast — single instance, 1600ms auto-dismiss. -->
+  <div class="action-toast" id="action-toast" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Team-chat overlay — Cmd+T to toggle. Native chat surface that reads/
        writes ~/.message-agent/channels/team/messages.jsonl directly via IPC.
@@ -6337,6 +6969,424 @@
       ev.preventDefault();
       toggleChatOverlay();
     });
+
+    /* ===========================================================================
+       Stitch design: gear → appearance drawer with theme accent + background +
+       blur + opacity + motion. Persists to localStorage `agentremote.theme.v3`.
+       Adds the design's polished settings surface alongside the existing
+       per-tile right-click menu (which keeps cwd / kill / restart / attach).
+       =========================================================================== */
+    (function stitchAppearance() {
+      const STORAGE_KEY = 'agentremote.theme.v3';
+      const THEMES = {
+        orange: { hex: '#e07c4c', name: 'Orange' },
+        amber:  { hex: '#f0a14a', name: 'Amber' },
+        rose:   { hex: '#e35d6a', name: 'Rose' },
+        cyan:   { hex: '#5cc8d6', name: 'Cyan' },
+        violet: { hex: '#9d7cf2', name: 'Violet' },
+        lime:   { hex: '#bdd962', name: 'Lime' },
+      };
+      const BACKGROUNDS = [
+        { id: 'aurora',     name: 'Aurora' },
+        { id: 'mesh',       name: 'Mesh' },
+        { id: 'iridescent', name: 'Iridescent' },
+        { id: 'plasma',     name: 'Plasma' },
+        { id: 'chrome',     name: 'Chrome' },
+        { id: 'particles',  name: 'Particles' },
+        { id: 'bands',      name: 'Bands' },
+        { id: 'noir',       name: 'Noir' },
+        { id: 'topo',       name: 'Topo' },
+        { id: 'flat',       name: 'Flat' },
+        { id: 'none',       name: 'None' },
+      ];
+      const DEFAULTS = {
+        theme: 'orange',
+        background: 'none',
+        motion: true,
+        blurAmount: 40,
+        masterOpacity: 1,
+      };
+      function hexToRgba(hex, a) {
+        const h = hex.replace('#', '');
+        const r = parseInt(h.slice(0, 2), 16);
+        const g = parseInt(h.slice(2, 4), 16);
+        const b = parseInt(h.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+      }
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return { ...DEFAULTS };
+          return { ...DEFAULTS, ...JSON.parse(raw) };
+        } catch (_) {
+          return { ...DEFAULTS };
+        }
+      }
+      function saveSettings(s) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (_) {}
+      }
+
+      let state = loadSettings();
+      const panel = document.getElementById('panel');
+      const gearBtn = document.getElementById('gear-btn');
+      const drawer = document.getElementById('settings-panel');
+      const backdrop = document.getElementById('settings-backdrop');
+      const closeBtn = document.getElementById('settings-close');
+      const themeRail = document.getElementById('theme-rail');
+      const bgGrid = document.getElementById('bg-grid');
+      const bgBase = document.getElementById('bg-base');
+      const texOverlay = document.getElementById('texture-overlay');
+      const blurRow = document.getElementById('slider-blur');
+      const opacityRow = document.getElementById('slider-opacity');
+      const motionToggle = document.getElementById('motion-toggle');
+      const resetBtn = document.getElementById('reset-btn');
+      const savedFlash = document.getElementById('saved-flash');
+      const toast = document.getElementById('action-toast');
+
+      // Apply ALL settings to the live panel.
+      function applySettings(s) {
+        const hex = THEMES[s.theme]?.hex || THEMES.orange.hex;
+        // Set accent vars on .panel as inline style — overrides hardcoded :root
+        // values without nuking them (so the drag-region / radial-menu paths
+        // that read --accent inherit the new value naturally).
+        panel.style.setProperty('--accent', hex);
+        panel.style.setProperty('--accent-glow', hexToRgba(hex, 0.55));
+        panel.style.setProperty('--accent-soft', hexToRgba(hex, 0.18));
+        panel.style.setProperty('--master-opacity', s.masterOpacity);
+        // Glass blur — patch the existing backdrop-filter via inline style so
+        // we don't override the saturate. The existing rule uses `blur(40px)
+        // saturate(140%)`; we replace it wholesale with the user's value.
+        const blurStr = `blur(${s.blurAmount}px) saturate(140%)`;
+        panel.style.backdropFilter = blurStr;
+        panel.style.webkitBackdropFilter = blurStr;
+        // Motion class
+        panel.classList.toggle('motion-off', !s.motion);
+        // Background
+        applyBackground(s.background);
+      }
+
+      function applyBackground(id) {
+        // Reset
+        bgBase.className = 'bg-base';
+        bgBase.innerHTML = '';
+        texOverlay.innerHTML = '';
+        if (id === 'none') {
+          panel.classList.remove('has-bg');
+          return;
+        }
+        panel.classList.add('has-bg');
+        bgBase.classList.add('bg-' + id);
+        if (id === 'mesh') {
+          const blob = document.createElement('span');
+          blob.className = 'blob';
+          bgBase.appendChild(blob);
+        } else if (id === 'particles') {
+          const tex = document.createElement('div');
+          tex.className = 'tex-particles';
+          // Deterministic particle layout (no flicker on theme swap).
+          const seeds = Array.from({ length: 14 }, (_, i) => {
+            const r1 = ((i * 9301 + 49297) % 233280) / 233280;
+            const r2 = ((i * 7919 + 12345) % 233280) / 233280;
+            const r3 = ((i * 31337 + 17) % 233280) / 233280;
+            return {
+              left: 5 + r1 * 90,
+              top: 5 + r2 * 85,
+              size: 6 + r3 * 10,
+              delay: -r1 * 8,
+              dur: 6 + r2 * 6,
+              dx: (r3 - 0.5) * 80,
+              dy: (r1 - 0.5) * 60,
+              opacity: 0.55 + r2 * 0.4,
+            };
+          });
+          for (const s of seeds) {
+            const dot = document.createElement('span');
+            dot.className = 'dot';
+            dot.style.left = s.left + '%';
+            dot.style.top = s.top + '%';
+            dot.style.width = s.size + 'px';
+            dot.style.height = s.size + 'px';
+            dot.style.opacity = s.opacity;
+            dot.style.setProperty('--dx', s.dx + 'px');
+            dot.style.setProperty('--dy', s.dy + 'px');
+            dot.style.animation = `dotFloat ${s.dur}s ease-in-out ${s.delay}s infinite alternate`;
+            tex.appendChild(dot);
+          }
+          texOverlay.appendChild(tex);
+        } else if (id === 'noir') {
+          const tex = document.createElement('div');
+          tex.className = 'tex-noir';
+          texOverlay.appendChild(tex);
+        } else if (id === 'topo') {
+          const glow = document.createElement('div');
+          glow.className = 'topo-glow';
+          bgBase.appendChild(glow);
+          // SVG concentric ellipses on the texture-overlay layer
+          const ns = 'http://www.w3.org/2000/svg';
+          const wrap = document.createElement('div');
+          wrap.className = 'tex-topo';
+          const svg = document.createElementNS(ns, 'svg');
+          svg.setAttribute('viewBox', '0 0 720 220');
+          svg.setAttribute('preserveAspectRatio', 'none');
+          const g = document.createElementNS(ns, 'g');
+          g.setAttribute('stroke', 'var(--accent)');
+          g.setAttribute('fill', 'none');
+          g.setAttribute('stroke-width', '1.2');
+          g.setAttribute('opacity', '0.55');
+          [40, 70, 100, 130, 160, 190].forEach((r, i) => {
+            const e = document.createElementNS(ns, 'ellipse');
+            e.setAttribute('cx', String(220 + i * 5));
+            e.setAttribute('cy', '120');
+            e.setAttribute('rx', String(r * 1.4));
+            e.setAttribute('ry', String(r * 0.7));
+            e.style.animation = `emberPulse ${10 + i}s ease-in-out ${-i * 0.7}s infinite alternate`;
+            g.appendChild(e);
+          });
+          svg.appendChild(g);
+          wrap.appendChild(svg);
+          texOverlay.appendChild(wrap);
+        }
+      }
+
+      // Render the theme rail (one chip per accent).
+      function renderThemeRail() {
+        themeRail.innerHTML = '';
+        for (const [key, t] of Object.entries(THEMES)) {
+          const wrap = document.createElement('div');
+          wrap.className = 'theme-chip-wrap';
+          const chip = document.createElement('button');
+          chip.className = 'theme-chip' + (state.theme === key ? ' selected' : '');
+          chip.style.setProperty('--chip-color', t.hex);
+          chip.setAttribute('aria-label', t.name);
+          chip.dataset.theme = key;
+          chip.addEventListener('click', () => updateTheme(key));
+          const label = document.createElement('div');
+          label.className = 'theme-chip-label';
+          label.textContent = t.name;
+          wrap.appendChild(chip);
+          wrap.appendChild(label);
+          themeRail.appendChild(wrap);
+        }
+      }
+
+      // Render the background grid (mini live previews).
+      function renderBgGrid() {
+        bgGrid.innerHTML = '';
+        for (const b of BACKGROUNDS) {
+          const btn = document.createElement('button');
+          btn.className = 'bg-swatch' + (state.background === b.id ? ' selected' : '');
+          btn.dataset.bg = b.id;
+          btn.setAttribute('aria-label', b.name);
+          const fill = document.createElement('div');
+          fill.className = 'swatch-fill';
+          fill.style.background = bgPreviewCss(b.id);
+          btn.appendChild(fill);
+          const label = document.createElement('div');
+          label.className = 'swatch-label';
+          label.textContent = b.name;
+          btn.appendChild(label);
+          btn.addEventListener('click', () => updateBackground(b.id));
+          bgGrid.appendChild(btn);
+        }
+      }
+
+      // Mini-preview CSS per swatch — purely cosmetic; the live panel uses the
+      // real bg classes via applyBackground().
+      function bgPreviewCss(id) {
+        const accent = THEMES[state.theme].hex;
+        const glow = hexToRgba(accent, 0.55);
+        const soft = hexToRgba(accent, 0.18);
+        switch (id) {
+          case 'flat':       return '#08080e';
+          case 'none':       return 'radial-gradient(circle at 50% 50%, #14141c, #07070b 80%)';
+          case 'mesh':       return `radial-gradient(circle at 25% 35%, ${accent}, transparent 55%), radial-gradient(circle at 75% 70%, #6c4cf2, transparent 55%), #08080e`;
+          case 'aurora':     return `radial-gradient(60% 80% at 25% 35%, ${glow}, transparent 60%), radial-gradient(50% 60% at 80% 75%, ${soft}, transparent 65%), #07070d`;
+          case 'iridescent': return `conic-gradient(from 0deg, #4a8fff, #b96cff, #ff5cd6, #ff8b5c, #ffd86c, #6cffae, #5ce0ff, #4a8fff)`;
+          case 'plasma':     return `radial-gradient(closest-side at 25% 30%, ${accent}, transparent 55%), radial-gradient(closest-side at 75% 70%, #6c4cf2, transparent 55%), #06060c`;
+          case 'chrome':     return `linear-gradient(110deg, #2a2a32 0%, #a8a8b8 18%, #f0f0f6 28%, #d8c47a 40%, #e8a85c 50%, #d8c47a 60%, #f0f0f6 72%, #a8a8b8 82%, #2a2a32 100%)`;
+          case 'particles':  return `radial-gradient(circle at 50% 50%, #0e0e18, #06060c 80%)`;
+          case 'bands':      return `linear-gradient(100deg, transparent 30%, ${soft} 45%, ${glow} 50%, ${soft} 55%, transparent 70%), #08080e`;
+          case 'noir':       return `radial-gradient(circle at 25% 60%, ${glow}, transparent 60%), linear-gradient(180deg, #0a0a12, #050509)`;
+          case 'topo':       return `radial-gradient(circle at 30% 60%, ${glow}, transparent 60%), #07070d`;
+          default:           return '#08080e';
+        }
+      }
+
+      // ---- Mutations ----
+      function flashSaved() {
+        if (!savedFlash) return;
+        savedFlash.classList.add('show');
+        setTimeout(() => savedFlash.classList.remove('show'), 900);
+      }
+      function updateTheme(key) {
+        state.theme = key;
+        applySettings(state);
+        saveSettings(state);
+        renderThemeRail();
+        renderBgGrid();
+        flashSaved();
+      }
+      function updateBackground(id) {
+        state.background = id;
+        applySettings(state);
+        saveSettings(state);
+        renderBgGrid();
+        flashSaved();
+      }
+      function updateMotion(on) {
+        state.motion = !!on;
+        motionToggle.classList.toggle('on', state.motion);
+        motionToggle.setAttribute('aria-checked', String(state.motion));
+        applySettings(state);
+        saveSettings(state);
+        flashSaved();
+      }
+      function updateBlur(px) {
+        state.blurAmount = +px;
+        const head = blurRow.querySelector('.num');
+        if (head) head.textContent = `${state.blurAmount}px`;
+        applySettings(state);
+        saveSettings(state);
+      }
+      function updateOpacity(v) {
+        state.masterOpacity = +v;
+        const head = opacityRow.querySelector('.num');
+        if (head) head.textContent = state.masterOpacity.toFixed(2);
+        applySettings(state);
+        saveSettings(state);
+      }
+      function resetAll() {
+        state = { ...DEFAULTS };
+        saveSettings(state);
+        renderAll();
+        applySettings(state);
+        flashSaved();
+      }
+      function renderAll() {
+        renderThemeRail();
+        renderBgGrid();
+        motionToggle.classList.toggle('on', state.motion);
+        motionToggle.setAttribute('aria-checked', String(state.motion));
+        const blurInput = blurRow.querySelector('input');
+        const blurNum = blurRow.querySelector('.num');
+        if (blurInput) blurInput.value = state.blurAmount;
+        if (blurNum) blurNum.textContent = `${state.blurAmount}px`;
+        const opInput = opacityRow.querySelector('input');
+        const opNum = opacityRow.querySelector('.num');
+        if (opInput) opInput.value = state.masterOpacity;
+        if (opNum) opNum.textContent = state.masterOpacity.toFixed(2);
+      }
+
+      // ---- Drawer open/close + positioning ----
+      function openDrawer() {
+        if (!gearBtn || !drawer) return;
+        const rect = gearBtn.getBoundingClientRect();
+        const PANEL_W = 360;
+        const PANEL_MAX_H = Math.round(window.innerHeight * 0.7);
+        const margin = 12;
+        let left = rect.right - PANEL_W;
+        if (left < margin) left = margin;
+        if (left + PANEL_W > window.innerWidth - margin) {
+          left = window.innerWidth - PANEL_W - margin;
+        }
+        let top = rect.bottom + 8;
+        if (top + PANEL_MAX_H > window.innerHeight - margin) {
+          top = Math.max(margin, rect.top - PANEL_MAX_H - 8);
+        }
+        const anchorX = (rect.left + rect.width / 2) - left;
+        drawer.style.left = `${left}px`;
+        drawer.style.top = `${top}px`;
+        drawer.style.setProperty('--anchor-x', `${anchorX}px`);
+        drawer.style.setProperty('--anchor-y', '0%');
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+        backdrop.classList.add('open');
+        backdrop.setAttribute('aria-hidden', 'false');
+        gearBtn.classList.add('open');
+      }
+      function closeDrawer() {
+        if (!drawer) return;
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+        backdrop.classList.remove('open');
+        backdrop.setAttribute('aria-hidden', 'true');
+        gearBtn.classList.remove('open');
+      }
+      function isDrawerOpen() {
+        return drawer && drawer.classList.contains('open');
+      }
+
+      // ---- Toast helper ----
+      let toastTimer = null;
+      function showActionToast(msg) {
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 1600);
+      }
+      window.__showActionToast = showActionToast;
+
+      // ---- Wire interactivity ----
+      gearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (isDrawerOpen()) closeDrawer(); else openDrawer();
+      });
+      closeBtn.addEventListener('click', closeDrawer);
+      backdrop.addEventListener('click', closeDrawer);
+      window.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && isDrawerOpen()) closeDrawer();
+      });
+      // Click-outside (anywhere not in drawer / gear) closes.
+      document.addEventListener('mousedown', (ev) => {
+        if (!isDrawerOpen()) return;
+        if (drawer.contains(ev.target)) return;
+        if (gearBtn.contains(ev.target)) return;
+        closeDrawer();
+      });
+
+      const blurInput = blurRow.querySelector('input');
+      blurInput.addEventListener('input', (e) => updateBlur(e.target.value));
+      const opInput = opacityRow.querySelector('input');
+      opInput.addEventListener('input', (e) => updateOpacity(e.target.value));
+      motionToggle.addEventListener('click', () => updateMotion(!state.motion));
+      resetBtn.addEventListener('click', resetAll);
+
+      // ---- Toast hooks for SEND / DEPLOY ----
+      // The existing handlers (broadcast-message, spawn-agents) run their own
+      // logic; we just piggyback a confirmation toast on a successful click.
+      // Disabled buttons skip via the .disabled class / disabled attr check.
+      (function hookToasts() {
+        const send = document.getElementById('send-btn');
+        const deploy = document.getElementById('deploy-btn');
+        if (send) {
+          send.addEventListener('click', () => {
+            if (send.disabled || send.classList.contains('disabled')) return;
+            const summary = document.getElementById('recipient-summary');
+            const text = summary?.textContent?.trim() || '';
+            // recipient-summary reads "no agents selected" / "All Agents" / "X · Y" —
+            // any non-empty string maps to a generic SENT toast for v1.
+            showActionToast('SENT');
+          }, { capture: false });
+        }
+        if (deploy) {
+          deploy.addEventListener('click', () => {
+            if (deploy.disabled || deploy.classList.contains('disabled')) return;
+            // Flash the panel border + toast.
+            panel.classList.remove('flash-deploy');
+            // Force reflow so re-adding the class restarts the animation.
+            void panel.offsetWidth;
+            panel.classList.add('flash-deploy');
+            setTimeout(() => panel.classList.remove('flash-deploy'), 700);
+            showActionToast('DEPLOYED');
+          }, { capture: false });
+        }
+      })();
+
+      // ---- Boot ----
+      renderAll();
+      applySettings(state);
+    })();
   </script>
 </body>
 </html>
