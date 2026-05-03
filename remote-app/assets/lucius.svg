@@ -1,21 +1,19 @@
 <svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Lucius Fox: High Visibility Version -->
-  <defs>
-    <linearGradient id="armorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#444;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#222;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  <!-- Brightened Face -->
+  <!-- Lucius Fox: Wayne Tech High-Fidelity HUD -->
   <path d="M50 20 C38 20 30 30 30 45 C30 60 38 72 50 72 C62 72 70 60 70 45 C70 30 62 20 50 20" fill="#8d6e63" />
-  <!-- Glossy Wayne Tech Glasses -->
-  <path d="M35 42 L45 42 L45 48 L35 48 Z M55 42 L65 42 L65 48 L55 48 Z" fill="#111" />
-  <path d="M45 45 L55 45" stroke="#111" stroke-width="2" />
-  <!-- Vibrant Scanning HUD -->
-  <rect x="30" y="40" width="40" height="3" fill="#ffaa00">
-    <animate attributeName="y" values="35;55;35" dur="1.5s" repeatCount="indefinite" />
-    <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" />
+  
+  <!-- Glowing Visor -->
+  <rect x="28" y="40" width="44" height="14" rx="4" fill="#000" stroke="#ffaa00" stroke-width="1" />
+  <rect x="30" y="42" width="40" height="10" rx="2" fill="#222" />
+  
+  <!-- Rapid HUD Data -->
+  <rect x="30" y="42" width="4" height="10" fill="#ffaa00" opacity="0.8">
+    <animate attributeName="x" values="30;66;30" dur="1s" repeatCount="indefinite" />
   </rect>
-  <!-- Tactical Suit (Slightly Lighter) -->
-  <path d="M25 70 L50 85 L75 70 L75 98 L25 98 Z" fill="url(#armorGrad)" stroke="#555" stroke-width="0.5" />
+  
+  <!-- Armor Suit -->
+  <path d="M25 70 L50 85 L75 70 V100 H25 Z" fill="#222" stroke="#444" stroke-width="1" />
+  <path d="M45 78 L50 82 L55 78" fill="none" stroke="#ffaa00" stroke-width="1" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1s" repeatCount="indefinite" />
+  </path>
 </svg>
