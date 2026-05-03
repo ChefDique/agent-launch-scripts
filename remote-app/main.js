@@ -159,8 +159,24 @@ function createWindow() {
   mainWindow.loadFile('index.html');
   mainWindow.center();
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  mainWindow.webContents.on('console-message', (_e, level, message, line, source) => {
-    logToOutLog(`[renderer ${level}] ${message} @ ${source.split('/').pop()}:${line}`);
+  // Electron ≥35 changed the console-message signature: single Event object
+  // (level/message/lineNumber/sourceId properties) instead of positional args.
+  // Detect both shapes so renderer console.log lands in out.log on either.
+  mainWindow.webContents.on('console-message', (...args) => {
+    let level, message, line, source;
+    if (args.length >= 5) {
+      // Legacy (Electron ≤34): (event, level, message, line, source)
+      [, level, message, line, source] = args;
+    } else {
+      // Modern (Electron ≥35): (event) where event has the fields.
+      const evt = args[0] || {};
+      level = evt.level;
+      message = evt.message;
+      line = evt.lineNumber;
+      source = evt.sourceId || '';
+    }
+    const tail = (source || '').split('/').pop() || '?';
+    logToOutLog(`[renderer ${level ?? '?'}] ${message ?? ''} @ ${tail}:${line ?? '?'}`);
   });
 
   const contextMenu = Menu.buildFromTemplate([

@@ -840,6 +840,76 @@
     opacity: 1;
     transform: translateX(-50%) translateY(2px);
   }
+
+  /* ============================================================
+     Per-tile radial popover — right-click on an agent tile to
+     surface CWD / KILL / RESTART / ATTACH actions. Same accent
+     vars as the main panel so theme switching applies for free.
+     ============================================================ */
+  .tile-popover {
+    position: fixed;
+    z-index: 60;
+    min-width: 168px;
+    background: rgba(10, 10, 16, 0.96);
+    backdrop-filter: blur(40px) saturate(150%);
+    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    border: 1px solid var(--border-medium, rgba(255,255,255,0.14));
+    border-radius: 12px;
+    box-shadow: 0 24px 60px -16px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4);
+    padding: 6px;
+    display: flex; flex-direction: column; gap: 2px;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-app-region: no-drag;
+    opacity: 0; pointer-events: none;
+    transform: scale(0.94) translateY(-4px);
+    transform-origin: var(--tp-anchor-x, 50%) var(--tp-anchor-y, 0%);
+    transition: opacity 140ms ease, transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tile-popover.open {
+    opacity: 1; pointer-events: auto;
+    transform: scale(1) translateY(0);
+  }
+  .tile-popover-head {
+    padding: 4px 10px 2px;
+    font: 600 9px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.14em;
+    color: var(--accent, #e07c4c);
+    text-transform: uppercase;
+  }
+  .tile-popover-action {
+    display: flex; align-items: center; gap: 8px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #d8dae4;
+    font: 500 11px/1 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    text-align: left;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .tile-popover-action:hover {
+    background: var(--accent-soft, rgba(224,124,76,0.18));
+    border-color: var(--accent, #e07c4c);
+    color: #fff;
+  }
+  .tile-popover-action.danger:hover {
+    background: rgba(227, 93, 106, 0.22);
+    border-color: #e35d6a;
+    color: #fff;
+  }
+  .tile-popover-action svg {
+    width: 12px; height: 12px;
+    stroke: currentColor; fill: none;
+    stroke-width: 1.6;
+    flex: 0 0 12px;
+  }
+  .tile-popover-divider {
+    height: 1px; margin: 3px 6px;
+    background: rgba(255,255,255,0.06);
+  }
 </style>
 </head>
 <body>
@@ -1243,6 +1313,13 @@
         'aria-pressed': state.selectedAgents.includes(a.key) ? 'true' : 'false',
         dataset: { key: a.key },
         onClick: () => toggleAgent(a.key),
+        onContextmenu: (e) => {
+          e.preventDefault();
+          // Tell main.js to suppress its native Reload/Quit context menu.
+          // 250ms grace window matches main.js's lastTileRightClickAt check.
+          ipcRenderer.send('tile-rightclick-suppress');
+          openTilePopover(a, tile);
+        },
       }, key, av, name);
       return tile;
     }
@@ -1326,6 +1403,9 @@
       const ids = state.selectedAgents.map(k => AGENTS.find(a => a.key === k)?.id).filter(Boolean);
       if (!ids.length) return;
       const isAll = ids.length === AGENTS.length;
+      // tmuxTarget mirrors the agent's lowercased pane title — same substring
+      // rule main.js uses to resolve panes (`title.toLowerCase().includes(needle)`).
+      // The id IS the lowercase target for every agent in the static list.
       const payload = ids.map(id => ({ id, tmuxTarget: id }));
       ipcRenderer.send('broadcast-message', { message: msg, selectedAgents: payload, isAll });
       showToast(`SENT → ${ids.length} ${ids.length === 1 ? 'AGENT' : 'AGENTS'}`);
@@ -1343,6 +1423,141 @@
       panelEl.classList.add('flash-deploy');
       setTimeout(() => panelEl.classList.remove('flash-deploy'), 700);
       showToast('DEPLOYED');
+    }
+
+    /* ============================================================
+       Per-tile right-click popover. CWD / KILL / RESTART / ATTACH —
+       four IPC handlers that already exist in main.js. Single shared
+       popover element, lazy-built on first open, repositioned each
+       time. Closes on outside click, Escape, or scroll.
+       ============================================================ */
+    let tilePopoverEl = null;
+    let tilePopoverAgent = null;
+    let tilePopoverTile = null;
+
+    function ensureTilePopover() {
+      if (tilePopoverEl) return tilePopoverEl;
+      tilePopoverEl = el('div', {
+        class: 'tile-popover',
+        role: 'menu',
+        'aria-hidden': 'true',
+        // Stop the document mousedown handler from immediately closing it.
+        onMousedown: (e) => e.stopPropagation(),
+      });
+      document.body.appendChild(tilePopoverEl);
+      return tilePopoverEl;
+    }
+
+    function openTilePopover(agent, tileEl) {
+      const pop = ensureTilePopover();
+      tilePopoverAgent = agent;
+      tilePopoverTile = tileEl;
+      pop.innerHTML = '';
+
+      const head = el('div', { class: 'tile-popover-head' }, agent.label);
+      pop.appendChild(head);
+      pop.appendChild(buildPopAction({
+        label: 'CWD',
+        icon: 'M1 4l3-3h6l3 3v8a1 1 0 01-1 1H2a1 1 0 01-1-1V4z',
+        onClick: () => tileActionCwd(agent),
+      }));
+      pop.appendChild(buildPopAction({
+        label: 'ATTACH',
+        icon: 'M3 11l4-4 4 4M7 7v6M2 2h10',
+        onClick: () => tileActionAttach(agent),
+      }));
+      pop.appendChild(buildPopAction({
+        label: 'RESTART',
+        icon: 'M3 7a4 4 0 117 2.5M11 4v3h-3',
+        onClick: () => tileActionRestart(agent),
+      }));
+      pop.appendChild(el('div', { class: 'tile-popover-divider' }));
+      pop.appendChild(buildPopAction({
+        label: 'KILL PANE',
+        icon: 'M3 3l8 8M11 3l-8 8',
+        danger: true,
+        onClick: () => tileActionKill(agent),
+      }));
+
+      // Position relative to the tile. Anchor below by default; flip
+      // above if there's not enough room. Keep within viewport horizontally.
+      pop.classList.remove('open');
+      pop.style.left = '0px';
+      pop.style.top  = '0px';
+      pop.style.setProperty('--tp-anchor-x', '50%');
+      pop.style.setProperty('--tp-anchor-y', '0%');
+      // Force a layout so the next frame's transition kicks in.
+      void pop.offsetWidth;
+
+      const tr = tileEl.getBoundingClientRect();
+      const popW = pop.offsetWidth || 180;
+      const popH = pop.offsetHeight || 160;
+      const margin = 6;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      let left = Math.round(tr.left + (tr.width - popW) / 2);
+      left = Math.max(8, Math.min(vw - popW - 8, left));
+      // Prefer below the tile. Flip above if no room. If neither side fits
+      // (small window), fall back to below + clip to the viewport bottom so
+      // the popover never lands off-screen.
+      let top = Math.round(tr.bottom + margin);
+      let anchorY = '0%';
+      if (top + popH > vh - 8) {
+        const flipped = Math.round(tr.top - popH - margin);
+        if (flipped >= 8) {
+          top = flipped;
+          anchorY = '100%';
+        } else {
+          top = Math.max(8, vh - popH - 8);
+        }
+      }
+      pop.style.left = left + 'px';
+      pop.style.top  = top  + 'px';
+      pop.style.setProperty('--tp-anchor-y', anchorY);
+      pop.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => pop.classList.add('open'));
+    }
+
+    function closeTilePopover() {
+      if (!tilePopoverEl) return;
+      tilePopoverEl.classList.remove('open');
+      tilePopoverEl.setAttribute('aria-hidden', 'true');
+      tilePopoverAgent = null;
+      tilePopoverTile = null;
+    }
+
+    function buildPopAction({ label, icon, onClick, danger }) {
+      const svg = svgPath(icon, { viewBox: '0 0 14 14', width: 12, height: 12, strokeWidth: 1.6 });
+      const btn = el('button', {
+        class: 'tile-popover-action' + (danger ? ' danger' : ''),
+        type: 'button',
+        role: 'menuitem',
+        onClick: () => { closeTilePopover(); onClick(); },
+      }, svg, el('span', null, label));
+      return btn;
+    }
+
+    async function tileActionCwd(agent) {
+      const picked = await ipcRenderer.invoke('pick-cwd');
+      if (!picked) return;
+      const res = await ipcRenderer.invoke('update-agent-cwd', { id: agent.id, cwd: picked });
+      if (res && res.ok) showToast(`${agent.label} CWD → ${res.cwd}`);
+      else showToast(`CWD UPDATE FAILED${res?.error ? ' — ' + res.error : ''}`);
+    }
+    async function tileActionAttach(agent) {
+      const res = await ipcRenderer.invoke('attach-pane', agent.id);
+      if (res && res.ok) showToast(`ATTACHED → ${agent.label}`);
+      else showToast(res?.error ? `ATTACH: ${res.error.toUpperCase()}` : 'ATTACH FAILED');
+    }
+    async function tileActionRestart(agent) {
+      const res = await ipcRenderer.invoke('restart-agent', agent.id);
+      if (res && res.ok) showToast(`RESTARTING → ${agent.label}`);
+      else showToast(res?.error ? `RESTART: ${res.error.toUpperCase()}` : 'RESTART FAILED');
+    }
+    async function tileActionKill(agent) {
+      const res = await ipcRenderer.invoke('kill-pane', agent.id);
+      if (res && res.ok) showToast(`KILLED → ${agent.label}`);
+      else showToast(res?.error ? `KILL: ${res.error.toUpperCase()}` : 'KILL FAILED');
     }
 
     let drawerEl, drawerBodyEl, savedFlashEl;
@@ -1600,16 +1815,32 @@
     }
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && state.gearOpen) { closeGear(); return; }
+      if (e.key === 'Escape') {
+        if (tilePopoverEl && tilePopoverEl.classList.contains('open')) {
+          closeTilePopover();
+          return;
+        }
+        if (state.gearOpen) { closeGear(); return; }
+      }
       if (document.activeElement === chatInputEl) return;
       if (/^[1-5]$/.test(e.key)) toggleAgent(e.key);
     });
     document.addEventListener('mousedown', (e) => {
+      // Tile popover — close on any mousedown outside the popover itself
+      // (the popover stops propagation on its own mousedown so this only
+      // fires for genuinely-outside clicks).
+      if (tilePopoverEl && tilePopoverEl.classList.contains('open')) {
+        if (!tilePopoverEl.contains(e.target)) closeTilePopover();
+      }
       if (!state.gearOpen) return;
       if (drawerEl && drawerEl.contains(e.target)) return;
       if (gearBtnEl && gearBtnEl.contains(e.target)) return;
       closeGear();
     });
+    // Window scroll/resize → close popover so it doesn't drift away from
+    // its tile. Cheap close, easy reopen.
+    window.addEventListener('blur', () => closeTilePopover());
+    window.addEventListener('resize', () => closeTilePopover());
     backdropEl.addEventListener('click', closeGear);
 
     ipcRenderer.on('focus-chat-input', () => {
