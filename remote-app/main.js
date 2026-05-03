@@ -134,11 +134,11 @@ function createWindow() {
     }
     callback(false);
   });
-  if (typeof sess.setPermissionCheckHandler === 'function') {
-    sess.setPermissionCheckHandler((_wc, permission) => {
-      return ['media', 'microphone', 'audioCapture', 'speechRecognition'].includes(permission);
-    });
-  }
+  // Do NOT install setPermissionCheckHandler — it intercepts the implicit
+  // permission checks Chromium runs while loading file:// resources (notably
+  // <object data="assets/*.svg">), which would silently blank the avatars.
+  // The request handler above is sufficient to gate the user-prompt-eligible
+  // mic permission.
 
   mainWindow = new BrowserWindow({
     width: 620,
