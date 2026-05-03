@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, Menu, session, dialog, globalShortcut, scre
 const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const fsp = require('fs/promises');
+const os = require('os');
+const crypto = require('crypto');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -130,13 +133,12 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       backgroundThrottling: false,
-      // Required for the team-chat overlay (see #chat-overlay in index.html).
-      // <webview> gives us a real out-of-process browsing context for the
-      // Swarmy spawn-button server's /chat page (http://localhost:7878/chat),
-      // which is what we want — same-origin fetch from the page works without
-      // tangling with the renderer's nodeIntegration. Setting this to true
-      // does NOT auto-enable Node in the webview (it still defaults to a
-      // pure web context), it only allows the <webview> tag to exist.
+      // Left enabled even though the team-chat overlay is now native (no
+      // <webview> embed). Cheap to keep — only enables the <webview> tag in
+      // the renderer; doesn't change the renderer's own context. Leaving it
+      // on means future surfaces that genuinely need an isolated browsing
+      // context (e.g. an embed of an external dashboard) can drop in without
+      // a BrowserWindow config change.
       webviewTag: true
     }
   });
@@ -170,6 +172,7 @@ app.whenReady().then(() => {
   registerGlobalShortcut();
   registerSignalToggle();
   watchToggleFile();
+  startChatWatcher();
 });
 app.on('window-all-closed', () => { app.quit(); });
 // globalShortcut bindings are process-wide and survive renderer crashes —
@@ -1109,29 +1112,225 @@ ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) 
 });
 
 // ---------------------------------------------------------------------------
-// Team-chat overlay — server-up probe
+// Team-chat overlay — native JSONL chat substrate
 // ---------------------------------------------------------------------------
-// The chat overlay (Cmd+T in renderer) embeds Swarmy's spawn-button server at
-// http://localhost:7878/chat via a <webview>. The webview's own did-fail-load
-// catches the case where the server is fully unreachable, but a fast pre-flight
-// probe lets the renderer decide BEFORE asking the webview to navigate — that
-// way we render an inline "server not reachable" fallback without the brief
-// blank-frame that did-fail-load alone would show.
+// The chat overlay (Cmd+T in renderer) renders a NATIVE chat surface that
+// reads/writes ~/.message-agent/channels/team/messages.jsonl directly. No
+// HTTP server, no webview — Path 1 per Swarmy's shared-channels spec.
 //
-// Probe runs in main (not the renderer) so a hung server doesn't tie up
-// renderer threads or bubble up as an unhandled fetch rejection in dev tools.
-// AbortController gives us a guaranteed 1500ms ceiling — Node 18+ ships with
-// global fetch + AbortSignal.timeout.
+// Wire format (one envelope per line, append-only, O_APPEND-safe):
+//   {
+//     "channel": "team",
+//     "correlation_id": "<uuid4>",
+//     "from": "richard",
+//     "message": "<body>",
+//     "timestamp": "<ISO8601 UTC Z>",
+//     "to": "team",
+//     "type": "message"
+//   }
 //
-// Returns { ok: true } on HTTP 2xx, { ok: false, error: <reason> } otherwise.
-ipcMain.handle('chat-server-probe', async () => {
-  const url = 'http://localhost:7878/';
+// Three IPC handlers:
+//   chat-tail-init   → read entire file, return all envelopes + EOF byte offset
+//   chat-tail-read   → read from caller's offset to EOF, return new envelopes
+//                      + new offset (used by the 2s poll AND fs.watch event)
+//   chat-post        → append a new envelope authored as `from: "richard"`
+//
+// Live tail: fs.watch fires chat-tail-changed to the renderer; renderer pulls
+// via chat-tail-read with its cached offset. macOS fs.watch reliability is
+// uneven, so the renderer also runs a 2s poll loop — both converge on
+// chat-tail-read. Watcher events are debounced 50ms to coalesce rapid-fire
+// writes (one append from agent_bus_send.sh can land as multiple change events).
+
+const TEAM_CHAT_PATH = path.join(os.homedir(), '.message-agent', 'channels', 'team', 'messages.jsonl');
+
+// Ensure the parent directory exists so a fresh install can create the file
+// on first append. Idempotent — recursive:true won't error if the dir is
+// already there. Best-effort: a chmod / disk error here is rare and would
+// surface again at append time with a clearer message.
+async function ensureChatDir() {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    return { ok: true };
+    await fsp.mkdir(path.dirname(TEAM_CHAT_PATH), { recursive: true });
   } catch (err) {
-    // Common shapes: AbortError (timeout), TypeError (ECONNREFUSED).
+    // Permission denied or something more exotic — the append call will
+    // re-raise with the same error. We just don't want to crash here.
+    logToOutLog(`ensureChatDir: mkdir failed (${err.message}); continuing`);
+  }
+}
+
+// Parse one JSONL byte buffer into { envelopes, leftover }. The leftover is
+// any trailing bytes that don't end in a newline — kept for the next read so
+// we don't drop the half-written final line of a concurrent appender. Lines
+// that fail JSON.parse are skipped with a console.warn (they're presumably
+// corrupt rather than partial — partial lines never have a trailing newline).
+function parseJsonlBuffer(buf) {
+  const text = buf.toString('utf8');
+  const newlineEnd = text.lastIndexOf('\n');
+  let parsable, leftoverStr;
+  if (newlineEnd === -1) {
+    parsable = '';
+    leftoverStr = text;
+  } else {
+    parsable = text.slice(0, newlineEnd);
+    leftoverStr = text.slice(newlineEnd + 1);
+  }
+  const envelopes = [];
+  if (parsable) {
+    for (const line of parsable.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        envelopes.push(JSON.parse(trimmed));
+      } catch (err) {
+        console.warn(`[chat] skipping malformed JSONL line: ${err.message}`);
+      }
+    }
+  }
+  // leftover byte length matters for offset accounting — UTF-8 means the
+  // string-slice length isn't the byte count. Convert back to bytes.
+  const leftoverBytes = Buffer.byteLength(leftoverStr, 'utf8');
+  return { envelopes, leftoverBytes };
+}
+
+// chat-tail-init — read entire file, return everything + the EOF offset.
+// Caller caches the offset and uses it on subsequent chat-tail-read calls.
+// File-not-found is treated as an empty channel (no error).
+ipcMain.handle('chat-tail-init', async () => {
+  try {
+    await ensureChatDir();
+    let buf;
+    try {
+      buf = await fsp.readFile(TEAM_CHAT_PATH);
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        return { ok: true, envelopes: [], offset: 0 };
+      }
+      throw err;
+    }
+    const { envelopes, leftoverBytes } = parseJsonlBuffer(buf);
+    // Offset = total bytes minus any trailing partial-line bytes. Next read
+    // will start at the partial line and re-attempt to parse it once the
+    // appender finishes.
+    const offset = buf.length - leftoverBytes;
+    return { ok: true, envelopes, offset };
+  } catch (err) {
     return { ok: false, error: err && err.message ? err.message : String(err) };
   }
 });
+
+// chat-tail-read — read from caller's offset to EOF, return new envelopes
+// + the new offset. If the file shrunk (e.g. someone truncated it), reset
+// offset to 0 and return everything.
+ipcMain.handle('chat-tail-read', async (_event, payload = {}) => {
+  try {
+    const askedOffset = Number.isFinite(payload.offset) ? Math.max(0, Math.floor(payload.offset)) : 0;
+
+    let stat;
+    try {
+      stat = await fsp.stat(TEAM_CHAT_PATH);
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        return { ok: true, envelopes: [], offset: 0 };
+      }
+      throw err;
+    }
+    const size = stat.size;
+    if (size === askedOffset) {
+      return { ok: true, envelopes: [], offset: askedOffset };
+    }
+    // File shrunk → re-read from 0. Don't try to recover the caller's offset.
+    let startOffset = askedOffset;
+    if (size < askedOffset) {
+      startOffset = 0;
+    }
+
+    const fh = await fsp.open(TEAM_CHAT_PATH, 'r');
+    try {
+      const length = size - startOffset;
+      const buf = Buffer.alloc(length);
+      await fh.read(buf, 0, length, startOffset);
+      const { envelopes, leftoverBytes } = parseJsonlBuffer(buf);
+      const newOffset = size - leftoverBytes;
+      return { ok: true, envelopes, offset: newOffset };
+    } finally {
+      await fh.close();
+    }
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+// chat-post — append a new envelope to messages.jsonl as from: "richard".
+// `to` defaults to "team". Uses fs.promises.appendFile, which uses O_APPEND
+// under the hood — safe for concurrent appenders writing single lines under
+// PIPE_BUF (4KB on macOS). Long messages above PIPE_BUF would need an explicit
+// flock, but realistically chat lines stay under that ceiling.
+ipcMain.handle('chat-post', async (_event, payload = {}) => {
+  try {
+    const messageRaw = payload.message;
+    if (typeof messageRaw !== 'string' || !messageRaw.trim()) {
+      throw new Error('message body required');
+    }
+    const message = messageRaw.trim();
+    const to = (typeof payload.to === 'string' && payload.to.trim()) ? payload.to.trim() : 'team';
+
+    // ISO8601 UTC with the trailing 'Z'. Trim millis to match the conventions
+    // used by other agents writing into the channel (envelope inspection of
+    // existing lines shows seconds-precision Z timestamps).
+    const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+    const envelope = {
+      channel: 'team',
+      correlation_id: crypto.randomUUID(),
+      from: 'richard',
+      message,
+      timestamp,
+      to,
+      type: 'message'
+    };
+
+    await ensureChatDir();
+    await fsp.appendFile(TEAM_CHAT_PATH, JSON.stringify(envelope) + '\n', { flag: 'a' });
+    return { ok: true, envelope };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+// Live tail via fs.watch. Watcher is set up at app-ready time so the renderer
+// gets change events whether the overlay is open or not (renderer ignores
+// events while hidden). Debounced 50ms to coalesce rapid writes.
+//
+// fs.watch on a non-existent file throws, so we watch the parent directory
+// and filter for our filename. Same trick as watchToggleFile().
+let chatWatchDebounce = null;
+function startChatWatcher() {
+  const dir = path.dirname(TEAM_CHAT_PATH);
+  const filename = path.basename(TEAM_CHAT_PATH);
+  // Make sure the dir exists before watching — fs.watch on a missing dir
+  // throws ENOENT and we'd lose the live-tail entirely.
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (err) {
+    logToOutLog(`startChatWatcher: mkdir ${dir} failed (${err.message}); skipping watcher`);
+    return;
+  }
+  let watcher;
+  try {
+    watcher = fs.watch(dir, { persistent: false }, (eventType, name) => {
+      if (name !== filename) return;
+      if (chatWatchDebounce) clearTimeout(chatWatchDebounce);
+      chatWatchDebounce = setTimeout(() => {
+        chatWatchDebounce = null;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          try { mainWindow.webContents.send('chat-tail-changed'); }
+          catch { /* renderer not ready yet — poll loop covers it */ }
+        }
+      }, 50);
+    });
+    watcher.on('error', (err) => {
+      logToOutLog(`chat fs.watch error: ${err.message}`);
+    });
+  } catch (err) {
+    logToOutLog(`startChatWatcher: fs.watch failed (${err.message}); poll fallback in renderer covers it`);
+  }
+}

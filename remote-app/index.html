@@ -1290,25 +1290,22 @@
     }
 
     /* ---------------------------------------------------------------------
-       Team-chat overlay — Cmd+T toggle, embeds Swarmy spawn-button server's
-       /chat page in an Electron <webview>. Same glass aesthetic as the
-       radial-settings popover (commit 625a909 is the design exemplar).
+       Team-chat overlay — Cmd+T toggle, native chat surface that reads/writes
+       ~/.message-agent/channels/team/messages.jsonl directly. Same glass
+       aesthetic as the radial-settings popover (commit 625a909 is the design
+       exemplar).
        ---------------------------------------------------------------------
-       Sizing: 540×360 fixed popover, centered on the viewport. Sits ABOVE
-       the panel (z-index 1500) so it covers the panel without disturbing
-       its layout. Hidden by default via display:none; toggleChatOverlay()
-       in JS swaps display + .visible class for the fade-in.
+       Sizing: fills the window minus a 12px glass margin, centered. Sits
+       ABOVE the panel (z-index 1500) so it covers the panel without
+       disturbing its layout. Hidden by default via display:none;
+       toggleChatOverlay() in JS swaps display + .visible class for the
+       fade-in.
 
        This is INTRA-AGENT COORD CHAT — agents talking to each other in
-       plaintext over the message-agent shared-channels substrate. NOT a
-       tmux-pane mirror. Richard chose this scope explicitly. */
+       plaintext over the message-agent shared-channels JSONL substrate.
+       NOT a tmux-pane mirror. Richard chose this scope explicitly. */
     .chat-overlay {
       position: fixed;
-      /* Fill the window with a thin glass margin instead of centering at a
-         fixed size — earlier impl centered a 540×360 box, which left ugly
-         AgentRemote panel voids above/below when the window grew. Now the
-         overlay grows with the window and the chat page gets every bit of
-         vertical space available. */
       inset: 12px;
       transform: scale(0.97);
       transform-origin: 50% 50%;
@@ -1375,76 +1372,183 @@
       color: rgba(255, 255, 255, 0.32);
     }
 
-    /* Body holds either the <webview> (when reachable) OR the inline
-       fallback message (when probe fails / did-fail-load fires). Toggling
-       .body.fallback swaps which child is visible. */
-    .chat-overlay .chat-body {
+    /* Subtitle row: "TEAM CHANNEL · RICHARD + AGENTS" left, channel info right.
+       Sits between header and message log. Same uppercase 10px treatment as the
+       header for visual continuity. */
+    .chat-overlay .chat-subtitle {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px 8px;
+      border-bottom: 1px solid var(--border-soft);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 9.5px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .chat-overlay .chat-subtitle .channel-info {
+      color: rgba(255, 255, 255, 0.36);
+    }
+
+    /* Message log — scrollable column. Auto-scrolls to bottom on new messages
+       only when the user was already near the bottom (preserves scroll if they
+       scrolled up to read history). */
+    .chat-overlay .chat-log {
       flex: 1 1 auto;
-      position: relative;
-      overflow: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable both-edges;
+      padding: 12px 16px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
       background: rgba(0, 0, 0, 0.18);
     }
-    .chat-overlay .chat-body webview {
-      width: 100%;
-      height: 100%;
-      display: block;
-      border: 0;
-      background: transparent;
+    .chat-overlay .chat-log::-webkit-scrollbar { width: 8px; height: 8px; }
+    .chat-overlay .chat-log::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 4px;
     }
-    .chat-overlay .chat-fallback {
-      display: none;
+    .chat-overlay .chat-log::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.24);
+    }
+    .chat-overlay .chat-log::-webkit-scrollbar-track { background: transparent; }
+
+    /* Each message is a column: from-label + bubble + timestamp. richard's
+       messages right-aligned; everyone else left-aligned. */
+    .chat-overlay .chat-msg {
+      display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 24px;
-      text-align: center;
+      max-width: 78%;
+      gap: 2px;
+    }
+    .chat-overlay .chat-msg.from-richard {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+    .chat-overlay .chat-msg:not(.from-richard) {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+    .chat-overlay .chat-msg .from-label {
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      color: var(--text-primary);
-    }
-    .chat-overlay.body-fallback .chat-body webview { display: none; }
-    .chat-overlay.body-fallback .chat-fallback { display: flex; }
-    .chat-overlay .chat-fallback .verb {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .chat-overlay .chat-fallback .hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      max-width: 420px;
-      line-height: 1.5;
-    }
-    .chat-overlay .chat-fallback code {
-      display: inline-block;
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-      font-size: 10.5px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--border-soft);
-      border-radius: 6px;
-      padding: 5px 8px;
-      color: var(--text-primary);
-      max-width: 100%;
-      overflow-x: auto;
-      white-space: nowrap;
-    }
-    .chat-overlay .chat-fallback .retry-btn {
-      margin-top: 4px;
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      background: transparent;
-      border: 1px solid var(--border-medium);
-      color: var(--text-primary);
-      font-size: 10.5px;
+      font-size: 9.5px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
-      padding: 6px 14px;
-      border-radius: 8px;
-      cursor: pointer;
+      font-weight: 600;
+      padding: 0 4px;
+    }
+    .chat-overlay .chat-msg .bubble {
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+    .chat-overlay .chat-msg.from-richard .bubble {
+      background: rgba(232, 160, 32, 0.14);
+      border-color: rgba(232, 160, 32, 0.40);
+      color: #fff7e6;
+    }
+    .chat-overlay .chat-msg .timestamp {
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.28);
+      padding: 0 4px;
+      letter-spacing: 0.3px;
+    }
+    .chat-overlay .chat-empty {
+      align-self: center;
+      margin: auto 0;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.4px;
+    }
+
+    /* Composer: textarea + SEND button. Auto-grows up to ~5 rows then scrolls
+       internally so the bubble bar can't push the log off-screen. */
+    .chat-overlay .chat-composer {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--border-soft);
+      background: rgba(8, 8, 14, 0.55);
+    }
+    .chat-overlay .chat-composer textarea {
+      flex: 1 1 auto;
+      min-height: 36px;
+      max-height: 120px;
+      resize: none;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      outline: none;
       transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
     }
-    .chat-overlay .chat-fallback .retry-btn:hover {
+    .chat-overlay .chat-composer textarea::placeholder { color: var(--text-muted); }
+    .chat-overlay .chat-composer textarea:focus {
       border-color: var(--accent);
-      background: rgba(224, 124, 76, 0.08);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .chat-overlay .chat-composer .send-btn {
+      flex: 0 0 auto;
+      padding: 0 18px;
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #1a1106;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease), opacity 0.2s var(--ease);
+    }
+    .chat-overlay .chat-composer .send-btn:hover:not(:disabled) {
+      background: #ec8957;
+      box-shadow: 0 0 22px var(--accent-glow);
+    }
+    .chat-overlay .chat-composer .send-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .chat-overlay .chat-error {
+      flex: 0 0 auto;
+      padding: 4px 14px 6px;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 10.5px;
+      color: #ff8aa6;
+      display: none;
+    }
+    .chat-overlay .chat-error.visible { display: block; }
+
+    /* Footer: status info — channel name + message count + last poll time. */
+    .chat-overlay .chat-footer {
+      flex: 0 0 auto;
+      padding: 4px 14px 6px;
+      border-top: 1px solid var(--border-soft);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 9.5px;
+      letter-spacing: 0.4px;
+      color: rgba(255, 255, 255, 0.32);
+      text-transform: uppercase;
     }
   </style>
 </head>
@@ -1545,37 +1649,27 @@
     </div>
   </div>
 
-  <!-- Team-chat overlay — Cmd+T to toggle. Embeds Swarmy's spawn-button
-       server's /chat page (http://localhost:7878/chat) in an Electron
-       <webview> so Richard can group-chat with the swarm without leaving
-       AgentRemote. Hidden by default; togglable via Cmd+T (Esc / outside
-       click also close). Server-up probe runs on each open. did-fail-load
-       on the webview swaps in the inline fallback. -->
+  <!-- Team-chat overlay — Cmd+T to toggle. Native chat surface that reads/
+       writes ~/.message-agent/channels/team/messages.jsonl directly via IPC.
+       No webview, no HTTP server — direct file substrate per Swarmy's Path 1
+       spec. Hidden by default; togglable via Cmd+T (Esc / outside click also
+       close). Live tail via fs.watch + 2s poll fallback. -->
   <div class="chat-overlay" id="chat-overlay" aria-hidden="true">
     <div class="chat-header">
       <div class="title"><span class="glyph">#</span><span>team-chat</span></div>
       <div class="hint">Cmd+T / Esc to close</div>
     </div>
-    <div class="chat-body">
-      <!-- src is set lazily by toggleChatOverlay() so the webview only loads
-           when the overlay is opened. partition='persist:teamchat' gives it
-           an isolated storage scope (its own cache + cookies) separate from
-           the main renderer. allowpopups stays off — the page is poll-based
-           plain HTML, no popups expected. -->
-      <webview id="chat-webview"
-               partition="persist:teamchat"
-               style="width:100%;height:100%"
-               useragent="AgentRemote/1.0 Electron"></webview>
-      <div class="chat-fallback" id="chat-fallback">
-        <div class="verb">Spawn-button server not reachable</div>
-        <div class="hint">
-          The team-chat surface is served by Swarmy's spawn-button HTTP server
-          on <code>localhost:7878</code>. Start it with:
-        </div>
-        <code>cd ~/ai_projects/swarmy/spawn-button-worktrees/acrm-kanban-ui &amp;&amp; python3 server.py 7878</code>
-        <button class="retry-btn" id="chat-retry-btn">Retry</button>
-      </div>
+    <div class="chat-subtitle">
+      <span>Team channel · Richard + Agents</span>
+      <span class="channel-info">channel: team</span>
     </div>
+    <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+    <div class="chat-error" id="chat-error" role="alert"></div>
+    <div class="chat-composer">
+      <textarea id="chat-textarea" placeholder="Message the team — Enter to send, Shift+Enter for newline" rows="1" autocomplete="off"></textarea>
+      <button class="send-btn" id="chat-send-btn" disabled>Send</button>
+    </div>
+    <div class="chat-footer" id="chat-footer">channel: team · 0 messages · last poll —</div>
   </div>
 
   <!-- Right-click radial menu — gooey/liquid-mercury fan-out (Bebber).
@@ -1676,8 +1770,9 @@
       // a resize event in the renderer, which would re-enter this function.
       if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
       // Same skip for the team-chat overlay — it grows the window to fit its
-      // 540×360 popover; if we measure the panel here we'd shrink the window
-      // back and clip the overlay. Gate matches the radial-menu gate above.
+      // chat surface (composer + log); if we measure the panel here we'd
+      // shrink the window back and clip the overlay. Gate matches the
+      // radial-menu gate above.
       if (typeof chatOverlayShownState !== 'undefined' && chatOverlayShownState) return;
       const measure = () => {
         if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
@@ -3443,7 +3538,7 @@
     });
 
     // ---------------------------------------------------------------------
-    // Cmd+T → toggle team-chat overlay (Swarmy spawn-button server /chat)
+    // Cmd+T → toggle team-chat overlay (native chat over messages.jsonl)
     // ---------------------------------------------------------------------
     // Window-level keybinding — only fires when AgentRemote has focus, which
     // is the intended scope. Cmd+T globally would collide with most browser
@@ -3455,23 +3550,32 @@
     // Adding any visible icon to the meta-row / util-buttons / dock would
     // compress existing affordances. Cmd+T is the cleanest path.
     //
-    // The overlay is a fixed-position glass popover that embeds a <webview>
-    // pointed at http://localhost:7878/chat. The <webview> tag is provided
-    // by Electron (webviewTag:true is set in main.js BrowserWindow config)
-    // and gives us a real out-of-process browsing context with same-origin
-    // fetch/poll/post against localhost:7878 — exactly what chat.html needs.
+    // The overlay is a fixed-position glass popover that renders a NATIVE
+    // chat surface (no webview). It reads/writes
+    // ~/.message-agent/channels/team/messages.jsonl directly through three
+    // IPC handlers (chat-tail-init / chat-tail-read / chat-post). Live tail
+    // is driven by main.js fs.watch with a 2s poll fallback for unreliable
+    // FS events on macOS.
 
-    const CHAT_URL = 'http://localhost:7878/chat';
-    // Min size needed to fit the 540×360 overlay + body padding (14px) +
-    // 12px margin top/bottom for visual breathing room. Width includes the
-    // body's 14px+14px padding.
-    // When chat opens, grow the AgentRemote window enough that the overlay
-    // (which now fills the window minus 12px inset) has comfortable room
-    // for the inner page's header / message log / composer / status footer.
-    // Width allows a long input line; height fits ~12 messages before scroll.
+    // Min size for comfortable use — width fits a long composer line, height
+    // shows ~10 message bubbles before the log scrolls.
     const CHAT_OVERLAY_MIN_W = 620;
     const CHAT_OVERLAY_MIN_H = 540;
-    let chatWebviewLoaded = false;                // src has been set at least once
+
+    // Per-author display colors. Inline mapping — kept here (not in CSS
+    // variables) per dispatch hard-constraint so the renderer can pick by
+    // `from` without minting new vars. Matches Swarmy's chat.html palette so
+    // the visual identity stays consistent across surfaces.
+    const CHAT_FROM_COLORS = {
+      richard:        '#e8a020',
+      lucius:         '#7fc7ff',
+      xavier:         '#c79bff',
+      gekko:          '#ff9b6a',
+      overlordswarmy: '#5cd28a',
+      swarmy:         '#5cd28a'
+    };
+    const CHAT_FROM_FALLBACK = '#a8b3c2';
+
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
     let chatOverlayShownState = false;            // gates syncWindowSize so the
                                                   // resize listener doesn't shrink
@@ -3479,17 +3583,233 @@
     let chatPreOpenSize = null;                   // {w,h} captured on open so close
                                                   // can restore the pre-open size
 
+    // Tail state: byte offset into messages.jsonl that we've already consumed,
+    // total messages rendered (for the footer count), and the poll loop handle.
+    let chatTailOffset = 0;
+    let chatMsgCount = 0;
+    let chatPollHandle = null;
+    let chatLastPollAt = null;                    // Date for footer "last poll" text
+    let chatHistoryLoaded = false;                // first-open flag for chat-tail-init
+
     function chatOverlayEl() { return document.getElementById('chat-overlay'); }
-    function chatWebviewEl() { return document.getElementById('chat-webview'); }
-    function chatFallbackEl() { return document.getElementById('chat-fallback'); }
+    function chatLogEl() { return document.getElementById('chat-log'); }
+    function chatTextareaEl() { return document.getElementById('chat-textarea'); }
+    function chatSendBtnEl() { return document.getElementById('chat-send-btn'); }
+    function chatErrorEl() { return document.getElementById('chat-error'); }
+    function chatFooterEl() { return document.getElementById('chat-footer'); }
 
     function isChatOverlayOpen() {
       return chatOverlayEl().classList.contains('shown');
     }
 
+    // Two-digit padder for HH:MM:SS in local time.
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function formatLocalTimestamp(iso) {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+      } catch { return iso; }
+    }
+
+    // Are we currently scrolled within 40px of the bottom? Used to decide
+    // whether to auto-scroll on new messages or preserve the user's history-
+    // reading position. Tolerance is small enough to feel like "stuck to
+    // bottom" while letting fractional-pixel rounding pass.
+    function chatIsNearBottom() {
+      const log = chatLogEl();
+      if (!log) return true;
+      return (log.scrollHeight - log.scrollTop - log.clientHeight) < 40;
+    }
+
+    function chatScrollToBottom() {
+      const log = chatLogEl();
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+
+    function chatUpdateFooter() {
+      const footer = chatFooterEl();
+      if (!footer) return;
+      const last = chatLastPollAt
+        ? `${pad2(chatLastPollAt.getHours())}:${pad2(chatLastPollAt.getMinutes())}:${pad2(chatLastPollAt.getSeconds())}`
+        : '—';
+      footer.textContent = `channel: team · ${chatMsgCount} message${chatMsgCount === 1 ? '' : 's'} · last poll ${last}`;
+    }
+
+    // Render a single envelope as a chat-msg DOM node and append to the log.
+    // ALL message text goes through textContent — never innerHTML — so user/
+    // agent input can't inject HTML. Returns true on success, false if the
+    // envelope was malformed enough to skip cleanly.
+    function chatAppendMessage(env) {
+      const log = chatLogEl();
+      if (!log || !env || typeof env !== 'object') return false;
+
+      const from = String(env.from || '').toLowerCase();
+      const message = (env.message === undefined || env.message === null) ? '' : String(env.message);
+      const ts = env.timestamp ? String(env.timestamp) : '';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'chat-msg' + (from === 'richard' ? ' from-richard' : '');
+
+      const fromLabel = document.createElement('div');
+      fromLabel.className = 'from-label';
+      fromLabel.textContent = from || '?';
+      fromLabel.style.color = CHAT_FROM_COLORS[from] || CHAT_FROM_FALLBACK;
+      wrap.appendChild(fromLabel);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = message;
+      wrap.appendChild(bubble);
+
+      if (ts) {
+        const tsEl = document.createElement('div');
+        tsEl.className = 'timestamp';
+        tsEl.textContent = formatLocalTimestamp(ts);
+        wrap.appendChild(tsEl);
+      }
+
+      log.appendChild(wrap);
+      chatMsgCount += 1;
+      return true;
+    }
+
+    function chatClearEmptyState() {
+      const log = chatLogEl();
+      if (!log) return;
+      const empty = log.querySelector('.chat-empty');
+      if (empty) empty.remove();
+    }
+
+    function chatShowEmptyState() {
+      const log = chatLogEl();
+      if (!log || log.querySelector('.chat-empty')) return;
+      const empty = document.createElement('div');
+      empty.className = 'chat-empty';
+      empty.textContent = 'No messages yet — send the first one below.';
+      log.appendChild(empty);
+    }
+
+    function chatShowError(msg) {
+      const el = chatErrorEl();
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add('visible');
+      // Auto-clear after 6s so a transient error doesn't stick forever.
+      clearTimeout(el._clearTimer);
+      el._clearTimer = setTimeout(() => {
+        el.classList.remove('visible');
+        el.textContent = '';
+      }, 6000);
+    }
+
+    // First-open: read all existing history. Subsequent opens reuse the cached
+    // tail offset and just pull anything appended since (cheap incremental).
+    async function chatLoadHistory() {
+      try {
+        const res = await ipcRenderer.invoke('chat-tail-init');
+        if (!res || !res.ok) {
+          chatShowError(res && res.error ? `Could not read chat log: ${res.error}` : 'Could not read chat log.');
+          return;
+        }
+        chatTailOffset = res.offset || 0;
+        const log = chatLogEl();
+        if (log) log.innerHTML = '';
+        chatMsgCount = 0;
+        const envelopes = Array.isArray(res.envelopes) ? res.envelopes : [];
+        for (const env of envelopes) chatAppendMessage(env);
+        if (chatMsgCount === 0) chatShowEmptyState();
+        chatHistoryLoaded = true;
+        chatLastPollAt = new Date();
+        chatUpdateFooter();
+        // Always scroll to bottom on first load — user is opening to see the
+        // latest, not preserving a position they didn't have.
+        chatScrollToBottom();
+      } catch (err) {
+        chatShowError(`Could not read chat log: ${err && err.message ? err.message : err}`);
+      }
+    }
+
+    // Incremental tail read — pulls anything appended since chatTailOffset.
+    // Fired both by the 2s poll AND by main's chat-tail-changed event from
+    // fs.watch. Idempotent on no-new-content (offset doesn't move, no DOM
+    // changes).
+    async function chatTailRefresh() {
+      if (!chatHistoryLoaded) return;          // wait for history-load to seed offset
+      try {
+        const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatTailOffset });
+        chatLastPollAt = new Date();
+        chatUpdateFooter();
+        if (!res || !res.ok) return;
+        const newEnvelopes = Array.isArray(res.envelopes) ? res.envelopes : [];
+        if (newEnvelopes.length === 0) {
+          chatTailOffset = (typeof res.offset === 'number') ? res.offset : chatTailOffset;
+          return;
+        }
+        const wasNearBottom = chatIsNearBottom();
+        chatClearEmptyState();
+        for (const env of newEnvelopes) chatAppendMessage(env);
+        chatTailOffset = (typeof res.offset === 'number') ? res.offset : chatTailOffset;
+        chatUpdateFooter();
+        if (wasNearBottom) chatScrollToBottom();
+      } catch (err) {
+        // Tail refresh errors are non-fatal — log to console, the next poll
+        // tick / fs.watch event will retry.
+        console.warn('[chat] tail refresh failed:', err && err.message ? err.message : err);
+      }
+    }
+
+    // Send the composer's contents as a new message. Empty / whitespace-only
+    // messages are refused. On success, clear the textarea + restore the
+    // disabled state. On failure, restore the message + show inline error.
+    async function chatSendMessage() {
+      const ta = chatTextareaEl();
+      const btn = chatSendBtnEl();
+      if (!ta || !btn) return;
+      const raw = ta.value;
+      const trimmed = raw.replace(/[ \t]+$/g, '').replace(/\s+$/g, '');
+      if (!trimmed) return;
+
+      btn.disabled = true;
+      ta.value = '';
+      chatAutoResizeTextarea();
+      try {
+        const res = await ipcRenderer.invoke('chat-post', { message: trimmed, to: 'team' });
+        if (!res || !res.ok) {
+          ta.value = raw;
+          chatAutoResizeTextarea();
+          chatShowError(res && res.error ? `Send failed: ${res.error}` : 'Send failed.');
+          btn.disabled = !ta.value.trim();
+          return;
+        }
+        // Optimistic append: immediately render the envelope main returned so
+        // the bubble shows up without waiting for fs.watch round-trip. The
+        // tail-read will see the same line; we dedupe by advancing the offset
+        // to wherever the file is now.
+        // (We let chatTailRefresh handle the offset advance — it'll see the
+        // already-rendered envelope as new content. To prevent double-render,
+        // skip optimistic append; the fs.watch fires within ~10ms on macOS
+        // for local appends, so latency is imperceptible.)
+        ta.focus();
+      } catch (err) {
+        ta.value = raw;
+        chatAutoResizeTextarea();
+        chatShowError(`Send failed: ${err && err.message ? err.message : err}`);
+        btn.disabled = !ta.value.trim();
+      }
+    }
+
+    // Composer auto-resize: grow the textarea up to max-height (CSS-capped at
+    // 120px) as content wraps. Resets to one row's height when empty.
+    function chatAutoResizeTextarea() {
+      const ta = chatTextareaEl();
+      if (!ta) return;
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+    }
+
     function openChatOverlay() {
       const overlay = chatOverlayEl();
-      const wv = chatWebviewEl();
       if (overlay.classList.contains('shown')) return;
       // Close the radial menu if it's open — they share the dismiss-handler
       // namespace and overlapping modal-ish surfaces would confuse outside-
@@ -3498,16 +3818,8 @@
         try { closeRadialMenu(); } catch { /* no-op */ }
       }
 
-      // Capture pre-open window size so close can restore it. innerWidth /
-      // innerHeight reflect the renderer's view of content size, which is
-      // what resize-window IPC accepts (after the 28px body-padding add we
-      // do for syncWindowSize). For the restore path we want the bare
-      // content size, so capture innerWidth/Height directly.
+      // Capture pre-open window size so close can restore it.
       chatPreOpenSize = { w: window.innerWidth, h: window.innerHeight };
-      // Grow the window if it's smaller than the overlay needs. Fire-and-
-      // forget — main caps to the display's workArea bottom, so a small
-      // display falls back to a smaller overlay (CSS max-height clamps the
-      // overlay to viewport-minus-margin).
       if (window.innerWidth < CHAT_OVERLAY_MIN_W || window.innerHeight < CHAT_OVERLAY_MIN_H) {
         const targetW = Math.max(window.innerWidth, CHAT_OVERLAY_MIN_W);
         const targetH = Math.max(window.innerHeight, CHAT_OVERLAY_MIN_H);
@@ -3515,24 +3827,8 @@
       }
       chatOverlayShownState = true;
 
-      // Show the overlay immediately — don't gate on the probe result. We
-      // optimistically assume the server is up (which is the common case) and
-      // the probe's job is to swap to fallback if it WASN'T. This avoids the
-      // user staring at a grown-but-empty window for up to 1.5s while the
-      // probe runs, which is the worst-case timeout. If the webview's
-      // did-fail-load fires first, the body-fallback class flips before the
-      // probe even returns.
-      overlay.classList.remove('body-fallback');
       overlay.classList.add('shown');
       overlay.setAttribute('aria-hidden', 'false');
-      // Lazy-load the webview src on first open. Subsequent opens reuse the
-      // loaded page so existing scroll position / poll offset survive close+
-      // reopen — closing only hides the overlay, doesn't tear the webview
-      // down.
-      if (!chatWebviewLoaded || wv.getAttribute('src') !== CHAT_URL) {
-        wv.setAttribute('src', CHAT_URL);
-        chatWebviewLoaded = true;
-      }
       // Two rAFs let display:flex settle before the .visible transition runs,
       // so the fade-in plays from the scaled-down hidden state. Same trick
       // the radial popover uses.
@@ -3540,16 +3836,26 @@
         overlay.classList.add('visible');
       }));
 
-      // Probe the spawn-button server in the background. If it fails (and
-      // did-fail-load hasn't already flipped to fallback), swap in the
-      // fallback view. The probe is the safety-net; did-fail-load is the
-      // first responder.
-      ipcRenderer.invoke('chat-server-probe').then(res => {
-        if (!res || !res.ok) {
-          chatOverlayEl().classList.add('body-fallback');
-        }
-      }).catch(() => {
-        chatOverlayEl().classList.add('body-fallback');
+      // Load history (first open) or just refresh the tail (reopens).
+      if (!chatHistoryLoaded) {
+        chatLoadHistory();
+      } else {
+        chatTailRefresh();
+      }
+
+      // Start poll fallback — fires every 2s. fs.watch is the primary path,
+      // but some macOS FS configurations don't fire reliably so we always
+      // run the poll alongside as belt-and-suspenders.
+      if (!chatPollHandle) {
+        chatPollHandle = setInterval(chatTailRefresh, 2000);
+      }
+
+      // Auto-focus the composer textarea so the user can type immediately.
+      // requestAnimationFrame waits for the overlay to be visible and the
+      // textarea to be focusable.
+      requestAnimationFrame(() => {
+        const ta = chatTextareaEl();
+        if (ta) ta.focus();
       });
 
       // Bind dismiss handlers. Outside-click: any pointerdown whose target is
@@ -3574,18 +3880,19 @@
       if (!overlay.classList.contains('shown')) return;
       overlay.classList.remove('visible');
       overlay.setAttribute('aria-hidden', 'true');
+      // Stop the poll loop while the overlay is hidden — fs.watch still fires
+      // in main, but we don't need to refresh DOM the user can't see. Next
+      // open will sync via chatTailRefresh().
+      if (chatPollHandle) {
+        clearInterval(chatPollHandle);
+        chatPollHandle = null;
+      }
       // Drop .shown after the fade-out so display:none re-applies and the
       // overlay stops eating clicks. Match the CSS transition duration.
       setTimeout(() => {
-        // Recheck — user may have reopened mid-transition.
         if (!overlay.classList.contains('visible')) {
           overlay.classList.remove('shown');
           chatOverlayShownState = false;
-          // Restore pre-open window size. Use the captured value rather than
-          // remeasuring the panel — captured is exact, remeasure has to wait
-          // for the panel to relayout. syncWindowSize runs on the resulting
-          // resize event but the chatOverlayShownState gate is now false so
-          // it'll behave normally.
           if (chatPreOpenSize) {
             ipcRenderer.send('resize-window', {
               width: chatPreOpenSize.w,
@@ -3603,60 +3910,37 @@
       else openChatOverlay();
     }
 
-    // Wire webview events: did-fail-load swaps in the fallback view (covers
-    // the case where the server died AFTER the probe passed but BEFORE the
-    // navigation finished). did-finish-load drops the fallback class so the
-    // webview becomes visible if a retry recovered, AND injects CSS so the
-    // hosted chat page integrates visually with the AgentRemote glass —
-    // transparent body so the overlay's blur shows through, tightened
-    // padding so the message log gets more room. Keep this minimal so
-    // upstream chat.html iteration doesn't fight us.
-    const CHAT_WEBVIEW_CSS_OVERRIDES = `
-      html, body { background: transparent !important; }
-      body::before, body::after { display: none !important; }
-      header { padding: 8px 14px !important; }
-      header h1 { font-size: 11px !important; letter-spacing: .14em !important; }
-      header .meta { font-size: 10px !important; }
-      form { padding: 10px 14px !important; }
-      #log { padding: 12px 16px 4px !important; }
-      #status { padding: 3px 14px !important; font-size: 9.5px !important; }
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
-      ::-webkit-scrollbar-track { background: transparent; }
-    `;
+    // Wire composer events.
     (() => {
-      const wv = chatWebviewEl();
-      if (!wv) return;
-      wv.addEventListener('did-fail-load', (ev) => {
-        // Ignore aborted loads (errorCode -3 ERR_ABORTED) — these fire on
-        // re-navigation and aren't real failures.
-        if (ev && ev.errorCode === -3) return;
-        chatOverlayEl().classList.add('body-fallback');
+      const ta = chatTextareaEl();
+      const btn = chatSendBtnEl();
+      if (!ta || !btn) return;
+      ta.addEventListener('input', () => {
+        btn.disabled = !ta.value.trim();
+        chatAutoResizeTextarea();
       });
-      wv.addEventListener('did-finish-load', () => {
-        chatOverlayEl().classList.remove('body-fallback');
-        try { wv.insertCSS(CHAT_WEBVIEW_CSS_OVERRIDES); } catch { /* webview detached */ }
+      ta.addEventListener('keydown', (ev) => {
+        // Enter alone = send. Shift+Enter = newline (default behavior, don't
+        // intercept). Cmd/Ctrl/Alt+Enter also passes through (no special
+        // meaning here).
+        if (ev.key !== 'Enter') return;
+        if (ev.shiftKey || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+        ev.preventDefault();
+        chatSendMessage();
       });
+      btn.addEventListener('click', () => chatSendMessage());
     })();
 
-    // Retry button in the fallback — re-runs the probe, and if it passes,
-    // (re)loads the webview src.
-    document.getElementById('chat-retry-btn').addEventListener('click', async () => {
-      let ok = false;
-      try {
-        const res = await ipcRenderer.invoke('chat-server-probe');
-        ok = !!(res && res.ok);
-      } catch { ok = false; }
-      if (!ok) return;                                      // still down; leave fallback up
-      const wv = chatWebviewEl();
-      // Force a fresh navigation — setAttribute('src', same-url) doesn't
-      // reload, so reload() if the webview already loaded once, otherwise
-      // setAttribute kicks the first load.
-      if (chatWebviewLoaded) wv.reload();
-      else { wv.setAttribute('src', CHAT_URL); chatWebviewLoaded = true; }
-      chatOverlayEl().classList.remove('body-fallback');
+    // Live-tail event from main: file changed, fetch new content. Throttling
+    // and debouncing happen in main; we just refresh.
+    ipcRenderer.on('chat-tail-changed', () => {
+      if (!isChatOverlayOpen()) return;       // skip while hidden — next open syncs
+      chatTailRefresh();
     });
+
+    // DM mode (multi-recipient, agent_bus_send.sh) is intentionally deferred.
+    // To extend: add a recipient picker above the composer; pass `to` from
+    // the picker into chat-post. Future v0.1 work.
 
     window.addEventListener('keydown', (ev) => {
       // Cmd+T (Mac) — toggle. The meta modifier is REQUIRED, so this can't
