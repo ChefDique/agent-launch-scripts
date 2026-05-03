@@ -18,7 +18,6 @@ const REPO_ROOT = path.join(__dirname, '..');
 const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
 const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
-const DEPRECATED_ASSETS_DIR = path.join(REPO_ROOT, 'deprecated', 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 
 // Tiny buffer above display.workArea bottom so the window doesn't sit flush
@@ -700,11 +699,10 @@ ipcMain.handle('reorder-agents', async (event, ids) => {
   }
 });
 
-// Remove-agent IPC — strip from agents.json. SVG is left in remote-app/assets/
-// untouched (was being auto-archived to deprecated/assets/ in the previous
-// implementation; that bit Richard when he had to re-add an agent and the
-// avatar had silently vanished). SVG cleanup is a separate concern — handle
-// it manually or via a future "prune unused assets" command.
+// Remove-agent IPC — strip from agents.json. SVG stays in remote-app/assets/
+// so re-adding an agent finds the avatar still there (an earlier auto-archive
+// to deprecated/assets/ silently vanished avatars on re-add). SVG cleanup is
+// a separate concern — handle it manually or via a future "prune unused" cmd.
 //
 // We also don't touch the agent's actual project dir or its running tmux pane.
 // "Remove" = registry-delete only. To kill the pane, use the restart-agent IPC.
