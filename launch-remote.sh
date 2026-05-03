@@ -6,7 +6,7 @@ APP_DIR="/Users/richardadair/agent-launch-scripts/remote-app"
 case "$1" in
   stop)
     echo "Stopping Agent Remote..."
-    pkill -f "electron /Users/richardadair/agent-launch-scripts/remote-app" || pkill -f "remote-app"
+    pkill -f "Electron\.app/Contents/MacOS/Electron \."
     ;;
   toggle)
     # Toggle show/hide via SIGUSR1. Works regardless of whether the OS
@@ -24,8 +24,13 @@ case "$1" in
     ;;
   *)
     # Start (default)
+    # Kill any prior main-process instance first. Match the actual cmdline
+    # (`…/Electron.app/Contents/MacOS/Electron .`) — the old `electron <abs path>`
+    # pattern silently matched nothing, leaving stale instances running and
+    # producing duplicate windows after a relaunch.
     echo "Launching Electron Agent Remote..."
-    pkill -f "electron /Users/richardadair/agent-launch-scripts/remote-app" 2>/dev/null
+    pkill -f "Electron\.app/Contents/MacOS/Electron \." 2>/dev/null
+    sleep 0.3
     cd "$APP_DIR"
     ./node_modules/.bin/electron . > /dev/null 2>&1 &
     ;;
