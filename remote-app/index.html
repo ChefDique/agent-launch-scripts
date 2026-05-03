@@ -3841,7 +3841,11 @@
     // Wire-up
     // ---------------------------------------------------------------------
     document.getElementById('send-btn').addEventListener('click', send);
-    document.getElementById('chat-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') send(); });
+    document.getElementById('chat-input').addEventListener('keypress', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault();
+      send();
+    });
     document.getElementById('edit-btn').addEventListener('click', toggleEditMode);
     document.getElementById('select-all-btn').addEventListener('click', selectAll);
     document.getElementById('deploy-btn').addEventListener('click', deploy);
