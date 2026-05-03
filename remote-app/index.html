@@ -2412,12 +2412,14 @@
     // ---------------------------------------------------------------------
     async function loadAndRender() {
       // Defensive: if a voice hold is mid-flight when the dock rebuilds (e.g.
-      // a status poll came back during a hold and triggered a re-render via
-      // some path, or drag-reorder fired), cancel it cleanly so we don't keep
-      // stale tile/btn references and orphan the analyser loop. Voice holds
-      // don't span re-renders.
-      if (typeof voiceRec !== 'undefined' && voiceRec) {
-        if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+      // a status poll came back during a hold and triggered a re-render, or
+      // drag-reorder fired), cancel it cleanly so we don't keep stale
+      // tile/btn references and orphan the analyser loop. Voice holds don't
+      // span re-renders. The try/catch guards against the temporal dead zone
+      // on the first loadAndRender — voiceRec is declared further down in the
+      // same script block, so `typeof voiceRec` would throw before its init.
+      try {
+        if (voiceRec && (voiceRec.state === 'recording' || voiceRec.state === 'pending')) {
           if (voiceRec.holdTimer) { clearTimeout(voiceRec.holdTimer); voiceRec.holdTimer = null; }
           if (voiceRec.state === 'recording') {
             try { cancelVoiceRecording({ shake: false }); } catch { /* ignore */ }
@@ -2428,7 +2430,7 @@
           }
           voiceRec.keyDown = null;
         }
-      }
+      } catch { /* TDZ — voiceRec not yet initialized on first render */ }
 
       let registry = [];
       try { registry = await ipcRenderer.invoke('get-agents'); }
