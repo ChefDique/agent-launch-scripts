@@ -140,8 +140,8 @@ function createWindow() {
   // mic permission.
 
   mainWindow = new BrowserWindow({
-    width: 620,
-    height: 240,
+    width: 820,
+    height: 280,
     minWidth: 380,
     minHeight: 180,
     frame: false,

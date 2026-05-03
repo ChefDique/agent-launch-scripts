@@ -1,44 +1,36 @@
 <svg width="42" height="42" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Xavier: Neural Overdrive (refined 2026-05-03)
-       Polish notes: unified palette (single cyan accent), consistent
-       1.5-1.8 stroke weights, optical centering on cy=52 (slightly below
-       geometric center to balance the larger headpiece visually). Reduced
-       from 4 simultaneous looping animations to 2 — the dashed orbit ring
-       (slow, ambient) and the central pulse (slow, breath). Old grid
-       paths and high-frequency cerebro flicker dropped: they competed for
-       attention and read as "noise" at the 46×46px dock size. -->
+  
   <defs>
     <radialGradient id="xPulse" cx="50%" cy="50%" r="50%">
-      <stop offset="0%"   stop-color="#7df0ff" stop-opacity="1" />
-      <stop offset="100%" stop-color="#00a4d6" stop-opacity="0" />
+      <stop offset="0%" stop-color="#7df0ff" stop-opacity="1"></stop>
+      <stop offset="100%" stop-color="#00a4d6" stop-opacity="0"></stop>
     </radialGradient>
     <linearGradient id="xHead" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#1d6378" />
-      <stop offset="100%" stop-color="#0e3d4d" />
+      <stop offset="0%" stop-color="#1d6378"></stop>
+      <stop offset="100%" stop-color="#0e3d4d"></stop>
     </linearGradient>
   </defs>
 
-  <!-- Single ambient orbit ring. Dashed for movement; rotates at 8s
-       so it reads as background atmosphere, not a focal point. -->
+  
   <circle cx="50" cy="52" r="42" fill="none" stroke="#36c5e0" stroke-width="1.2" stroke-dasharray="3 8" opacity="0.55">
-    <animateTransform attributeName="transform" type="rotate" from="0 50 52" to="360 50 52" dur="8s" repeatCount="indefinite" />
+    
   </circle>
 
-  <!-- Head silhouette. Single fill, subtle gradient for dimensionality. -->
-  <ellipse cx="50" cy="50" rx="22" ry="26" fill="url(#xHead)" stroke="#7df0ff" stroke-width="1.2" />
+  
+  <ellipse cx="50" cy="50" rx="22" ry="26" fill="url(#xHead)" stroke="#7df0ff" stroke-width="1.2"></ellipse>
 
-  <!-- Cerebro headpiece — clean curved band, no animation. -->
-  <path d="M30 44 Q50 30 70 44" fill="none" stroke="#7df0ff" stroke-width="1.8" stroke-linecap="round" />
-  <circle cx="30" cy="44" r="1.8" fill="#7df0ff" />
-  <circle cx="70" cy="44" r="1.8" fill="#7df0ff" />
+  
+  <path d="M30 44 Q50 30 70 44" fill="none" stroke="#7df0ff" stroke-width="1.8" stroke-linecap="round"></path>
+  <circle cx="30" cy="44" r="1.8" fill="#7df0ff"></circle>
+  <circle cx="70" cy="44" r="1.8" fill="#7df0ff"></circle>
 
-  <!-- Central pulse — slow breath. Single point of focused movement. -->
+  
   <circle cx="50" cy="52" r="3" fill="url(#xPulse)">
-    <animate attributeName="r" values="3;14;3" dur="3s" repeatCount="indefinite" />
-    <animate attributeName="opacity" values="0.95;0;0.95" dur="3s" repeatCount="indefinite" />
+    
+    
   </circle>
 
-  <!-- Eyes — minimal, optically aligned with the cerebro band ends. -->
-  <circle cx="42" cy="56" r="1.8" fill="#0a1620" />
-  <circle cx="58" cy="56" r="1.8" fill="#0a1620" />
+  
+  <circle cx="42" cy="56" r="1.8" fill="#0a1620"></circle>
+  <circle cx="58" cy="56" r="1.8" fill="#0a1620"></circle>
 </svg>
