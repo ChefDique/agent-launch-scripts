@@ -331,8 +331,8 @@
     }
 
     /* ---------------------------------------------------------------------
-       F-key voice + select — keycap badge, recording state, transcript bubble,
-       toast. Tap F1-F5 = toggle select for that dock-position tile. Hold > 250ms
+       Number-key voice + select — keycap badge, recording state, transcript
+       bubble, toast. Tap 1-9 = toggle select for that dock-position tile. Hold > 250ms
        = start recording targeting just that agent (Web Speech API + AnalyserNode
        for the audio-level ring). Release = transcribe + broadcast-message IPC
        directly to that one agent. Esc during hold = cancel without sending.
@@ -2654,15 +2654,15 @@
       tagFkeyBadges();
     }
 
-    // Stamp F1..F5 onto the keycap badges of the leftmost 5 dock tiles. Tiles
-    // beyond slot 5 get an invisible badge (kept in DOM so the layout doesn't
+    // Stamp 1..9 onto the keycap badges of the leftmost 9 dock tiles. Tiles
+    // beyond slot 9 get an invisible badge (kept in DOM so the layout doesn't
     // shift on drag-reorder; just hidden via opacity:0). Called from renderDock.
     function tagFkeyBadges() {
       agentOrder.forEach((id, idx) => {
         const el = document.getElementById(`fkey-${id}`);
         if (!el) return;
-        if (idx < 5) {
-          el.textContent = `F${idx + 1}`;
+        if (idx < 9) {
+          el.textContent = `${idx + 1}`;
           el.style.opacity = '';
         } else {
           el.textContent = '';
@@ -4225,7 +4225,7 @@
     });
 
     // ---------------------------------------------------------------------
-    // F-key voice + select — F1..F5 mapped to dock display order.
+    // Number-key voice + select — 1..9 mapped to dock display order.
     // ---------------------------------------------------------------------
     // Tap (press + release < 250ms) = toggle select for that tile (same as a
     // click on the avatar — calls toggleAgent).
@@ -4260,8 +4260,13 @@
     //     while idle.
 
     const FKEY_HOLD_THRESHOLD_MS = 250;
-    const FKEY_MAP = { F1: 0, F2: 1, F3: 2, F4: 3, F5: 4 };
-    const FKEY_KEYCODES = ['F1', 'F2', 'F3', 'F4', 'F5'];
+    // Number-row 1..9 mapped to dock display order (Richard 2026-05-03 — switched
+    // from F1..F5 because macOS hardware F-keys are brightness/volume by default
+    // and never reach the renderer keydown unless the user toggles a System
+    // Setting). Bare digit (no modifier) = tap-toggle / hold-record. Cmd+digit
+    // is owned by the attach handler at L4211 — modifier check below de-conflicts.
+    const FKEY_MAP = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8 };
+    const FKEY_KEYCODES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
     // Single-instance state. A second F-key during an active hold cancels
     // the first and replaces it; no concurrency.
@@ -4716,8 +4721,8 @@
 
     // ---- Keydown / keyup handlers ----
     window.addEventListener('keydown', (ev) => {
-      const code = ev.code || ev.key;
-      // Only trap F1..F5 with no modifier. Cmd / Ctrl / Alt / Shift + Fn passes through.
+      const code = ev.key;
+      // Only trap bare 1..9. Cmd+digit (attach) / any other modifier passes through.
       if (!FKEY_KEYCODES.includes(code)) return;
       if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
 
@@ -4735,7 +4740,7 @@
 
       const idx = FKEY_MAP[code];
       const id = fkeyAgentId(idx);
-      if (!id) return;     // F4/F5 with fewer agents in dock — no-op.
+      if (!id) return;     // digit beyond dock length — no-op.
 
       // If permission was previously denied, fall back to a tap-only path:
       // every keypress just toggles select.
@@ -4788,7 +4793,7 @@
     });
 
     window.addEventListener('keyup', (ev) => {
-      const code = ev.code || ev.key;
+      const code = ev.key;
       if (!FKEY_KEYCODES.includes(code)) return;
 
       // Only respond to the release of the same key that started the hold.
