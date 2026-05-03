@@ -436,7 +436,7 @@
        Layout-mode selector — segmented pill control next to Deploy.
        ---------------------------------------------------------------------
        Three options ride along with spawn-agents IPC as the `layout` field.
-       Persisted to localStorage as `helmLayoutMode` so the choice sticks
+       Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks
        across launches. Visually it's a tiny segmented control: one pill per
        mode, the active one wears the accent color. Clicking a pill selects
        it (radio behavior, not toggle). Lives in the meta-row utility
@@ -1441,7 +1441,7 @@
     //   windows  → each agent in its own tmux window (Ctrl-b N to switch)
     //   ittab    → tmux -CC attach so iTerm renders each tmux window as its
     //              own iTerm window (multi-pane via iTerm windows).
-    // Persisted to localStorage as `helmLayoutMode` so the choice sticks.
+    // Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks.
     // Whitelisted on read; stale/corrupt values fall back to 'ittab'.
     // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
     // multi-pane via iTerm windows is way more flexible than the cramped
@@ -1449,7 +1449,7 @@
     const LAYOUT_MODES = ['panes', 'windows', 'ittab'];
     let layoutMode = 'ittab';
     try {
-      const stored = localStorage.getItem('helmLayoutMode');
+      const stored = localStorage.getItem('agentRemoteLayoutMode');
       if (stored && LAYOUT_MODES.includes(stored)) layoutMode = stored;
     } catch { /* localStorage may be disabled in sandboxed contexts */ }
 
@@ -2797,7 +2797,7 @@
           const next = p.dataset.layout;
           if (!LAYOUT_MODES.includes(next)) return;
           layoutMode = next;
-          try { localStorage.setItem('helmLayoutMode', next); } catch { /* sandboxed */ }
+          try { localStorage.setItem('agentRemoteLayoutMode', next); } catch { /* sandboxed */ }
           pills.forEach(o => o.classList.toggle('active', o.dataset.layout === next));
           applyLayoutMismatchHint();
         });
@@ -2862,7 +2862,7 @@
       } else if (known) {
         pills.title = `Session running in ${sessionLayout.toUpperCase()} mode.`;
       } else if (running) {
-        pills.title = 'Session running (layout unknown — started outside helm).';
+        pills.title = 'Session running (layout unknown — started outside AgentRemote).';
       } else {
         pills.title = '';
       }
@@ -2884,7 +2884,7 @@
             suffix = ` | Session running in ${sessionLayout.toUpperCase()} mode.`;
           }
         } else if (running) {
-          suffix = ' | Session running (layout unknown — started outside helm).';
+          suffix = ' | Session running (layout unknown — started outside AgentRemote).';
         }
         p.title = base + suffix;
       });

@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Operating role
 
-The Claude that runs in this directory is Richard's **meta-agent / operator-station maintainer** — sister-level to the chq fleet, not in their tmux session. Distinct from the four specialists (Xavier, Lucius, Gekko, Swarmy), this Claude owns the launch infrastructure itself and the local control surface (the Electron HUD now called **Helm** — see `DESIGN.md`).
+The Claude that runs in this directory is Richard's **meta-agent / operator-station maintainer** — sister-level to the chq fleet, not in their tmux session. Distinct from the four specialists (Xavier, Lucius, Gekko, Swarmy), this Claude owns the launch infrastructure itself and the local control surface (the Electron HUD called **AgentRemote** — see `DESIGN.md`).
 
 Job:
 - Keep the launch scripts (`launch-agent.sh`, `chq-tmux.sh`, `agents.json`) clean and the auto-restart loop reliable.
-- Maintain the local Electron HUD at `remote-app/` (provisional name **Helm**, slated to migrate to `~/ai_projects/helm/`).
+- Maintain the local Electron HUD at `remote-app/` (AgentRemote), future migration target `~/ai_projects/agent-remote/`.
 - Dispatch to the **`tmux-electron-master`** subagent (registered at `.claude/agents/tmux-electron-master.md`) for any UI / aesthetic / Electron-internals work — it's the specialist; this Claude orchestrates.
 - Drive cross-fleet operations from this chair (spawn the team, broadcast, restart panes, attach via iTerm) using the scripts that live here.
 - Talk to the four specialists via `claude-peers` MCP (they're peers, not subagents). Use `scope=machine` when calling `list_peers` — `directory`/`repo` scopes return zero from this cwd because no peer shares it.
@@ -30,11 +30,11 @@ Default disposition: lean, executive, decision-disciplined per `~/.claude/rules/
 
 ## Active workstreams (read these on session start)
 
-- **`DESIGN.md`** (this repo, top-level) — design spec for Helm. Tokens, components, naming, migration plan. Working name "Helm" pending Richard's confirmation; alternates listed.
+- **`DESIGN.md`** (this repo, top-level) — design spec for AgentRemote. Tokens, components, migration plan to `~/ai_projects/agent-remote/`.
 - **`~/ai_projects/CorporateHQ/ACRM/docs/proposals/iso-roomgrid-spike.md`** — proposal for a Phaser-rendered isometric variant of ACRM's RoomGrid. **Validated via `/validate-proposal` 2026-05-02** with 4 critics (PRs #403/404/405 merged, operational memo at local commit `e58b83b` — push blocked by ACRM's pre-push build hook). All four returned PASS-WITH-REVISIONS. Convergent themes: pivot to Pixi (already a dep at `pixi.js@8.18.1`); drop precision unmeasured; success criteria measure wrong things; flag mechanism contradicts existing `NEXT_PUBLIC_AGENT_ISLANDS_ENABLED` precedent. Xavier is driving v1.1 spec through ACRM. **Don't auto-start the spike.**
 - **Inline user-stories artifact** — `~/ai_projects/CorporateHQ/ACRM/docs/research/2026-05-02-gekko-iso-roomgrid-spike-user-stories.md`. Operator-side findings I wrote concurrent with the panel.
 
-## Outstanding for Helm (the local Electron HUD)
+## Outstanding for AgentRemote (the local Electron HUD)
 
 Backlog after the recent overhaul:
 - Tmux command palette popover (~14 curated commands: pane break/join/kill/split/swap/zoom/resize, layout presets, window/session ops). Use the same hardened `execFile`-with-argv pattern.

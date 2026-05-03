@@ -8,16 +8,7 @@
 
 ## 1. Name
 
-`Remote` is overloaded — collides with Claude's "Remote Control" feature in conversation. Working name: **Helm**.
-
-**Rationale:** short (4 letters, terminal-friendly: `helm`, `bash helm.sh`, `~/ai_projects/helm/`), evokes navigation + control without overlapping "remote", and futures cleanly with the iso command-center metaphor — the *helm* of the ship of which the Armory is the inventory below decks. ACRM's left-rail is already called "Armory"; Helm sits beside it as the operator station, not on top of it.
-
-**Alternates** (pick if Helm doesn't land):
-- **Bridge** — same metaphor, longer, slightly more loaded
-- **Foreman** — fits the AdairLabs character-naming pattern (Lucius, Gekko, Xavier)
-- **Atlas** — fleet-overview, supports the future world map
-
-**Decision needed:** Richard picks. Doc uses `Helm` as placeholder; the implementation rename is one find-and-replace.
+**Decided: AgentRemote.** Matches the user-data-dir baked into the Electron build (`~/Library/Application Support/AgentRemote`), the launcher (`launch-remote.sh`), and the source dir (`remote-app/`). Future migration target `~/ai_projects/agent-remote/`. The rest of this doc uses AgentRemote throughout.
 
 ---
 
@@ -25,9 +16,9 @@
 
 **Is:** An always-on-top, frameless, glassmorphism HUD that lets the operator (Richard) spawn / kill / restart / attach / broadcast-to local agent sessions. Lives next to the work, never blocks it. The lightweight side of an eventual two-surface system: HUD on the desktop, full command center inside ACRM.
 
-**Isn't:** A replacement for ACRM. ACRM owns the registry, archetype catalog, skill library, team templates, runtime mission control. Helm is the always-visible operator station that *uses* what ACRM defines. Helm doesn't ship in a browser — it's native because it controls local processes (tmux, pty, file watch, iTerm).
+**Isn't:** A replacement for ACRM. ACRM owns the registry, archetype catalog, skill library, team templates, runtime mission control. AgentRemote is the always-visible operator station that *uses* what ACRM defines. AgentRemote doesn't ship in a browser — it's native because it controls local processes (tmux, pty, file watch, iTerm).
 
-**Not the iso command center.** The iso surface is the *full mode* under separate validate-proposal review (`~/ai_projects/CorporateHQ/ACRM/docs/proposals/iso-roomgrid-spike.md`). Helm is *lite mode* — the always-visible quick-action HUD. They coexist.
+**Not the iso command center.** The iso surface is the *full mode* under separate validate-proposal review (`~/ai_projects/CorporateHQ/ACRM/docs/proposals/iso-roomgrid-spike.md`). AgentRemote is *lite mode* — the always-visible quick-action HUD. They coexist.
 
 ---
 
@@ -118,25 +109,25 @@ These constraints are part of the design system, not just implementation choices
 
 ## 4. Directional reference: the iso aesthetic
 
-Inspiration (not target for Helm): the AI-rendered iso "Armory" screenshot shows three composition zones — left archetype rail, center iso world, right runtime mission control — over a desaturated dark indigo backplate (`#08090a`-ish), warmth from amber glow on active rooms, cyan-to-violet biome variation per project type.
+Inspiration (not target for AgentRemote): the AI-rendered iso "Armory" screenshot shows three composition zones — left archetype rail, center iso world, right runtime mission control — over a desaturated dark indigo backplate (`#08090a`-ish), warmth from amber glow on active rooms, cyan-to-violet biome variation per project type.
 
-**What Helm inherits from that direction:**
+**What AgentRemote inherits from that direction:**
 - Same accent palette (Anthropic orange + per-agent colors)
 - Same dark glass aesthetic
 - Same "ambient liveness" pattern (status dots = simplified version of the iso world's glow tiles)
 
-**What Helm doesn't inherit:**
+**What AgentRemote doesn't inherit:**
 - The iso projection itself
 - Tilemaps, sprite-rendered rooms, walking agents
-- Three-zone layout (Helm is one-zone HUD; ACRM hosts the three-zone command center)
+- Three-zone layout (AgentRemote is one-zone HUD; ACRM hosts the three-zone command center)
 
-The iso version is its own product, lives in ACRM under the validate-proposal track. Helm stays compact.
+The iso version is its own product, lives in ACRM under the validate-proposal track. AgentRemote stays compact.
 
 ---
 
 ## 5. Architecture for the new home
 
-**Path:** `~/ai_projects/helm/`
+**Path:** `~/ai_projects/agent-remote/`
 
 **Stack:**
 - Electron (frameless, transparent, always-on-top — same flags as current)
@@ -144,12 +135,12 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 - Renderer: vanilla DOM today; React optional later if the surface complexity grows. Don't pull React for the lite HUD just because the iso center uses it.
 - IPC: same hardened `execFile`-with-argv pattern; no shell strings
 - xterm.js + node-pty for the in-tile terminal expand (deferred — see open decisions)
-- Agent registry: reads `~/agent-launch-scripts/agents.json` (single source of truth — Helm doesn't fork it)
-- Tmux orchestration: shells out to `~/agent-launch-scripts/launch-agent.sh` and `chq-tmux.sh` (Helm is a UI on top of the existing scripts — doesn't reimplement them)
+- Agent registry: reads `~/agent-launch-scripts/agents.json` (single source of truth — AgentRemote doesn't fork it)
+- Tmux orchestration: shells out to `~/agent-launch-scripts/launch-agent.sh` and `chq-tmux.sh` (AgentRemote is a UI on top of the existing scripts — doesn't reimplement them)
 
 **Directory layout target:**
 ```
-~/ai_projects/helm/
+~/ai_projects/agent-remote/
 ├── package.json
 ├── tsconfig.json
 ├── DESIGN.md           # (this doc, copied/symlinked at repo init)
@@ -175,8 +166,8 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 
 **Where the current remote-app/ goes:**
 - Stays in place during migration (don't delete)
-- Becomes deprecated once Helm's first-released version reaches feature parity
-- Keep it around for ~1 month as the fallback HUD; remove via a git mv to `agent-launch-scripts/deprecated/remote-app/` once Helm is the daily driver
+- Becomes deprecated once AgentRemote's first-released version reaches feature parity
+- Keep it around for ~1 month as the fallback HUD; remove via a git mv to `agent-launch-scripts/deprecated/remote-app/` once AgentRemote is the daily driver
 
 ---
 
@@ -184,13 +175,13 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 
 Three phases, each independently shippable:
 
-**Phase 0 — Spec lock (this doc).** Pin the name, the tokens, and the architecture. Done when Richard confirms `Helm` (or picks alternate) and approves the tokens table in §3.
+**Phase 0 — Spec lock (this doc).** Pin the tokens and the architecture. Name is locked: AgentRemote. Done when Richard approves the tokens table in §3.
 
-**Phase 1 — Repo init.** `~/ai_projects/helm/` scaffolded with the layout in §5. Tokens extracted to `design-system/tokens.css`. `package.json` with TypeScript + Electron + esbuild. Empty `src/` skeleton. README + DESIGN.md in place. ~1 day.
+**Phase 1 — Repo init.** `~/ai_projects/agent-remote/` scaffolded with the layout in §5. Tokens extracted to `design-system/tokens.css`. `package.json` with TypeScript + Electron + esbuild. Empty `src/` skeleton. README + DESIGN.md in place. ~1 day.
 
 **Phase 2 — Feature parity transplant.** Port current Electron code into TS in the new repo. Same UX. Same registry (read directly from `~/agent-launch-scripts/agents.json`). Same IPC patterns (hardened argv, no shell). Verify drag-region, radial menu, status dots, edit mode, global shortcut, broadcast all still work. ~2-3 days. At end: switch the `Ctrl+Shift+Space` global shortcut to summon the new app, deprecate the old `launch-remote.sh`.
 
-**Phase 3 — Diverge.** Helm grows in its new home: tmux command palette, layout presets, xterm.js inline expand, anything else. The old `remote-app/` is git-mv'd to `deprecated/` once Phase 2 has soaked for ~1 week.
+**Phase 3 — Diverge.** AgentRemote grows in its new home: tmux command palette, layout presets, xterm.js inline expand, anything else. The old `remote-app/` is git-mv'd to `deprecated/` once Phase 2 has soaked for ~1 week.
 
 **Non-goals during migration:** no aesthetic changes, no new features, no rewrites. Phase 2 is a pure port.
 
@@ -200,14 +191,12 @@ Three phases, each independently shippable:
 
 These need Richard's call before Phase 1 starts:
 
-1. **Name.** `Helm`, `Bridge`, `Foreman`, `Atlas`, or something else.
-2. **Bun vs pnpm vs npm** for the new repo. Default Bun unless he prefers pnpm/npm conventions.
-3. **TS strictness.** Default `strict: true`, no escape hatches. Confirm.
-4. **xterm.js inline expand** — is this a Phase 3 feature or wait until the iso spike resolves? Helm could ship without it forever and stay valuable. Defer is the cheaper call.
-5. **Auto-update** — does Helm auto-update via `electron-updater` once installed, or stays manual? Single-user, manual is fine; if the team grows, auto-update matters.
+1. **Bun vs pnpm vs npm** for the new repo. Default Bun unless he prefers pnpm/npm conventions.
+2. **TS strictness.** Default `strict: true`, no escape hatches. Confirm.
+3. **xterm.js inline expand** — is this a Phase 3 feature or wait until the iso spike resolves? AgentRemote could ship without it forever and stay valuable. Defer is the cheaper call.
+4. **Auto-update** — does AgentRemote auto-update via `electron-updater` once installed, or stays manual? Single-user, manual is fine; if the team grows, auto-update matters.
 
 These are real picks, not menu-padding. Each one has a default I'd pick if Richard punts:
-- Name: Helm
 - Package manager: Bun
 - TS: strict
 - xterm: defer to Phase 3
@@ -219,7 +208,6 @@ These are real picks, not menu-padding. Each one has a default I'd pick if Richa
 
 - The design tokens in §3 are stable. Future PRs reference these by name; new tokens must justify themselves.
 - The architecture in §5 is the target. Phase-by-phase migration is the path.
-- The aesthetic direction in §4 is the ceiling — Helm doesn't go iso, ACRM does.
-- The naming in §1 is provisional pending Richard's call.
+- The aesthetic direction in §4 is the ceiling — AgentRemote doesn't go iso, ACRM does.
 
 What this doc *doesn't* commit to: anything in the iso command center / ACRM-RoomGrid spike track. That's a separate proposal under separate validation.
