@@ -989,3 +989,144 @@ ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) 
     return { ok: false, error: err.message };
   }
 });
+
+// ---------------------------------------------------------------------------
+// Tmux command palette IPC — hardened against shell injection
+// ---------------------------------------------------------------------------
+// Single dispatch handler for the 14 curated palette commands. The palette is
+// the renderer's tmux-palette popover (a util-btn next to Edit/All/Deploy).
+//
+// Hard rules:
+//   - Whitelisted command names only. Anything not in the dispatch table is
+//     refused with an error — a renderer bug or compromised page can't trick
+//     this handler into running an arbitrary tmux subcommand.
+//   - argv arrays passed straight to execFile. No shell, no string concat.
+//   - Pane / window resolution uses the same tmuxTarget substring rule as
+//     broadcast/restart/kill-pane (handles claude's /rename mutations).
+//   - Destructive commands (kill-pane, kill-window) are tagged with
+//     `destructive: true`. The renderer gates them behind body.editing, but
+//     we DO NOT re-check the gate here — Edit-mode is a UX safety net, not
+//     a security boundary. The IPC trust boundary is the command whitelist.
+//
+// Commands fall into three groups by required target:
+//   - PANE_SCOPED   — needs an agent's pane (split, swap, zoom, resize-*, break, kill-pane)
+//   - WINDOW_SCOPED — operates on the agent's window or the active session window
+//                     (new-window, kill-window, rotate-window, layout-* presets)
+//   - JOIN_FROM_SIBLING — joins another pane in the session into the agent's window
+//
+// Returns { ok: true, message? } or { ok: false, error }. Renderer flashes a
+// short hint on the palette button using the message / error text.
+const TMUX_PALETTE_COMMANDS = {
+  // ---- pane ops ---------------------------------------------------------
+  'split-h':       { kind: 'pane',   build: c => ['split-window', '-h', '-t', c] },
+  'split-v':       { kind: 'pane',   build: c => ['split-window', '-v', '-t', c] },
+  'swap-prev':     { kind: 'pane',   build: c => ['swap-pane', '-U', '-t', c] },
+  // -Z toggles zoom on the target pane. The pane title prefix flips in/out
+  // of the zoomed state — visual confirmation comes from the next pane-status
+  // poll (zoom changes pane geometry but not the title we substring-match).
+  'zoom':          { kind: 'pane',   build: c => ['resize-pane', '-Z', '-t', c] },
+  'resize-left':   { kind: 'pane',   build: c => ['resize-pane', '-t', c, '-L', '5'] },
+  'resize-right':  { kind: 'pane',   build: c => ['resize-pane', '-t', c, '-R', '5'] },
+  'resize-up':     { kind: 'pane',   build: c => ['resize-pane', '-t', c, '-U', '5'] },
+  'resize-down':   { kind: 'pane',   build: c => ['resize-pane', '-t', c, '-D', '5'] },
+  // break-pane -d keeps focus on the original window. -t: target window where
+  // the new pane (currently the agent's pane) ends up. Without -t, tmux opens
+  // it as a new window in the same session, which is what we want.
+  'break-pane':    { kind: 'pane',   build: c => ['break-pane', '-d', '-s', c] },
+  'kill-pane':     { kind: 'pane',   build: c => ['kill-pane', '-t', c], destructive: true },
+
+  // ---- layout presets (window-scoped) -----------------------------------
+  // tmux's named layouts. We omit main-horizontal / main-vertical — chq's
+  // "panes" mode is already a horizontal split, so even-* covers the common
+  // need without forcing operators to think about which pane is "main".
+  'layout-even-h': { kind: 'window', build: w => ['select-layout', '-t', w, 'even-horizontal'] },
+  'layout-even-v': { kind: 'window', build: w => ['select-layout', '-t', w, 'even-vertical'] },
+  'layout-tiled':  { kind: 'window', build: w => ['select-layout', '-t', w, 'tiled'] },
+
+  // ---- window/session ops -----------------------------------------------
+  // new-window: -d keeps focus on the current window so a casual "I want a
+  // scratch shell" doesn't yank the operator away from their agent. -c sets
+  // the new window's cwd to the agent's cwd if available; otherwise tmux
+  // inherits the session default.
+  'new-window':    { kind: 'session', build: (s, ctx) => ctx.cwd
+                       ? ['new-window', '-d', '-t', s, '-c', ctx.cwd]
+                       : ['new-window', '-d', '-t', s] },
+  'kill-window':   { kind: 'window', build: w => ['kill-window', '-t', w], destructive: true },
+  'rotate-window': { kind: 'window', build: w => ['rotate-window', '-t', w] }
+};
+
+ipcMain.handle('tmux-command', async (event, { command, agentId } = {}) => {
+  try {
+    const cmd = String(command || '').trim();
+    const spec = TMUX_PALETTE_COMMANDS[cmd];
+    if (!spec) throw new Error(`unknown command "${cmd}"`);
+
+    const safeId = agentId ? String(agentId).trim().toLowerCase() : '';
+    if (safeId && !/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agentId');
+
+    // Resolve target. PANE_SCOPED requires an agent. WINDOW_SCOPED prefers
+    // the agent's window, falls back to the chq session's active window.
+    // SESSION_SCOPED operates on the session itself.
+    let argv;
+    let resolved = '';
+    if (spec.kind === 'pane') {
+      if (!safeId) throw new Error('this command needs an agent target — select one in the dock');
+      const agent = loadAgents().find(a => a.id === safeId);
+      if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+      const panes = await listPanes();
+      const needle = (agent.tmuxTarget || '').toLowerCase();
+      const match = panes.find(p => p.title.toLowerCase().includes(needle));
+      if (!match) throw new Error(`${agent.displayName || safeId} isn't running — Deploy it first`);
+      if (!/^[a-z0-9_:.-]+$/i.test(match.coord)) throw new Error(`refusing suspicious coord ${match.coord}`);
+      argv = spec.build(match.coord);
+      resolved = match.coord;
+    } else if (spec.kind === 'window') {
+      let target = '';
+      if (safeId) {
+        const agent = loadAgents().find(a => a.id === safeId);
+        if (agent) {
+          const panes = await listPanes();
+          const needle = (agent.tmuxTarget || '').toLowerCase();
+          const match = panes.find(p => p.title.toLowerCase().includes(needle));
+          if (match) target = match.coord.split('.')[0];   // session:window
+        }
+      }
+      if (!target) target = 'chq';                           // session-active window
+      if (!/^[a-z0-9_:.-]+$/i.test(target)) throw new Error(`refusing suspicious window ${target}`);
+      argv = spec.build(target);
+      resolved = target;
+    } else if (spec.kind === 'session') {
+      // Session-scoped commands. cwd context comes from the selected agent if
+      // any (so a "new-window" lands in that agent's project root).
+      const ctx = {};
+      if (safeId) {
+        const agent = loadAgents().find(a => a.id === safeId);
+        if (agent && agent.cwd) {
+          // Tilde-expand for tmux. tmux honors $HOME but not literal "~".
+          let cwd = agent.cwd;
+          if (cwd === '~' || cwd.startsWith('~/')) cwd = path.join(process.env.HOME || '', cwd.slice(1));
+          ctx.cwd = cwd;
+        }
+      }
+      argv = spec.build('chq', ctx);
+      resolved = 'chq';
+    } else {
+      throw new Error(`unknown command kind ${spec.kind}`);
+    }
+
+    // Final defense: every argv element must be a string. Reject otherwise.
+    if (!Array.isArray(argv) || argv.some(a => typeof a !== 'string')) {
+      throw new Error('command produced non-string argv');
+    }
+
+    await new Promise((resolve, reject) => {
+      execFile('tmux', argv, (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+    return { ok: true, command: cmd, resolved };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
