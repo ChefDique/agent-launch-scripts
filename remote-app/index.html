@@ -1003,19 +1003,22 @@
       flex-direction: column;
       gap: 10px;
 
-      /* v2.7 belt-and-suspenders fallback: cap to viewport-minus-padding +
-         scroll inside the popover when the window can't grow tall enough
-         to fit the measured height. Spec: even if main caps the resize-
-         window IPC at display.workArea.bottom (which it does), the user
-         can still reach STARTUP via an inner scroll. The measure-and-grow
-         logic (renderSettingsPanel) still does its job first; this is
-         purely a safety net for constrained displays.
+      /* Belt-and-suspenders fallback: cap to viewport-minus-margin + scroll
+         inside the popover when the window can't grow tall enough to fit
+         the measured height. The 24px subtrahend matches the JS clamp's
+         12px-top + 12px-bottom margins exactly — previously this was 80px,
+         which over-clamped: when the JS grew the window to fit the full
+         popover, max-height still trimmed ~56px of bottom content (the
+         STARTUP row), forcing an internal scroll the user couldn't see.
+         24px aligns the CSS cap with what the JS layout actually allots
+         so the full popover renders without inner clipping when the
+         window has grown to the requested height.
 
          scrollbar-gutter: stable both-edges keeps layout from shifting the
          instant the scrollbar paints (avoids the 14px content-jump that
          `overflow: auto` introduces on macOS when overlay scrollbars are
          disabled). */
-      max-height: calc(100vh - 80px);
+      max-height: calc(100vh - 24px);
       overflow-y: auto;
       scrollbar-gutter: stable both-edges;
 
@@ -2501,7 +2504,18 @@
       // us. Same applies if it would extend above the current window top:
       // we can't grow the window upward (top-left fixed), so the clamp
       // alone handles that side by snapping the popover down.
-      const popoverBottomNeeded = wantedY + PANEL_HALF_H + 12;
+      // The popover's vertical center clamps to max(wantedY, 12+PANEL_HALF_H)
+      // so its top stays >= 12 in-frame. That means when wantedY is small
+      // (gear orb sits high in the window — common: the orb's at y=105ish
+      // and the popover is ~330px tall), the popover effectively centers at
+      // lo = 12 + PANEL_HALF_H and its bottom lands at lo + PANEL_HALF_H + 12
+      // = 2*PANEL_HALF_H + 24 = ~measuredH + 24. Previously this code asked
+      // main to grow to wantedY + PANEL_HALF_H + 12, which is short by exactly
+      // (lo - wantedY) when wantedY < lo — and the bottom of the popover then
+      // poked off the window. Compute the post-clamp bottom and grow to that.
+      const lo = 12 + PANEL_HALF_H;
+      const popoverCenterAfterClamp = Math.max(wantedY, lo);
+      const popoverBottomNeeded = popoverCenterAfterClamp + PANEL_HALF_H + 12;
       if (popoverBottomNeeded > window.innerHeight) {
         ipcRenderer.send('resize-window', {
           width: window.innerWidth,
