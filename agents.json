@@ -20,7 +20,8 @@
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "startup_slash": "/gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier"
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
+      "rename_to": "XAVIER"
     },
     {
       "id": "lucius",
@@ -31,7 +32,8 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
       "env": {
         "KOKORO_VOICE": "am_michael"
-      }
+      },
+      "rename_to": "LUCIUS"
     },
     {
       "id": "gekko",
@@ -39,14 +41,15 @@
       "cwd": "~/ai_projects/trading",
       "color": "green",
       "startup_slash": "/gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko"
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
+      "rename_to": "GEKKO"
     },
     {
       "id": "swarmy",
       "display_name": "overlordswarmy",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
-      "rename_to": "OVERLORD-SWARMY",
+      "rename_to": "OVERLORDSWARMY",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
     },
