@@ -4538,62 +4538,20 @@
       // Drop permission-pending flag and start the bubble in active mode.
       setTranscriptText({ targetName, finalText: '', interimText: '' });
 
-      // Speech recognition. Each recording gets a fresh recognizer — reusing
-      // them is brittle on Chromium's webkitSpeechRecognition (the engine
-      // sometimes refuses a re-start after stop()).
-      if (isSpeechAvailable()) {
-        try {
-          const recog = new SpeechRecognitionCtor();
-          recog.continuous = true;
-          recog.interimResults = true;
-          recog.lang = 'en-US';
-          recog.onresult = (ev) => {
-            // Walk all results from this session. Final results stack onto
-            // finalTranscript; interim get re-rendered each tick.
-            let interim = '';
-            let finalAdded = '';
-            for (let i = ev.resultIndex; i < ev.results.length; i++) {
-              const r = ev.results[i];
-              const txt = r[0] && r[0].transcript ? r[0].transcript : '';
-              if (r.isFinal) finalAdded += txt;
-              else interim += txt;
-            }
-            if (finalAdded) {
-              voiceRec.finalTranscript = (voiceRec.finalTranscript + ' ' + finalAdded).replace(/\s+/g, ' ').trim();
-            }
-            voiceRec.interimTranscript = interim.trim();
-            if (voiceRec.state === 'recording') {
-              setTranscriptText({
-                targetName,
-                finalText: voiceRec.finalTranscript,
-                interimText: voiceRec.interimTranscript
-              });
-            }
-          };
-          recog.onerror = (ev) => {
-            const code = ev && ev.error;
-            // 'aborted' fires on every clean stop; benign.
-            if (code === 'aborted' || code === 'no-speech') return;
-            console.warn('[voice] recog error:', code);
-            if (voiceRec.state === 'recording' && code !== 'audio-capture') {
-              setTranscriptText({
-                targetName,
-                hint: `(speech engine: ${code})`
-              });
-            }
-          };
-          recog.onend = () => { /* no-op; we drive lifecycle from key events */ };
-          recog.start();
-          voiceRec.recog = recog;
-        } catch (err) {
-          // Chromium occasionally complains "already started" on rapid hold/release
-          // cycles. Surface as a hint but keep recording — the analyser ring
-          // still works, just no transcript.
-          console.warn('[voice] recog.start failed:', err && err.message);
-          setTranscriptText({ targetName, hint: '(speech engine unavailable)' });
-        }
-      } else {
-        setTranscriptText({ targetName, hint: '(speech recognition unavailable)' });
+      // Audio capture for local Whisper transcription. webkitSpeechRecognition
+      // fails with `network` in Electron (bundled Chromium has no Google
+      // speech-to-text API key), so we record audio chunks here and ship them
+      // to the main process on key release for shell-out to the local whisper
+      // CLI. Same architecture as ~/ai_projects/voicetype/.
+      voiceRec.audioChunks = [];
+      try {
+        const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mr.ondataavailable = (e) => { if (e.data && e.data.size) voiceRec.audioChunks.push(e.data); };
+        mr.start();
+        voiceRec.mediaRecorder = mr;
+      } catch (err) {
+        console.warn('[voice] MediaRecorder init failed:', err && err.message);
+        setTranscriptText({ targetName, hint: '(audio capture unavailable)' });
       }
 
       voiceRec.state = 'recording';
@@ -4608,9 +4566,11 @@
         cancelAnimationFrame(voiceRec.rafId);
         voiceRec.rafId = null;
       }
-      if (voiceRec.recog) {
-        try { voiceRec.recog.stop(); } catch { /* ignore */ }
-        voiceRec.recog = null;
+      if (voiceRec.mediaRecorder) {
+        try {
+          if (voiceRec.mediaRecorder.state === 'recording') voiceRec.mediaRecorder.stop();
+        } catch { /* ignore */ }
+        voiceRec.mediaRecorder = null;
       }
       if (voiceRec.mediaStream) {
         try { voiceRec.mediaStream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
@@ -4622,6 +4582,7 @@
       }
       voiceRec.analyser = null;
       voiceRec.analyserBuf = null;
+      voiceRec.audioChunks = [];
     }
 
     // Cancel without sending: discard transcript, collapse UI with a shake.
@@ -4646,83 +4607,96 @@
       return id;
     }
 
-    // Finish + send. Drains any in-flight interim into finalTranscript so
-    // partial speech still ships if the user releases mid-sentence (Web Speech
-    // usually finalizes on stop(), but the renderer hasn't necessarily seen
-    // the final-flag result by the time we call stop()).
-    function finishVoiceRecording() {
+    // Finish + send. Stops MediaRecorder, awaits the audio blob, ships it to
+    // the main process for local Whisper transcription, then broadcasts the
+    // resulting text to the targeted agent's tmux pane. The "transcribing…"
+    // hint stays in the bubble while whisper runs (1-2s on M-series for the
+    // base model; first run is slower while the model downloads).
+    async function finishVoiceRecording() {
       const id = voiceRec.activeId;
       const agent = agents[id];
       const targetName = agent ? labelTextFor(agent) : (id || '');
+      const mr = voiceRec.mediaRecorder;
+      const chunks = voiceRec.audioChunks || [];
 
-      // Drain interim. We give recog 80ms to flush a final result before
-      // tearing down — short enough not to feel sluggish, long enough that
-      // a half-spoken word usually finalizes. If nothing arrives, we ship
-      // the interim as-is (still better than dropping the speech).
+      // Surface the wait so the bubble doesn't look frozen.
+      setTranscriptText({ targetName, hint: '(transcribing…)' });
+
+      // Wait for MediaRecorder to flush its final dataavailable event.
+      let audioBlob = null;
+      if (mr && mr.state === 'recording') {
+        audioBlob = await new Promise((resolve) => {
+          mr.onstop = () => {
+            try { resolve(new Blob(chunks, { type: 'audio/webm' })); }
+            catch { resolve(null); }
+          };
+          try { mr.stop(); } catch { resolve(null); }
+        });
+      }
+
+      // Tear down the analyser / stream / context. mediaRecorder is already
+      // stopped above; stopRecordingResources nulls the reference.
+      stopRecordingResources();
+
+      // Transcribe via whisper in main. Skip blobs too small to contain speech.
       let composed = '';
-      const drain = () => {
-        composed = (voiceRec.finalTranscript + ' ' + voiceRec.interimTranscript).replace(/\s+/g, ' ').trim();
-      };
-
-      // Capture pre-teardown state we'll need post-stop.
-      const tileEl = voiceRec.tileEl;
-
-      // Try a short flush window for one last final result.
-      try {
-        if (voiceRec.recog) {
-          // recog.stop() requests a final result; the onresult handler should
-          // fire one more time with isFinal=true if there's pending audio.
-          voiceRec.recog.stop();
+      if (audioBlob && audioBlob.size > 256) {
+        try {
+          const buf = await audioBlob.arrayBuffer();
+          // Manual binary-string build — avoids stack overflow on large buffers
+          // that String.fromCharCode(...spread) hits on long recordings.
+          const view = new Uint8Array(buf);
+          let bin = '';
+          for (let i = 0; i < view.length; i++) bin += String.fromCharCode(view[i]);
+          const b64 = btoa(bin);
+          composed = await ipcRenderer.invoke('transcribe-voice', b64);
+          composed = (composed || '').trim();
+        } catch (err) {
+          console.warn('[voice] transcribe failed:', err && err.message);
         }
-      } catch { /* ignore */ }
-      setTimeout(() => {
-        drain();
-        const finalMsg = composed;
-        // Now actually tear down the rest of the resources.
-        stopRecordingResources();
-        clearRecordingClasses();
-        hideTranscriptBubble();
+      }
 
-        const wasId = id;
-        voiceRec.state = 'idle';
-        voiceRec.activeId = null;
-        voiceRec.activeIdx = null;
-        voiceRec.btnEl = null;
-        voiceRec.tileEl = null;
-        voiceRec.finalTranscript = '';
-        voiceRec.interimTranscript = '';
+      // Tear down the bubble + visual recording state.
+      clearRecordingClasses();
+      hideTranscriptBubble();
 
-        if (!finalMsg) {
-          // Nothing transcribed — silent no-op (no toast). User probably
-          // changed their mind and just released without speaking.
-          return;
-        }
-        // Dead-agent gate: if the agent isn't running, suppress the send and
-        // surface an error toast. The recording state already tore down, so
-        // the user just sees the toast.
-        if (!agents[wasId] || !agents[wasId].running) {
-          showVoiceToast({
-            kind: 'error',
-            target: `${targetName} is offline`,
-            snippet: 'message discarded',
-            ms: 3000
-          });
-          return;
-        }
-        // Send via the existing broadcast-message IPC. Single recipient.
-        const payload = [{ id: wasId, tmuxTarget: agents[wasId].tmuxTarget }];
-        ipcRenderer.send('broadcast-message', {
-          message: finalMsg,
-          selectedAgents: payload,
-          isAll: false
-        });
+      const wasId = id;
+      voiceRec.state = 'idle';
+      voiceRec.activeId = null;
+      voiceRec.activeIdx = null;
+      voiceRec.btnEl = null;
+      voiceRec.tileEl = null;
+      voiceRec.finalTranscript = '';
+      voiceRec.interimTranscript = '';
+
+      if (!composed) {
+        // Nothing transcribed — silent no-op. Likely a hold without speech, or
+        // whisper failed and already logged.
+        return;
+      }
+      // Dead-agent gate: if the agent isn't running, suppress the send.
+      if (!agents[wasId] || !agents[wasId].running) {
         showVoiceToast({
-          kind: 'ok',
-          target: targetName,
-          snippet: finalMsg,
-          ms: 2500
+          kind: 'error',
+          target: `${targetName} is offline`,
+          snippet: 'message discarded',
+          ms: 3000
         });
-      }, 80);
+        return;
+      }
+      // Send via the existing broadcast-message IPC. Single recipient.
+      const payload = [{ id: wasId, tmuxTarget: agents[wasId].tmuxTarget }];
+      ipcRenderer.send('broadcast-message', {
+        message: composed,
+        selectedAgents: payload,
+        isAll: false
+      });
+      showVoiceToast({
+        kind: 'ok',
+        target: targetName,
+        snippet: composed,
+        ms: 2500
+      });
     }
 
     // ---- Keydown / keyup handlers ----

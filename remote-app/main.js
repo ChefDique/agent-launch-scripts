@@ -377,6 +377,46 @@ ipcMain.on('resize-window', (event, { width, height }) => {
 //   2. For each match, run `tmux send-keys -t <coord> <message> C-m` via
 //      execFile([...]) — argv array, no shell. The message is one argv entry
 //      so quoting / metachars are safe.
+// Local whisper transcription. Web SpeechRecognition fails with `network`
+// in Electron (bundled Chromium has no Google speech-to-text API key, unlike
+// regular Chrome). We capture audio in the renderer via MediaRecorder, send
+// the webm blob here as base64, write it to /tmp, shell out to the local
+// `whisper` CLI, and return the transcript text. Same architecture as
+// ~/ai_projects/voicetype/.
+const WHISPER_BIN = '/Users/richardadair/Library/Python/3.9/bin/whisper';
+const WHISPER_MODEL = 'base';
+
+ipcMain.handle('transcribe-voice', async (_event, audioBufferB64) => {
+  if (!audioBufferB64) return '';
+  const tmpDir = os.tmpdir();
+  const stamp = Date.now();
+  const stem = `agentremote-voice-${stamp}`;
+  const webmPath = path.join(tmpDir, `${stem}.webm`);
+  const txtPath = path.join(tmpDir, `${stem}.txt`);
+  try {
+    fs.writeFileSync(webmPath, Buffer.from(audioBufferB64, 'base64'));
+  } catch (err) {
+    logToOutLog(`[voice] write audio failed: ${err.message}`);
+    return '';
+  }
+  return new Promise((resolve) => {
+    const args = [webmPath, '--model', WHISPER_MODEL, '--output_format', 'txt', '--output_dir', tmpDir, '--language', 'en', '--fp16', 'False'];
+    execFile(WHISPER_BIN, args, { timeout: 60_000 }, (err) => {
+      let text = '';
+      if (err) {
+        logToOutLog(`[voice] whisper failed: ${err.message}`);
+      } else {
+        try { text = fs.readFileSync(txtPath, 'utf8'); } catch (e) {
+          logToOutLog(`[voice] whisper output read failed: ${e.message}`);
+        }
+      }
+      try { fs.unlinkSync(webmPath); } catch {}
+      try { fs.unlinkSync(txtPath); } catch {}
+      resolve((text || '').trim());
+    });
+  });
+});
+
 ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }) => {
   if (!message || (!isAll && (!selectedAgents || selectedAgents.length === 0))) return;
 
