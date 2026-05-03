@@ -564,23 +564,50 @@ ipcMain.on('spawn-agents', (event, payload) => {
       return;
     }
     console.log(`[spawn] ${stdout.trim()}`);
-    // Then open an iTerm tab and attach. CHQ_SCRIPT is a fixed path; safeAgents
-    // are id-validated. The AppleScript source is a single literal — no user
-    // input flows into it.
-    const apple = `tell application "iTerm"
-      activate
-      if (count of windows) is 0 then
-        set newWindow to (create window with default profile)
-      else
-        set newWindow to current window
-        tell newWindow to create tab with default profile
-      end if
-      tell current session of newWindow
-        write text "bash ${CHQ_SCRIPT} attach"
-      end tell
-    end tell`;
-    execFile('osascript', ['-e', apple], (err2, _o, e2) => {
-      if (err2) console.error(`[spawn] osascript attach failed: ${e2 || err2.message}`);
+    // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
+    // every batch into a fresh iTerm tab — "you put them all on different
+    // tabs, so i gotta go move em each time." Root cause: the previous
+    // implementation ALWAYS ran `create tab with default profile` here
+    // unconditionally on every Deploy, even when an iTerm session attached
+    // to chq already existed. The tmux session WAS shared (cmd_add appends
+    // panes/windows to chq), but each Deploy opened a NEW tab attached
+    // to the same chq, so iTerm rendered N redundant attached views.
+    //
+    // Fix: ask tmux whether the chq session already has a client attached.
+    // If yes, don't spawn ANYTHING in iTerm — the user already has a tab
+    // showing chq, and tmux just grew it under the hood. We only activate
+    // iTerm so it surfaces; the existing tab stays in place.
+    // If no, spawn a fresh iTerm tab attached to chq (first Deploy, or
+    // user closed the previous tab).
+    //
+    // This is more reliable than scraping iTerm session names — tmux is
+    // the source of truth for "is anyone watching this session".
+    execFile('tmux', ['list-clients', '-t', 'chq', '-F', '#{client_name}'], (errLC, lcOut) => {
+      const hasClient = !errLC && lcOut.split('\n').some(l => l.trim().length > 0);
+      if (hasClient) {
+        // Someone (likely iTerm) is already attached. Just bring iTerm
+        // forward so the existing tab is visible — no new tab spawn.
+        execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
+        return;
+      }
+      // No client attached — open a fresh iTerm tab and run chq-tmux attach.
+      // CHQ_SCRIPT is a fixed path; safeAgents are id-validated. The
+      // AppleScript source is a single literal — no user input flows in.
+      const apple = `tell application "iTerm"
+        activate
+        if (count of windows) is 0 then
+          set newWindow to (create window with default profile)
+        else
+          set newWindow to current window
+          tell newWindow to create tab with default profile
+        end if
+        tell current session of newWindow
+          write text "bash ${CHQ_SCRIPT} attach"
+        end tell
+      end tell`;
+      execFile('osascript', ['-e', apple], (err2, _o, e2) => {
+        if (err2) console.error(`[spawn] osascript attach failed: ${e2 || err2.message}`);
+      });
     });
   });
 });
