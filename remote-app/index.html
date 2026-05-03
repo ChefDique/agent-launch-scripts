@@ -1288,6 +1288,163 @@
     .radial-orb.settings.open {
       box-shadow: 0 0 28px var(--orb-glow);
     }
+
+    /* ---------------------------------------------------------------------
+       Team-chat overlay — Cmd+T toggle, embeds Swarmy spawn-button server's
+       /chat page in an Electron <webview>. Same glass aesthetic as the
+       radial-settings popover (commit 625a909 is the design exemplar).
+       ---------------------------------------------------------------------
+       Sizing: 540×360 fixed popover, centered on the viewport. Sits ABOVE
+       the panel (z-index 1500) so it covers the panel without disturbing
+       its layout. Hidden by default via display:none; toggleChatOverlay()
+       in JS swaps display + .visible class for the fade-in.
+
+       This is INTRA-AGENT COORD CHAT — agents talking to each other in
+       plaintext over the message-agent shared-channels substrate. NOT a
+       tmux-pane mirror. Richard chose this scope explicitly. */
+    .chat-overlay {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate3d(-50%, -50%, 0) scale(0.96);
+      width: 540px;
+      height: 360px;
+      max-width: calc(100vw - 24px);
+      max-height: calc(100vh - 24px);
+
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-app-region: no-drag;
+
+      /* Same glass values as .radial-settings (which itself is the agreed
+         design exemplar). Slightly heavier shadow because this overlay
+         floats over the panel, not anchored to an orb. */
+      background: rgba(8, 8, 14, 0.82);
+      backdrop-filter: blur(30px) saturate(140%);
+      -webkit-backdrop-filter: blur(30px) saturate(140%);
+      border: 1px solid var(--border-medium);
+      border-radius: 14px;
+      box-shadow:
+        0 28px 64px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        transform 0.24s var(--ease),
+        opacity 0.18s var(--ease);
+      z-index: 1500;
+    }
+    .chat-overlay.shown { display: flex; }
+    .chat-overlay.shown.visible {
+      transform: translate3d(-50%, -50%, 0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Header strip with a small title + close affordance. The drag region is
+       intentionally OFF here — the whole overlay is no-drag — so click-drag
+       inside the chat area selects text rather than dragging the window. */
+    .chat-overlay .chat-header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .chat-overlay .chat-header .title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chat-overlay .chat-header .title .glyph {
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0;
+    }
+    .chat-overlay .chat-header .hint {
+      font-size: 9.5px;
+      color: rgba(255, 255, 255, 0.32);
+    }
+
+    /* Body holds either the <webview> (when reachable) OR the inline
+       fallback message (when probe fails / did-fail-load fires). Toggling
+       .body.fallback swaps which child is visible. */
+    .chat-overlay .chat-body {
+      flex: 1 1 auto;
+      position: relative;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.18);
+    }
+    .chat-overlay .chat-body webview {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+      background: transparent;
+    }
+    .chat-overlay .chat-fallback {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      color: var(--text-primary);
+    }
+    .chat-overlay.body-fallback .chat-body webview { display: none; }
+    .chat-overlay.body-fallback .chat-fallback { display: flex; }
+    .chat-overlay .chat-fallback .verb {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .chat-overlay .chat-fallback .hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      max-width: 420px;
+      line-height: 1.5;
+    }
+    .chat-overlay .chat-fallback code {
+      display: inline-block;
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      font-size: 10.5px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: var(--text-primary);
+      max-width: 100%;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .chat-overlay .chat-fallback .retry-btn {
+      margin-top: 4px;
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      background: transparent;
+      border: 1px solid var(--border-medium);
+      color: var(--text-primary);
+      font-size: 10.5px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+    }
+    .chat-overlay .chat-fallback .retry-btn:hover {
+      border-color: var(--accent);
+      background: rgba(224, 124, 76, 0.08);
+    }
   </style>
 </head>
 <body>
@@ -1383,6 +1540,39 @@
         <button class="util-btn" id="edit-btn" title="Edit mode — show × badges to remove agents from registry">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
         <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team-chat overlay — Cmd+T to toggle. Embeds Swarmy's spawn-button
+       server's /chat page (http://localhost:7878/chat) in an Electron
+       <webview> so Richard can group-chat with the swarm without leaving
+       AgentRemote. Hidden by default; togglable via Cmd+T (Esc / outside
+       click also close). Server-up probe runs on each open. did-fail-load
+       on the webview swaps in the inline fallback. -->
+  <div class="chat-overlay" id="chat-overlay" aria-hidden="true">
+    <div class="chat-header">
+      <div class="title"><span class="glyph">#</span><span>team-chat</span></div>
+      <div class="hint">Cmd+T / Esc to close</div>
+    </div>
+    <div class="chat-body">
+      <!-- src is set lazily by toggleChatOverlay() so the webview only loads
+           when the overlay is opened. partition='persist:teamchat' gives it
+           an isolated storage scope (its own cache + cookies) separate from
+           the main renderer. allowpopups stays off — the page is poll-based
+           plain HTML, no popups expected. -->
+      <webview id="chat-webview"
+               partition="persist:teamchat"
+               style="width:100%;height:100%"
+               useragent="AgentRemote/1.0 Electron"></webview>
+      <div class="chat-fallback" id="chat-fallback">
+        <div class="verb">Spawn-button server not reachable</div>
+        <div class="hint">
+          The team-chat surface is served by Swarmy's spawn-button HTTP server
+          on <code>localhost:7878</code>. Start it with:
+        </div>
+        <code>cd ~/ai_projects/swarmy/spawn-button-worktrees/acrm-kanban-ui &amp;&amp; python3 server.py 7878</code>
+        <button class="retry-btn" id="chat-retry-btn">Retry</button>
       </div>
     </div>
   </div>
@@ -1484,8 +1674,13 @@
       // trigger that made this footgun fire — Electron's setContentSize emits
       // a resize event in the renderer, which would re-enter this function.
       if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
+      // Same skip for the team-chat overlay — it grows the window to fit its
+      // 540×360 popover; if we measure the panel here we'd shrink the window
+      // back and clip the overlay. Gate matches the radial-menu gate above.
+      if (typeof chatOverlayShownState !== 'undefined' && chatOverlayShownState) return;
       const measure = () => {
         if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
+        if (typeof chatOverlayShownState !== 'undefined' && chatOverlayShownState) return;
         const panel = document.getElementById('panel');
         if (!panel) return;
         const rect = panel.getBoundingClientRect();
@@ -3244,6 +3439,213 @@
       const id = agentOrder[idx];
       const btn = document.getElementById(`btn-${id}`);
       doAttach(id, btn);
+    });
+
+    // ---------------------------------------------------------------------
+    // Cmd+T → toggle team-chat overlay (Swarmy spawn-button server /chat)
+    // ---------------------------------------------------------------------
+    // Window-level keybinding — only fires when AgentRemote has focus, which
+    // is the intended scope. Cmd+T globally would collide with most browser
+    // "new tab" shortcuts; localized here it only competes inside this app
+    // (which has no concept of tabs, so it's free).
+    //
+    // Why keyboard-only and no visible button: the meta-row had a button
+    // added by a prior dispatch and Richard reverted it (commit 6214b7c).
+    // Adding any visible icon to the meta-row / util-buttons / dock would
+    // compress existing affordances. Cmd+T is the cleanest path.
+    //
+    // The overlay is a fixed-position glass popover that embeds a <webview>
+    // pointed at http://localhost:7878/chat. The <webview> tag is provided
+    // by Electron (webviewTag:true is set in main.js BrowserWindow config)
+    // and gives us a real out-of-process browsing context with same-origin
+    // fetch/poll/post against localhost:7878 — exactly what chat.html needs.
+
+    const CHAT_URL = 'http://localhost:7878/chat';
+    // Min size needed to fit the 540×360 overlay + body padding (14px) +
+    // 12px margin top/bottom for visual breathing room. Width includes the
+    // body's 14px+14px padding.
+    const CHAT_OVERLAY_MIN_W = 540 + 28 + 24;     // 592
+    const CHAT_OVERLAY_MIN_H = 360 + 28 + 24;     // 412
+    let chatWebviewLoaded = false;                // src has been set at least once
+    let chatDismissCleanup = null;                // outside-click / Esc unbinder
+    let chatOverlayShownState = false;            // gates syncWindowSize so the
+                                                  // resize listener doesn't shrink
+                                                  // the window back over the overlay
+    let chatPreOpenSize = null;                   // {w,h} captured on open so close
+                                                  // can restore the pre-open size
+
+    function chatOverlayEl() { return document.getElementById('chat-overlay'); }
+    function chatWebviewEl() { return document.getElementById('chat-webview'); }
+    function chatFallbackEl() { return document.getElementById('chat-fallback'); }
+
+    function isChatOverlayOpen() {
+      return chatOverlayEl().classList.contains('shown');
+    }
+
+    function openChatOverlay() {
+      const overlay = chatOverlayEl();
+      const wv = chatWebviewEl();
+      if (overlay.classList.contains('shown')) return;
+      // Close the radial menu if it's open — they share the dismiss-handler
+      // namespace and overlapping modal-ish surfaces would confuse outside-
+      // click semantics.
+      if (typeof radialOpenForId !== 'undefined' && radialOpenForId) {
+        try { closeRadialMenu(); } catch { /* no-op */ }
+      }
+
+      // Capture pre-open window size so close can restore it. innerWidth /
+      // innerHeight reflect the renderer's view of content size, which is
+      // what resize-window IPC accepts (after the 28px body-padding add we
+      // do for syncWindowSize). For the restore path we want the bare
+      // content size, so capture innerWidth/Height directly.
+      chatPreOpenSize = { w: window.innerWidth, h: window.innerHeight };
+      // Grow the window if it's smaller than the overlay needs. Fire-and-
+      // forget — main caps to the display's workArea bottom, so a small
+      // display falls back to a smaller overlay (CSS max-height clamps the
+      // overlay to viewport-minus-margin).
+      if (window.innerWidth < CHAT_OVERLAY_MIN_W || window.innerHeight < CHAT_OVERLAY_MIN_H) {
+        const targetW = Math.max(window.innerWidth, CHAT_OVERLAY_MIN_W);
+        const targetH = Math.max(window.innerHeight, CHAT_OVERLAY_MIN_H);
+        ipcRenderer.send('resize-window', { width: targetW, height: targetH });
+      }
+      chatOverlayShownState = true;
+
+      // Show the overlay immediately — don't gate on the probe result. We
+      // optimistically assume the server is up (which is the common case) and
+      // the probe's job is to swap to fallback if it WASN'T. This avoids the
+      // user staring at a grown-but-empty window for up to 1.5s while the
+      // probe runs, which is the worst-case timeout. If the webview's
+      // did-fail-load fires first, the body-fallback class flips before the
+      // probe even returns.
+      overlay.classList.remove('body-fallback');
+      overlay.classList.add('shown');
+      overlay.setAttribute('aria-hidden', 'false');
+      // Lazy-load the webview src on first open. Subsequent opens reuse the
+      // loaded page so existing scroll position / poll offset survive close+
+      // reopen — closing only hides the overlay, doesn't tear the webview
+      // down.
+      if (!chatWebviewLoaded || wv.getAttribute('src') !== CHAT_URL) {
+        wv.setAttribute('src', CHAT_URL);
+        chatWebviewLoaded = true;
+      }
+      // Two rAFs let display:flex settle before the .visible transition runs,
+      // so the fade-in plays from the scaled-down hidden state. Same trick
+      // the radial popover uses.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        overlay.classList.add('visible');
+      }));
+
+      // Probe the spawn-button server in the background. If it fails (and
+      // did-fail-load hasn't already flipped to fallback), swap in the
+      // fallback view. The probe is the safety-net; did-fail-load is the
+      // first responder.
+      ipcRenderer.invoke('chat-server-probe').then(res => {
+        if (!res || !res.ok) {
+          chatOverlayEl().classList.add('body-fallback');
+        }
+      }).catch(() => {
+        chatOverlayEl().classList.add('body-fallback');
+      });
+
+      // Bind dismiss handlers. Outside-click: any pointerdown whose target is
+      // OUTSIDE the overlay closes it. Escape closes. Re-using the same
+      // pattern as the radial menu (capture phase so we run before the
+      // overlay's own click handlers).
+      const onPointerDown = (ev) => {
+        const ov = chatOverlayEl();
+        if (!ov || !ov.contains(ev.target)) closeChatOverlay();
+      };
+      const onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); closeChatOverlay(); } };
+      document.addEventListener('mousedown', onPointerDown, true);
+      document.addEventListener('keydown', onKey);
+      chatDismissCleanup = () => {
+        document.removeEventListener('mousedown', onPointerDown, true);
+        document.removeEventListener('keydown', onKey);
+      };
+    }
+
+    function closeChatOverlay() {
+      const overlay = chatOverlayEl();
+      if (!overlay.classList.contains('shown')) return;
+      overlay.classList.remove('visible');
+      overlay.setAttribute('aria-hidden', 'true');
+      // Drop .shown after the fade-out so display:none re-applies and the
+      // overlay stops eating clicks. Match the CSS transition duration.
+      setTimeout(() => {
+        // Recheck — user may have reopened mid-transition.
+        if (!overlay.classList.contains('visible')) {
+          overlay.classList.remove('shown');
+          chatOverlayShownState = false;
+          // Restore pre-open window size. Use the captured value rather than
+          // remeasuring the panel — captured is exact, remeasure has to wait
+          // for the panel to relayout. syncWindowSize runs on the resulting
+          // resize event but the chatOverlayShownState gate is now false so
+          // it'll behave normally.
+          if (chatPreOpenSize) {
+            ipcRenderer.send('resize-window', {
+              width: chatPreOpenSize.w,
+              height: chatPreOpenSize.h
+            });
+            chatPreOpenSize = null;
+          }
+        }
+      }, 240);
+      if (chatDismissCleanup) { chatDismissCleanup(); chatDismissCleanup = null; }
+    }
+
+    function toggleChatOverlay() {
+      if (isChatOverlayOpen()) closeChatOverlay();
+      else openChatOverlay();
+    }
+
+    // Wire webview events: did-fail-load swaps in the fallback view (covers
+    // the case where the server died AFTER the probe passed but BEFORE the
+    // navigation finished). did-finish-load drops the fallback class so the
+    // webview becomes visible if a retry recovered.
+    (() => {
+      const wv = chatWebviewEl();
+      if (!wv) return;
+      wv.addEventListener('did-fail-load', (ev) => {
+        // Ignore aborted loads (errorCode -3 ERR_ABORTED) — these fire on
+        // re-navigation and aren't real failures.
+        if (ev && ev.errorCode === -3) return;
+        chatOverlayEl().classList.add('body-fallback');
+      });
+      wv.addEventListener('did-finish-load', () => {
+        chatOverlayEl().classList.remove('body-fallback');
+      });
+    })();
+
+    // Retry button in the fallback — re-runs the probe, and if it passes,
+    // (re)loads the webview src.
+    document.getElementById('chat-retry-btn').addEventListener('click', async () => {
+      let ok = false;
+      try {
+        const res = await ipcRenderer.invoke('chat-server-probe');
+        ok = !!(res && res.ok);
+      } catch { ok = false; }
+      if (!ok) return;                                      // still down; leave fallback up
+      const wv = chatWebviewEl();
+      // Force a fresh navigation — setAttribute('src', same-url) doesn't
+      // reload, so reload() if the webview already loaded once, otherwise
+      // setAttribute kicks the first load.
+      if (chatWebviewLoaded) wv.reload();
+      else { wv.setAttribute('src', CHAT_URL); chatWebviewLoaded = true; }
+      chatOverlayEl().classList.remove('body-fallback');
+    });
+
+    window.addEventListener('keydown', (ev) => {
+      // Cmd+T (Mac) — toggle. The meta modifier is REQUIRED, so this can't
+      // be triggered by typing the letter 't' into the chat input. We
+      // explicitly DON'T gate on "not in input" the way Cmd+1..9 does — the
+      // chat input is auto-focused on summon, so requiring focus to leave it
+      // would mean the shortcut never fires from the natural state.
+      // Cmd+T inside an Electron text input has no native meaning (no tabs),
+      // so hijacking it here is harmless.
+      if (!ev.metaKey || ev.shiftKey || ev.altKey || ev.ctrlKey) return;
+      if (ev.key !== 't' && ev.key !== 'T') return;
+      ev.preventDefault();
+      toggleChatOverlay();
     });
   </script>
 </body>

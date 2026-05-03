@@ -129,7 +129,15 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      // Required for the team-chat overlay (see #chat-overlay in index.html).
+      // <webview> gives us a real out-of-process browsing context for the
+      // Swarmy spawn-button server's /chat page (http://localhost:7878/chat),
+      // which is what we want — same-origin fetch from the page works without
+      // tangling with the renderer's nodeIntegration. Setting this to true
+      // does NOT auto-enable Node in the webview (it still defaults to a
+      // pure web context), it only allows the <webview> tag to exist.
+      webviewTag: true
     }
   });
 
@@ -1097,5 +1105,33 @@ ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) 
     return { ok: true, fromCoord: match.coord, joinedTo: dest };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Team-chat overlay — server-up probe
+// ---------------------------------------------------------------------------
+// The chat overlay (Cmd+T in renderer) embeds Swarmy's spawn-button server at
+// http://localhost:7878/chat via a <webview>. The webview's own did-fail-load
+// catches the case where the server is fully unreachable, but a fast pre-flight
+// probe lets the renderer decide BEFORE asking the webview to navigate — that
+// way we render an inline "server not reachable" fallback without the brief
+// blank-frame that did-fail-load alone would show.
+//
+// Probe runs in main (not the renderer) so a hung server doesn't tie up
+// renderer threads or bubble up as an unhandled fetch rejection in dev tools.
+// AbortController gives us a guaranteed 1500ms ceiling — Node 18+ ships with
+// global fetch + AbortSignal.timeout.
+//
+// Returns { ok: true } on HTTP 2xx, { ok: false, error: <reason> } otherwise.
+ipcMain.handle('chat-server-probe', async () => {
+  const url = 'http://localhost:7878/';
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    // Common shapes: AbortError (timeout), TypeError (ECONNREFUSED).
+    return { ok: false, error: err && err.message ? err.message : String(err) };
   }
 });
