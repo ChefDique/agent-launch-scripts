@@ -1069,7 +1069,12 @@
         opacity 0.18s var(--ease),
         backdrop-filter 0.18s var(--ease),
         background 0.18s var(--ease);
-      -webkit-app-region: no-drag;
+      /* CRITICAL: do NOT set -webkit-app-region: no-drag here. The overlay is
+         always in the DOM (inset: 0) and Chromium's app-region is independent
+         of pointer-events — declaring no-drag at base level shadows the body's
+         drag region across the entire window even when hidden, breaking panel
+         drag. Apply no-drag only on .shown (and .closing for the reverse
+         transition window). v2.8.1 — fix for drag regression. */
     }
     .deploy-overlay.shown {
       pointer-events: auto;
@@ -1077,12 +1082,14 @@
       background: rgba(4, 6, 10, 0.55);
       backdrop-filter: blur(14px) saturate(120%);
       -webkit-backdrop-filter: blur(14px) saturate(120%);
+      -webkit-app-region: no-drag;
     }
     .deploy-overlay.closing {
       transition:
         opacity 0.13s var(--ease),
         backdrop-filter 0.13s var(--ease),
         background 0.13s var(--ease);
+      -webkit-app-region: no-drag;
     }
 
     .deploy-card {
