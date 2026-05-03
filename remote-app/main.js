@@ -3,12 +3,25 @@ const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// Pin the app name BEFORE anything reads userData paths. Without this, Electron
+// defaults to "Electron" and the userData dir at
+// ~/Library/Application Support/Electron/ is shared with every other dev
+// Electron app on the system — caches and storage cross-contaminate. Pinning
+// to "AgentRemote" gives this app its own isolated userData dir so storage,
+// V8 code cache, GPU caches, and Local State don't leak in from elsewhere.
+app.setName('AgentRemote');
+
 const REPO_ROOT = path.join(__dirname, '..');
 const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
 const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const DEPRECATED_ASSETS_DIR = path.join(REPO_ROOT, 'deprecated', 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
+
+// Tiny buffer above display.workArea bottom so the window doesn't sit flush
+// against the dock / screen bottom when the radial menu grows downward.
+// Used by resize-window's bottom-cap logic.
+const WORKAREA_BOTTOM_SAFETY = 4;
 
 // Global accelerator for the show/hide toggle. Richard switched from literal
 // Control to Cmd 2026-05-02 — Mac muscle memory reaches for Cmd+Shift+Space,
@@ -53,10 +66,17 @@ function loadAgents() {
       // Auto-restart defaults to true when the field is omitted (matches the
       // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
       autoRestart: a.auto_restart !== false,
-      // rename_to defaults to display_name uppercased (matches launch-agent.sh).
-      // We expose the resolved value so the renderer can show what's actually
-      // sent to /rename without re-implementing the default.
-      renameTo: a.rename_to || a.display_name.toUpperCase(),
+      // Expose the RAW registry value (empty string when the user hasn't set
+      // an override). The renderer uses this to drive the dock label: any
+      // non-empty value wins, otherwise the renderer falls back to
+      // displayLabelFor() (mixed-case displayName + the overlordswarmy → Swarmy
+      // alias). The /rename actually-sent-to-tmux default (display_name
+      // uppercased, mirroring launch-agent.sh) is surfaced via the renderer's
+      // input placeholder, so the user can still see what the empty fallback
+      // resolves to. Was previously eagerly resolved here, which prevented the
+      // renderer from telling "user explicitly set it to XAVIER" apart from
+      // "user set nothing and main filled in XAVIER".
+      renameTo: a.rename_to || '',
       startupSlash: a.startup_slash || '',
       avatar: a.avatar || `${a.id}.svg`
     }));
@@ -78,7 +98,21 @@ function writeRegistry(mutator) {
 }
 
 function createWindow() {
-  session.defaultSession.clearCache();
+  // Nuke every flavor of stale state on launch so renderer edits show up
+  // immediately without manual cache surgery. clearCache() alone only flushes
+  // the HTTP cache; V8 code cache + storage (localStorage / sessionStorage /
+  // IndexedDB) survive between launches and are the usual culprits when a
+  // CSS/JS edit "doesn't take" until reboot.
+  const sess = session.defaultSession;
+  sess.clearCache();
+  // clearCodeCaches has no required filter — empty urls array clears all.
+  if (typeof sess.clearCodeCaches === 'function') {
+    sess.clearCodeCaches({ urls: [] });
+  }
+  // Storage flush — preserves cookies (none here, but cheap defense in depth).
+  sess.clearStorageData({
+    storages: ['localstorage', 'sessionstorage', 'indexdb', 'shadercache']
+  }).catch(() => { /* no-op: cleanup is best-effort */ });
 
   mainWindow = new BrowserWindow({
     width: 620,
@@ -254,80 +288,47 @@ ipcMain.handle('get-agents', () => loadAgents());
 
 // Resize the BrowserWindow to fit the rendered DOM. Renderer measures itself
 // then sends {width, height}. Cap to a sensible max so the window can't
-// accidentally explode if a CSS bug returns an absurd height.
+// accidentally explode if a CSS bug returns an absurd height; ALSO cap
+// downward so the radial menu (which grows the window into the dead space
+// below the panel) can't push the bottom edge off-screen behind the dock.
+//
+// Cap-and-overflow (drag-to-bottom scenario): when the window is already
+// flush with the dock, the renderer's requested height exceeds available
+// downward room, and we clamp to the workArea bottom — orbs at the bottom
+// of the cluster might clip but the panel and the upper orbs stay visible.
+// This is the v2.4 mirror of the v2.3 upward cap (which was needed because
+// the menu opened above the panel). Multi-monitor: getDisplayNearestPoint
+// with the window's top-CENTER picks the right screen even if the window
+// straddles a monitor boundary.
+//
+// v2.4 simplification: removed the resize-window-anchored handler and the
+// get-window-headroom query that supported the upward-grow / panel-slide
+// ladder. Window now grows downward only (top-left fixed); a single
+// cap-to-bottom is all the geometry we need. Removed state:
+//   - WORKAREA_TOP_SAFETY (renamed to BOTTOM_SAFETY at top of file)
+//   - anchorOriginalBounds, appliedDownExtTotal (anchor-restore state)
 ipcMain.on('resize-window', (event, { width, height }) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const w = Math.max(380, Math.min(1200, Math.round(width || 620)));
-  const h = Math.max(180, Math.min(900, Math.round(height || 240)));
-  mainWindow.setContentSize(w, h, true);
-});
 
-// Resize-window-anchored: same as resize-window, but anchors the window's
-// y-coordinate so the panel stays visually fixed when the window grows
-// upward (the radial menu now fans ABOVE the panel — without this, growing
-// the window from the top-left origin pushes the panel downward visually).
-//
-// Strategy: track the original y the FIRST time the renderer asks for an
-// upward-anchored resize, then for every subsequent resize compute new y =
-// originalY - (newHeight - originalHeight). On 'release' the renderer asks
-// to restore — we replay the saved bounds.
-//
-// The renderer is the source of truth for w/h; we just shift y to compensate.
-let anchorOriginalBounds = null; // { x, y, width, height } captured at first resize-up
-ipcMain.on('resize-window-anchored', (event, { width, height, anchor, release } = {}) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const wRaw = Math.max(380, Math.min(1200, Math.round(width || 620)));
+  const hRaw = Math.max(180, Math.min(900, Math.round(height || 240)));
 
-  if (release) {
-    // Undo the upward shift while preserving any user-initiated motion that
-    // happened while the radial was open. We don't restore (x, y) verbatim
-    // from anchorOriginalBounds — that would yank the window back to its old
-    // position, undoing any drag the user did with the radial up. Instead:
-    //   newY = currentY + (currentHeight - originalHeight)
-    //   newHeight = originalHeight
-    //   keep current x, current width
-    // Net effect: window shrinks vertically by `delta` from the TOP, so the
-    // panel (anchored to the bottom in body.radial-open) stays put while the
-    // empty space above it disappears.
-    if (anchorOriginalBounds) {
-      const cur = mainWindow.getBounds();
-      const baseHeight = anchorOriginalBounds.height;
-      const heightDelta = cur.height - baseHeight;
-      mainWindow.setBounds({
-        x: cur.x,
-        y: cur.y + heightDelta,
-        width: cur.width,
-        height: baseHeight
-      });
-      anchorOriginalBounds = null;
-    }
-    return;
-  }
-
-  const w = Math.max(380, Math.min(1200, Math.round(width || 620)));
-  const h = Math.max(180, Math.min(900, Math.round(height || 240)));
-
-  // Capture the pre-grow bounds the first time we go upward, so close-time
-  // restore puts the panel exactly where it was. Subsequent calls during the
-  // same open arc reuse the original anchor (don't drift y on each goose).
-  const cur = mainWindow.getBounds();
-  if (!anchorOriginalBounds) {
-    anchorOriginalBounds = { x: cur.x, y: cur.y, width: cur.width, height: cur.height };
-  }
-
-  if (anchor === 'top') {
-    // Window grows upward: shift y up by (newHeight - originalHeight) so the
-    // panel's bottom edge stays put. We use CURRENT x/y as the base for the
-    // shift (rather than captured baseX/baseY) so that if the user dragged
-    // the window between grows, the drag is preserved. The captured values
-    // are only used to compute the height delta, not to relocate the window.
-    const baseHeight = anchorOriginalBounds.height;
+  // Cap height so cur.y + height stays within display.workArea.bottom. If
+  // the display lookup fails (rare multi-monitor edge case), skip the cap
+  // and let macOS handle clamping.
+  let h = hRaw;
+  try {
     const cur = mainWindow.getBounds();
-    const yShift = h - cur.height;       // additional upward extension this call
-    mainWindow.setBounds({ x: cur.x, y: cur.y - yShift, width: w, height: h });
-  } else {
-    // Default behavior matches the existing resize-window handler.
-    mainWindow.setContentSize(w, h, true);
+    const refPoint = { x: cur.x + Math.round(cur.width / 2), y: cur.y };
+    const display = screen.getDisplayNearestPoint(refPoint);
+    const maxBottom = display.workArea.y + display.workArea.height - WORKAREA_BOTTOM_SAFETY;
+    const maxHeight = Math.max(180, maxBottom - cur.y);
+    h = Math.min(hRaw, maxHeight);
+  } catch (err) {
+    logToOutLog(`resize-window: bottom-cap lookup failed (${err.message}); using uncapped height`);
   }
+
+  mainWindow.setContentSize(wRaw, h, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -398,7 +399,11 @@ ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }
 // pane titles containing spaces don't break the parse.
 function listPanes() {
   return new Promise((resolve, reject) => {
-    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_title}';
+    // pane_id is the %23-style stable id; coord is session:window.pane (mutable
+    // when panes shift). Both are needed: coord for tmux subcommands keyed by
+    // position, pane_id for matching against $TMUX_PANE-keyed PIDFILEs that
+    // launch-agent.sh writes to /tmp.
+    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}';
     execFile('tmux', ['list-panes', '-a', '-F', fmt], (err, stdout, stderr) => {
       if (err) {
         // No tmux server running is a benign "no targets" — return empty.
@@ -406,9 +411,9 @@ function listPanes() {
         return reject(new Error(stderr || err.message));
       }
       const out = stdout.split('\n').filter(Boolean).map(line => {
-        const tab = line.indexOf('\t');
-        if (tab < 0) return null;
-        return { coord: line.slice(0, tab), title: line.slice(tab + 1) };
+        const parts = line.split('\t');
+        if (parts.length < 3) return null;
+        return { coord: parts[0], paneId: parts[1], title: parts[2] };
       }).filter(Boolean);
       resolve(out);
     });
@@ -437,11 +442,18 @@ ipcMain.handle('pane-status', async () => {
 // with "Session already exists" when chq was already up, which was the root
 // cause of the "Deploy doesn't work after first deploy" bug — clicking the
 // claude button (or any agent) once chq existed was a silent no-op.
-ipcMain.on('spawn-agents', (event, agents) => {
+ipcMain.on('spawn-agents', (event, payload) => {
+  // Back-compat: payload may be a bare array of agent ids (legacy renderer)
+  // or { agents, layout } (post-v2.5 settings popover with layout checkboxes).
+  const agents = Array.isArray(payload) ? payload : (payload && payload.agents);
+  const layoutRaw = (payload && payload.layout) || '';
   const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
   if (safeAgents.length === 0) return;
 
-  execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0' } }, (err, stdout, stderr) => {
+  // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
+  const layout = ['panes', 'windows', 'ittab'].includes(layoutRaw) ? layoutRaw : 'panes';
+
+  execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout } }, (err, stdout, stderr) => {
     if (err) {
       console.error(`[spawn] chq-tmux add failed: ${stderr || err.message}`);
       return;
@@ -520,6 +532,42 @@ ipcMain.handle('add-agent', async (event, payload) => {
   }
 });
 
+// Reorder-agents IPC — receives an array of agent ids in the user's desired
+// dock order. Reshuffles `data.agents` in place to match. Validates that the
+// provided id list is a permutation of the current registry (no adds, no drops,
+// no duplicates) — drag-and-drop should never mutate membership, only order.
+//
+// Renderer flow: user drags a tile, drops it. We compute the new id array,
+// invoke this IPC, and on success re-render the dock from the freshly-read
+// registry so the persisted order is what the user sees.
+ipcMain.handle('reorder-agents', async (event, ids) => {
+  try {
+    if (!Array.isArray(ids)) throw new Error('ids must be an array');
+    const cleanIds = ids.map(s => String(s || '').trim().toLowerCase());
+    if (cleanIds.some(id => !/^[a-z0-9_-]+$/.test(id))) throw new Error('invalid id in list');
+    if (new Set(cleanIds).size !== cleanIds.length) throw new Error('duplicate ids in list');
+
+    writeRegistry(data => {
+      const current = (data.agents || []).map(a => a.id);
+      // Membership check: provided list must contain exactly the same ids as
+      // the current registry. Any drop/add through this IPC would silently
+      // delete an entry, which is the wrong tool for the job (use add-agent /
+      // remove-agent for membership changes).
+      const a = [...cleanIds].sort();
+      const b = [...current].sort();
+      if (a.length !== b.length || a.some((id, i) => id !== b[i])) {
+        throw new Error('id list is not a permutation of the registry');
+      }
+      // Reorder in place: build a lookup, then map the requested order.
+      const byId = Object.fromEntries(data.agents.map(entry => [entry.id, entry]));
+      data.agents = cleanIds.map(id => byId[id]);
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // Remove-agent IPC — strip from agents.json. SVG is left in remote-app/assets/
 // untouched (was being auto-archived to deprecated/assets/ in the previous
 // implementation; that bit Richard when he had to re-add an agent and the
@@ -566,7 +614,7 @@ ipcMain.handle('restart-agent', async (event, id) => {
     const panes = await listPanes();
     const needle = (agent.tmuxTarget || '').toLowerCase();
     const match = panes.find(p => p.title.toLowerCase().includes(needle));
-    if (!match) throw new Error(`no running pane for "${safeId}"`);
+    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     await new Promise((resolve, reject) => {
       execFile('tmux', ['send-keys', '-t', match.coord, 'C-c'], (err, _o, ser) => {
@@ -670,9 +718,40 @@ ipcMain.handle('update-agent-cwd', async (event, { id, cwd }) => {
   }
 });
 
+// Reap the auto-inject background subshells launch-agent.sh wrote to
+// /tmp/<agent>-bg-<paneIdSlashSubbed>.pids. PIDFILE format mirrors the shell
+// side: the pane id has every `%` substituted with `_` (so `%23` becomes
+// `_23`). Order matters per CLAUDE.md "stale-pid cleanup": SIGKILL the
+// subshell BEFORE its sleep child — killing sleep first unblocks bash, which
+// then runs `tmux send-keys` into nothing (or worse, into a re-spawned pane
+// mid-boot). pkill -9 -P targets the subshell's children.
+//
+// This is the same cleanup launch-agent.sh runs at the START of each
+// iteration; we run it at kill time so the bg jobs don't outlive the pane.
+async function reapAgentBgPids(agentId, paneId) {
+  if (!agentId || !paneId) return;
+  const safePane = paneId.replace(/%/g, '_');
+  const pidfile = path.join('/tmp', `${agentId}-bg-${safePane}.pids`);
+  let raw;
+  try { raw = fs.readFileSync(pidfile, 'utf8'); }
+  catch { return; }   // no PIDFILE = nothing to reap
+  const pids = raw.split('\n').map(s => s.trim()).filter(s => /^\d+$/.test(s));
+  for (const pid of pids) {
+    await new Promise(resolve => {
+      execFile('kill', ['-9', pid], () => resolve());   // ignore errors — pid may already be dead
+    });
+    await new Promise(resolve => {
+      execFile('pkill', ['-9', '-P', pid], () => resolve());
+    });
+  }
+  try { fs.unlinkSync(pidfile); } catch { /* already gone */ }
+}
+
 // kill-pane — destructive: tmux kill-pane on the agent's pane. Different from
 // restart-agent (Ctrl-C, restart loop respawns). kill-pane removes the bash
 // while-loop entirely — the pane is gone from chq until the user re-deploys.
+// Before killing the pane, reaps the auto-inject bg subshells so they don't
+// outlive their owner pane and litter /tmp with orphaned PIDFILEs.
 ipcMain.handle('kill-pane', async (event, id) => {
   try {
     const safeId = String(id || '').trim().toLowerCase();
@@ -685,12 +764,13 @@ ipcMain.handle('kill-pane', async (event, id) => {
     const panes = await listPanes();
     const needle = (agent.tmuxTarget || '').toLowerCase();
     const matches = panes.filter(p => p.title.toLowerCase().includes(needle));
-    if (matches.length === 0) throw new Error(`no running pane for "${safeId}"`);
+    if (matches.length === 0) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Kill all matching panes (in case there are multiple — e.g. if the same
     // agent ended up duplicated across windows). Each kill-pane is its own
-    // execFile call, no shell.
+    // execFile call, no shell. Reap bg pids BEFORE killing the pane.
     for (const m of matches) {
+      await reapAgentBgPids(safeId, m.paneId);
       await new Promise((resolve, reject) => {
         execFile('tmux', ['kill-pane', '-t', m.coord], (err, _o, ser) => {
           if (err) return reject(new Error(ser || err.message));
@@ -721,7 +801,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
     const panes = await listPanes();
     const needle = (agent.tmuxTarget || '').toLowerCase();
     const match = panes.find(p => p.title.toLowerCase().includes(needle));
-    if (!match) throw new Error(`no running pane for "${safeId}"`);
+    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Defense in depth: ensure the coord came back in the expected shape
     // (session:window.pane like "chq:0.3") before letting it land in an
@@ -757,6 +837,152 @@ ipcMain.handle('attach-pane', async (event, id) => {
       });
     });
     return { ok: true, coord: match.coord };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// kill-session — destructive: tear down the entire chq tmux session via
+// `tmux kill-session -t chq`. Equivalent to `bash chq-tmux.sh stop` but skips
+// the shell wrapper and goes straight at tmux. This is the panel-level
+// counterpart to the per-agent kill-pane IPC.
+//
+// Why we need this: chq-tmux.sh stashes the user's chosen layout in
+// @chq_layout at session-start time, and cmd_add reads it back on every
+// subsequent Deploy. So once a session is running in (e.g.) `panes` mode,
+// flipping the WINDOWS pill in the panel and re-Deploying re-uses the
+// existing session under the OLD layout. To actually switch layouts the user
+// has to stop the session first, then re-Deploy. This handler is what the
+// little ✕ next to the layout-pills calls.
+//
+// Returns { ok: true, killed: true } on success, { ok: true, killed: false }
+// if there was no session to kill (already gone), { ok: false, error } on
+// genuine failure (e.g. tmux not installed).
+ipcMain.handle('kill-session', async () => {
+  return new Promise((resolve) => {
+    execFile('tmux', ['kill-session', '-t', 'chq'], (err, _o, ser) => {
+      if (err) {
+        // "no server running" or "session not found" — both are benign:
+        // there was nothing to kill, the desired end-state already holds.
+        const msg = ser || err.message || '';
+        if (/no server running|can't find session|session not found/i.test(msg)) {
+          return resolve({ ok: true, killed: false });
+        }
+        return resolve({ ok: false, error: msg });
+      }
+      resolve({ ok: true, killed: true });
+    });
+  });
+});
+
+// get-session-layout — returns the value stashed in tmux's @chq_layout option
+// at session start time (one of 'panes' | 'windows' | 'ittab'), or '' if no
+// session is running.
+//
+// If the session exists but @chq_layout was never set (legacy session, or
+// session created outside chq-tmux.sh), returns 'unknown' — a sentinel that
+// tells the renderer "session is up but I can't tell what layout" so the
+// stop button still enables but the mismatch hint stays off.
+//
+// Used by the renderer to show a visual hint on the layout-pills when the
+// user's currently-selected pill differs from the running session's layout —
+// telegraphs "your pill choice won't take effect until you tear down the
+// running session". Polled alongside pane-status on the 3s status loop.
+ipcMain.handle('get-session-layout', async () => {
+  return new Promise((resolve) => {
+    // First check the layout option directly — fastest path, single tmux call.
+    execFile('tmux', ['show-option', '-t', 'chq', '-v', '-q', '@chq_layout'], (err, stdout) => {
+      if (err) {
+        // tmux exited non-zero → no server, no chq session, or option missing.
+        // The -q flag suppresses the "unknown option" diagnostic but doesn't
+        // change exit status; bail to "no session" by default.
+        return resolve('');
+      }
+      const v = (stdout || '').trim();
+      if (v) return resolve(v);
+      // Option came back empty. The session might still exist with an unset
+      // layout — confirm by checking session presence.
+      execFile('tmux', ['has-session', '-t', 'chq'], (err2) => {
+        if (err2) return resolve('');                 // genuinely no session
+        return resolve('unknown');                    // session up, layout unstashed
+      });
+    });
+  });
+});
+
+// detach-pane-to-window — break the agent's pane out of its current window
+// into its own new window in the same session. Useful when the panel of
+// agents is too cramped (5-6 horizontal slivers in one window) and you want
+// the agent on its own screen. Equivalent of tmux's `Ctrl-b !`.
+ipcMain.handle('detach-pane-to-window', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+
+    const agentList = loadAgents();
+    const agent = agentList.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const panes = await listPanes();
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
+
+    // -P prints the new window's target id (session:window). -d keeps focus
+    // on the original window — user can switch with Ctrl-b N.
+    const newWin = await new Promise((resolve, reject) => {
+      execFile('tmux', ['break-pane', '-d', '-s', match.coord, '-P', '-F', '#{session_name}:#{window_index}'], (err, stdout, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve(stdout.trim());
+      });
+    });
+    return { ok: true, newWindow: newWin, fromCoord: match.coord };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// detach-pane-to-split — move the agent's pane into another window in the
+// session as a horizontal split. If `targetWindow` (e.g. "chq:1") is omitted,
+// picks the lowest-indexed window in the session that isn't the source.
+// Useful for "I want this agent next to that other agent in a fresh layout"
+// without touching tmux directly.
+ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+
+    const agentList = loadAgents();
+    const agent = agentList.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const panes = await listPanes();
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
+
+    const sessionName = match.coord.split(':')[0];
+    const sourceWindow = match.coord.split('.')[0];   // session:window
+
+    let dest = targetWindow;
+    if (!dest) {
+      const sessionWindows = [...new Set(panes.map(p => p.coord.split('.')[0]))]
+        .filter(w => w.startsWith(`${sessionName}:`) && w !== sourceWindow)
+        .sort();
+      dest = sessionWindows[0];
+    }
+    if (!dest) throw new Error('no other window in session to split into; use detach-to-window first');
+    if (!/^[a-z0-9_:.-]+$/i.test(dest)) throw new Error(`refusing suspicious target window: ${dest}`);
+
+    // join-pane handles break+join atomically when -s refers to a pane in
+    // another window. -h splits horizontally.
+    await new Promise((resolve, reject) => {
+      execFile('tmux', ['join-pane', '-h', '-s', match.coord, '-t', dest], (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+    return { ok: true, fromCoord: match.coord, joinedTo: dest };
   } catch (err) {
     return { ok: false, error: err.message };
   }

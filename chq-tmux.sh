@@ -188,7 +188,24 @@ cmd_start() {
     die "No executives selected."
   fi
 
-  echo "Starting CHQ tmux session..."
+  # Layout mode — env-driven so the renderer can spawn with a preferred shape.
+  #   ittab  (default) — first agent in window "chq", each subsequent agent in
+  #                      its own tmux window named after the agent. cmd_attach
+  #                      uses `tmux -CC attach` so iTerm renders each tmux
+  #                      window as a real iTerm window. Drag, dock, split,
+  #                      merge into tabs freely — the layout is whatever
+  #                      Richard wants in iTerm. New default 2026-05-03.
+  #   windows          — same window-per-agent as ittab but uses plain
+  #                      `tmux attach` so it shows as one iTerm tab with tmux
+  #                      window-switching (Ctrl-b N). Useful on Linux / non-
+  #                      iTerm terminals.
+  #   panes            — every agent as a horizontal split-pane in window
+  #                      "chq". Original behavior. Cramped at 5+ agents but
+  #                      keeps everything in a single iTerm tab.
+  local layout="${CHQ_LAYOUT:-ittab}"
+  case "$layout" in panes|windows|ittab) ;; *) die "invalid CHQ_LAYOUT: $layout (panes|windows|ittab)";; esac
+
+  echo "Starting CHQ tmux session (layout=${layout})..."
 
   local first="${selected_entries[0]}"
   IFS='|' read -r dept cwd wname script <<< "$first"
@@ -197,15 +214,27 @@ cmd_start() {
   tmux select-pane -t "${SESSION}:chq.0" -T "$wname"
   tmux send-keys -t "${SESSION}:chq.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
 
-  # Only split if there are additional execs (skip split for single-exec mode)
+  # Stash the layout choice on the session so cmd_attach can read it back.
+  # tmux @user-options survive for the session's lifetime and are zero-cost.
+  tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
+
   if [[ ${#selected_entries[@]} -gt 1 ]]; then
     local pane_idx=0
     for entry in "${selected_entries[@]:1}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
-      tmux split-window -h -t "${SESSION}:chq" -c "$cwd"
-      pane_idx=$((pane_idx + 1))
-      tmux select-pane -t "${SESSION}:chq.${pane_idx}" -T "$wname"
-      tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+      case "$layout" in
+        panes)
+          tmux split-window -h -t "${SESSION}:chq" -c "$cwd"
+          pane_idx=$((pane_idx + 1))
+          tmux select-pane -t "${SESSION}:chq.${pane_idx}" -T "$wname"
+          tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          ;;
+        windows|ittab)
+          tmux new-window -t "$SESSION" -n "$wname" -c "$cwd"
+          tmux select-pane -t "${SESSION}:${wname}.0" -T "$wname"
+          tmux send-keys -t "${SESSION}:${wname}.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          ;;
+      esac
     done
   fi
 
@@ -263,7 +292,15 @@ cmd_attach() {
     die "No CHQ session running. Start with: $0 start"
   fi
 
-  tmux attach -t "$SESSION"
+  # Honor the layout recorded at start time. ittab uses tmux -CC so iTerm
+  # renders each tmux window as its own iTerm window — drag/dock freely.
+  # Falls back to plain attach if @chq_layout was never set (legacy session).
+  local layout
+  layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
+  if [[ "$layout" == "ittab" ]]; then
+    exec tmux -CC attach -t "$SESSION"
+  fi
+  exec tmux attach -t "$SESSION"
 }
 
 # Add agent panes to an EXISTING chq session. Idempotent: if a pane with the
@@ -303,29 +340,43 @@ cmd_add() {
     selected_entries+=("$found")
   done
 
-  # Skip ones already running, split-window the rest into chq:0 (the
-  # original window) so they sit alongside the existing agent panes.
+  # Honor the layout chosen at start time (stashed in @chq_layout). New agents
+  # in panes mode go as horizontal splits in chq:0; new agents in windows/ittab
+  # mode go as their own tmux windows. CHQ_LAYOUT env var overrides the stored
+  # value if set — useful for upgrading a panes session to per-window agents.
+  local layout
+  layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
+  [[ -z "$layout" ]] && layout="${CHQ_LAYOUT:-ittab}"
+  case "$layout" in panes|windows|ittab) ;; *) layout="ittab";; esac
+
+  # Existing-titles check — substring match across ALL panes in the session
+  # (not just chq:0) so an agent already in a detached window isn't re-spawned.
   local existing_titles
-  existing_titles=$(tmux list-panes -t "${SESSION}:0" -F '#{pane_title}' 2>/dev/null || true)
+  existing_titles=$(tmux list-panes -s -t "$SESSION" -F '#{pane_title}' 2>/dev/null || true)
   local added=0
   for entry in "${selected_entries[@]}"; do
     IFS='|' read -r dept cwd wname script <<< "$entry"
-    # Skip if a pane with this title already lives in chq:0 (case-insensitive,
-    # claude /rename uppercases or substitutes — substring match is enough).
+    # Skip if a pane with this title exists anywhere in the session.
     if grep -qi "${wname}" <<< "$existing_titles" 2>/dev/null; then
       echo "  ${wname} already running — skipping."
       continue
     fi
-    # split-window -P -F '#{pane_id}' prints the new pane's stable id (e.g.
-    # "%47") to stdout. Stable id is safer than pane_index because indexes
-    # renumber on every split — using the index `tail -1` trick previously
-    # caused the new title to land on the WRONG pane (the old swarmy pane
-    # got mis-titled "claude" while the actual new pane stayed nameless).
     local new_pane_id
-    new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
+    case "$layout" in
+      panes)
+        # split-window -P -F '#{pane_id}' prints the new pane's stable id (e.g.
+        # "%47") to stdout. Stable id is safer than pane_index because indexes
+        # renumber on every split.
+        new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
+        ;;
+      windows|ittab)
+        # new-window -P -F prints the new window's pane id directly.
+        new_pane_id=$(tmux new-window -t "$SESSION" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
+        ;;
+    esac
     tmux select-pane -t "$new_pane_id" -T "$wname"
     tmux send-keys -t "$new_pane_id" "$(pane_loop "$cwd" "$script" "$dept")" Enter
-    echo "  ${wname} added -> ${cwd}"
+    echo "  ${wname} added -> ${cwd} (layout=${layout})"
     added=$((added + 1))
   done
 

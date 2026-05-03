@@ -11,7 +11,11 @@
         3. send / recipient summary
     */
     :root {
-      --bg-deep:       rgba(8, 8, 14, 0.72);
+      /* Panel background: high alpha so the panel reads as a solid dark glass
+         slab against any wallpaper. Combined with the blur + saturate filter
+         this gives a heavy, opaque feel. Status-dot border + radial-settings
+         popover hardcode their own values below for independent tuning. */
+      --bg-deep:       rgba(8, 8, 14, 0.95);
       --bg-glass:      rgba(20, 20, 30, 0.55);
       --bg-input:      rgba(255, 255, 255, 0.04);
       --border-soft:   rgba(255, 255, 255, 0.08);
@@ -59,16 +63,10 @@
       -webkit-app-region: drag;
     }
 
-    /* While the radial menu is open the window grows UPWARD (so the orbs have
-       transparent space to fan into above the panel). To keep the panel's
-       on-screen position fixed during that growth, anchor the panel to the
-       BOTTOM of the body — every pixel of new height becomes empty space
-       above. Without this, the panel would visually jump up when the window
-       resized. Only active during radial-open; resets cleanly on close. */
-    body.radial-open {
-      min-height: 100vh;
-      justify-content: flex-end;
-    }
+    /* v2.4: radial menu now opens BELOW the tile (into the dead space under
+       the panel), so the panel never moves and we no longer need a body
+       anchor flip during open. The window grows DOWNWARD via setContentSize;
+       top-left stays fixed; old body.radial-open / flex-end rule deleted. */
 
     /* ---------------------------------------------------------------------
        Panel
@@ -111,36 +109,54 @@
     .dock {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 12px;
       align-items: flex-start;
       /* Container itself stays draggable (inherits drag from body/.panel)
          so the gaps between tiles and any unused right-side space are valid
          grab regions. Each interactive child (.agent-btn, .add-btn) opts
-         OUT via `no-drag` below. */
+         OUT via `no-drag` below. v2.7: gap bumped 8 → 12 to match the wider
+         tile wrapper that gives labels room to breathe. */
     }
 
     /* Tile wrapper: stacks the avatar button + the small text label below.
-       The button keeps its 46x46 footprint; the label adds ~14px below. */
+       The button itself keeps its 46x46 footprint; the wrapper widens to 60
+       (v2.7) so longer labels like "OVERLORD-SWARMY" can wrap onto two
+       lines instead of being truncated to "OVERLOR…". The avatar stays
+       centered inside the wider wrapper via align-items: center.
+       no-drag is needed for HTML5 drag-and-drop to work (v2.5 reorder) —
+       without it, the body's window-drag region intercepts the dragstart
+       and the OS treats it as a window-drag instead of an HTML5 drag. */
     .agent-tile {
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 4px;
-      width: 46px;
+      width: 60px;
+      -webkit-app-region: no-drag;
     }
 
+    /* v2.7: label can spill ~5px past the tile each side (max-width 70 vs
+       tile-width 60) and is allowed to wrap to TWO lines via -webkit-box +
+       line-clamp. white-space normal + word-break break-word lets long names
+       like "OVERLORD-SWARMY" break at the hyphen / mid-word so the second
+       line still fits the 70px box. Short labels like "Xavier" stay one
+       line. font dropped 10 → 9.5px so two-line case isn't visually heavy. */
     .agent-label {
       /* font-family inherited from the .ui-sans group above */
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: 500;
       letter-spacing: 0.4px;
       color: rgba(255, 255, 255, 0.62);
-      max-width: 60px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      max-width: 70px;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
       text-align: center;
-      line-height: 1.2;
+      line-height: 1.15;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
       transition: color 0.2s var(--ease);
       pointer-events: none;
       user-select: none;
@@ -188,7 +204,10 @@
     .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 24px rgba(255, 119, 204, 0.55); }
     .agent-btn.active.claude { border-color: var(--claude); box-shadow: 0 0 24px rgba(224, 124, 76, 0.55); }
 
-    /* Status dot (bottom-right, anchored outside the avatar). */
+    /* Status dot (bottom-right, anchored outside the avatar). Border is
+       hardcoded to a higher-alpha dark (NOT --bg-deep, which dropped to 5%
+       for the near-transparent panel) so the dot stays legible against a
+       bright wallpaper showing through the panel. */
     .status-dot {
       position: absolute;
       bottom: -2px;
@@ -197,7 +216,7 @@
       height: 10px;
       border-radius: 50%;
       background: var(--status-off);
-      border: 2px solid var(--bg-deep);
+      border: 2px solid rgba(8, 8, 14, 0.7);
       transition: background 0.3s var(--ease), box-shadow 0.3s var(--ease);
     }
     .status-dot.on { background: var(--status-on); box-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
@@ -414,6 +433,169 @@
     .util-btn.active { color: var(--accent); border-color: var(--accent); }
 
     /* ---------------------------------------------------------------------
+       Layout-mode selector — segmented pill control next to Deploy.
+       ---------------------------------------------------------------------
+       Three options ride along with spawn-agents IPC as the `layout` field.
+       Persisted to localStorage as `helmLayoutMode` so the choice sticks
+       across launches. Visually it's a tiny segmented control: one pill per
+       mode, the active one wears the accent color. Clicking a pill selects
+       it (radio behavior, not toggle). Lives in the meta-row utility
+       cluster, sits to the LEFT of the Edit/All/Deploy buttons so it reads
+       as a deploy-flow modifier rather than a generic util.
+    */
+    .layout-pills {
+      display: flex;
+      gap: 0;
+      align-items: center;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      overflow: hidden;
+      -webkit-app-region: no-drag;
+      margin-right: 6px;
+    }
+    .layout-pill {
+      background: transparent;
+      border: 0;
+      color: var(--text-muted);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+      border-right: 1px solid var(--border-soft);
+      line-height: 1.1;
+    }
+    .layout-pill:last-child { border-right: 0; }
+    .layout-pill:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.04); }
+    .layout-pill.active {
+      color: var(--accent);
+      background: rgba(224, 124, 76, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(224, 124, 76, 0.35);
+    }
+
+    /* Layout mismatch — applied to .layout-pills when chq is running AND the
+       active pill differs from the session's stashed @chq_layout. Telegraphs
+       "your pill choice won't take effect until you tear down the session".
+       Subtle: tinted amber border + a small dot on the active pill, plus a
+       tooltip on the wrapper. NOT a loud red — this isn't an error, it's a
+       hint that explains why the pill seems to do nothing. */
+    .layout-pills.mismatch {
+      border-color: rgba(255, 170, 0, 0.55);
+      box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.18);
+    }
+    .layout-pills.mismatch .layout-pill.active {
+      /* Swap the orange selection tint for the amber hint color so the active
+         pill itself reads as "different from what's running". */
+      color: #ffaa00;
+      background: rgba(255, 170, 0, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 170, 0, 0.45);
+    }
+
+    /* Stop-session button — small ✕ next to the layout pills. Only meaningful
+       when chq is running; visually muted otherwise (no point clicking when
+       there's nothing to kill). Uses the inline confirm pattern: click once
+       to morph into ✓✗, click ✓ to fire kill-session IPC. */
+    .stop-session-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      margin-right: 6px;
+      padding: 0;
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+      -webkit-app-region: no-drag;
+    }
+    .stop-session-btn:hover {
+      color: #ff7090;
+      border-color: rgba(255, 90, 120, 0.5);
+      background: rgba(255, 90, 120, 0.08);
+    }
+    /* When no session is running the button is a no-op affordance; dim it
+       so Richard's eye doesn't catch on it as actionable. Pointer-events
+       stay on so the tooltip still surfaces on hover. */
+    .stop-session-btn.disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .stop-session-btn.disabled:hover {
+      color: var(--text-muted);
+      border-color: var(--border-soft);
+      background: transparent;
+    }
+    /* Confirm state — replaces the ✕ glyph with a tiny ✓ ✗ pair inside a
+       widened pill. Mirrors the radial confirm-orb feel at the dock-button
+       scale. The widened width briefly displaces neighbors; keep duration
+       short (4s auto-cancel) so the layout settles back fast. */
+    .stop-session-btn.confirming {
+      width: auto;
+      padding: 0 4px;
+      border-color: rgba(255, 90, 120, 0.55);
+      background: rgba(255, 90, 120, 0.10);
+    }
+    .stop-session-btn .glyph { display: inline; }
+    .stop-session-btn .confirm { display: none; align-items: center; gap: 4px; }
+    .stop-session-btn.confirming .glyph { display: none; }
+    .stop-session-btn.confirming .confirm { display: inline-flex; }
+    .stop-session-btn .confirm .ok,
+    .stop-session-btn .confirm .no {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 16px;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid rgba(0, 0, 0, 0.4);
+    }
+    .stop-session-btn .confirm .ok { background: var(--status-on); color: #062b10; }
+    .stop-session-btn .confirm .no { background: rgba(255, 255, 255, 0.85); color: #1a0608; }
+
+    /* ---------------------------------------------------------------------
+       Drag-and-reorder visual feedback for agent tiles.
+       ---------------------------------------------------------------------
+       During a drag, the source tile dims. When the user hovers another
+       tile, we show a vertical insert line on the LEFT or RIGHT edge of
+       that tile (whichever side the cursor is closer to) — the drop will
+       land in the corresponding slot. The line is a pseudo-element on
+       the .agent-tile so it can paint outside the 46px footprint without
+       reflowing the dock.
+    */
+    .agent-tile { position: relative; }
+    .agent-tile.drag-source { opacity: 0.35; }
+    .agent-tile[draggable="true"] { cursor: grab; }
+    .agent-tile[draggable="true"]:active { cursor: grabbing; }
+    .agent-tile.drop-before::before,
+    .agent-tile.drop-after::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      /* clear the agent-label below the avatar — bumped 18 → 26 in v2.7
+         since the label can now wrap to two lines (9.5px × 1.15 × 2 + 4px
+         tile-gap + safety margin) so the drop-indicator stays visually
+         pinned to the avatar and doesn't strike through long labels. */
+      bottom: 26px;
+      width: 2px;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 4;
+    }
+    .agent-tile.drop-before::before { left: -5px; }
+    .agent-tile.drop-after::after   { right: -5px; }
+
+    /* ---------------------------------------------------------------------
        Add-agent inline form (expandable)
        --------------------------------------------------------------------- */
     .add-form {
@@ -496,22 +678,35 @@
     }
 
     /* ---------------------------------------------------------------------
-       Right-click radial menu — gooey/liquid-mercury fan-out
+       Right-click radial menu — gooey/liquid-mercury fan-out (Bebber-tight)
        ---------------------------------------------------------------------
-       Bebber-style mercury blobs squeeze out of the tile center along an
-       arc, gooey-connected via SVG filter (#goo). After they settle, the
-       filter is removed (class .settled on the orb container) and labels
-       fade in to the right of each orb as readable glass pills. The orbs
-       themselves stay as solid colored circles — required for the goo
-       filter to do its blob-merging math (transparent / blurred sources
-       break the threshold matrix).
+       v2.4: orbs cascade DOWNWARD from the right-clicked tile, into the
+       transparent dead space below the panel. Window grows DOWNWARD
+       (top-left fixed) — panel never moves. No upward-anchor dance, no
+       body-class flip, no captured-bounds restore.
+
+       Bebber-style mercury blobs squeeze out of the tile center along a
+       FLAT arc (50px center-to-center pitch, ~6px gap between adjacent 44px
+       orbs), gooey-connected via SVG filter (#goo, stdDeviation=10). The
+       goo filter is PERSISTENT — it stays on at rest, so adjacent orbs
+       remain visibly mercury-bridged forever. That's the Bebber aesthetic:
+       the menu reads as a connected liquid metal puddle, never resolves to
+       five discrete buttons.
+
+       Labels are HOVER-ONLY (Bebber-tight pitch makes always-on labels
+       overlap). At rest, NO label shows — clean mercury blob. On orb (or
+       label) hover, ONE 120px label fades in BELOW the orb (below, not
+       above — the panel sits above the orbs in this direction). Only one
+       visible at a time, so column collisions are impossible. Unframed (no
+       glass pill) — verb in the orb's color, optional detail (cwd path /
+       "iTerm") below it, soft text-shadow halo for legibility.
 
        Layer hierarchy:
          #radial-menu              fixed full-viewport, pointer-events:none
-           .radial-orbs            container with filter:url(#goo) during emerge
-             .radial-orb           solid colored circle (the FAB-spawned blob)
-           .radial-labels          NOT filtered, holds glass pills
-             .radial-label         glass pill anchored to the right of an orb
+           .radial-orbs            container with filter:url(#goo) ALWAYS
+             .radial-orb           solid colored circle (mercury blob source)
+           .radial-labels          NOT filtered, holds the text blocks
+             .radial-label         2-line text stack BELOW its orb (hover-only)
     */
     #radial-menu {
       position: fixed;
@@ -526,7 +721,12 @@
     #radial-menu.open { display: block; }
 
     /* The gooey container. Filter eats anything inside, so labels live in a
-       sibling container (.radial-labels) instead of in here. */
+       sibling container (.radial-labels) instead of in here. The filter is
+       PERSISTENT — it stays on at rest, not just during emergence. That's
+       the Bebber aesthetic: orbs read as a connected mercury blob whose
+       bridges never resolve to discrete buttons. The .settled class is kept
+       as a state hook (label fade-in is gated on it) but no longer drops
+       the filter. */
     .radial-orbs {
       position: absolute;
       left: 0;
@@ -536,10 +736,10 @@
       pointer-events: none;
       filter: url(#goo);
     }
-    /* Once items have settled into resting positions, drop the filter so
-       hover halos / shadows on individual orbs read crisply. */
+    /* .settled retained as a state hook for hover-label gating below; the
+       filter intentionally stays on so the mercury connection persists. */
     .radial-orbs.settled {
-      filter: none;
+      /* filter remains url(#goo) — see block comment above. */
     }
 
     .radial-orb {
@@ -630,8 +830,7 @@
       --orb-glow:  rgba(255, 90, 120, 0.65);
     }
 
-    /* Labels container — sibling of .radial-orbs, NOT filtered. This is
-       where the glass pills live so backdrop-filter still works. */
+    /* Labels container — sibling of .radial-orbs, NOT filtered. */
     .radial-labels {
       position: absolute;
       left: 0;
@@ -641,70 +840,104 @@
       pointer-events: none;
     }
 
+    /* Label block — HOVER-ONLY (Bebber-spacing requires it). With orbs at
+       50px center-to-center, the always-on label-per-orb pattern would
+       overlap. Solution: at rest, NO label — orbs read as a clean mercury
+       blob like the Bebber reference. On orb (or label) hover, ONE label
+       fades in, anchored BELOW its orb (v2.4: the menu now lives BELOW the
+       panel, so labels go below the orbs into the empty space below the
+       cluster — above would crash into the panel). Only one label visible
+       at a time, so we can give it a wider 120px footprint for verb +
+       detail without column collisions.
+
+       JS anchors --lx to orb-center-x, --ly to orb-BOTTOM edge plus a
+       small gap. Block stacks two text lines vertically:
+         line 1 (.verb)    — short verb in the orb's color, 11px Inter caps
+         line 2 (.detail)  — optional path/tag in same color, lower opacity
+
+       NO glass background — visibility comes from per-orb color + a soft
+       text-shadow for legibility against bright wallpaper. */
     .radial-label {
       position: absolute;
-      /* Anchored to the right edge of its orb, JS sets --lx/--ly. Starts
-         tucked behind the orb (translateX -8px + opacity 0); after settle,
-         slides out to its anchor and fades in. */
       left: var(--lx, 0px);
       top: var(--ly, 0px);
-      transform: translate3d(-8px, -50%, 0);
+      /* Start: parked slightly UP from anchor. .visible (hover) snaps it
+         down into final position by removing the negative offset — fades in
+         while settling DOWNWARD since the label sits below the orb. */
+      transform: translate3d(-50%, -4px, 0);
       opacity: 0;
       pointer-events: none;
       -webkit-app-region: no-drag;
 
       display: flex;
-      align-items: baseline;
-      gap: 6px;
-      padding: 6px 11px;
-      max-width: 260px;
-      white-space: nowrap;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 1px;
+      width: 120px;       /* wider than the 50px orb-pitch — fine because
+                             only one label is visible at a time (hover-gated)
+                             so adjacent-column collision is impossible. */
+      padding: 0;
 
-      /* Glass pill — same primitives as .panel, smaller scale. */
-      background: var(--bg-deep);
-      backdrop-filter: blur(30px) saturate(140%);
-      -webkit-backdrop-filter: blur(30px) saturate(140%);
-      border: 1px solid var(--border-medium);
-      border-radius: 10px;
-      box-shadow:
-        0 12px 32px rgba(0, 0, 0, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
-
-      color: var(--text-primary);
+      color: var(--label-color, var(--text-primary));
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 11.5px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
       user-select: none;
 
       transition:
-        transform 0.35s var(--ease),
-        opacity 0.3s var(--ease);
+        transform 0.2s var(--ease),
+        opacity 0.18s var(--ease);
     }
-    /* Labels reveal only AFTER orbs settle. Class .visible toggled by JS. */
+    /* Reveal on hover (orb or label paired-hover toggles .visible from JS). */
     .radial-label.visible {
-      transform: translate3d(0, -50%, 0);
+      transform: translate3d(-50%, 0, 0);
       opacity: 1;
     }
     .radial-label .verb {
-      color: var(--text-primary);
+      color: var(--label-color, var(--text-primary));
       font-weight: 600;
-    }
-    .radial-label .detail {
-      color: var(--text-muted);
-      font-weight: 400;
-      font-size: 10.5px;
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
-      max-width: 200px;
+      font-size: 11px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      line-height: 1.15;
+      /* Soft dark halo so the bright per-agent text reads against a light
+         wallpaper showing through the transparent dead-space above the panel.
+         No background fill — text floats in the transparent gap. */
+      text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.75),
+        0 0 8px rgba(0, 0, 0, 0.45);
+      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .radial-label .detail {
+      color: var(--label-color, var(--text-muted));
+      opacity: 0.7;
+      font-weight: 400;
+      font-size: 10px;
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      letter-spacing: 0.1px;
+      line-height: 1.2;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.7),
+        0 0 6px rgba(0, 0, 0, 0.35);
     }
 
     /* Inline confirm-replace inside an orb. Replaces the icon glyph with a
        compact ✓ / ✗ pair stacked horizontally inside (slightly wider) blob.
-       The whole orb morphs slightly wider for the confirm row. */
+       The whole orb morphs slightly wider for the confirm row.
+
+       Sized for Bebber-tight 50px arc pitch: confirm width 64px → edges 32px
+       from center vs neighbor-edges 28px from center = ~4px overlap on each
+       side. Intentional — the goo filter (still active at rest) smooths that
+       overlap into a unified "this is the confirm blob" mercury bulge,
+       making the destructive state visually announce itself. */
     .radial-orb.confirming {
-      width: 78px;
+      width: 64px;
       border-radius: 22px;
       font-size: 13px;
     }
@@ -720,12 +953,12 @@
     .radial-orb.confirming .confirm { display: flex; }
     .radial-orb .confirm .ok,
     .radial-orb .confirm .no {
-      width: 26px;
-      height: 26px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
-      line-height: 26px;
+      line-height: 22px;
       text-align: center;
       cursor: pointer;
       border: 1px solid rgba(0, 0, 0, 0.45);
@@ -734,9 +967,14 @@
     .radial-orb .confirm .ok { background: var(--status-on); color: #062b10; }
     .radial-orb .confirm .no { background: rgba(255, 255, 255, 0.85); color: #1a0608; }
 
-    /* Hide the danger label while confirming, swap to a stark "kill?" prompt
-       on the label pill. */
-    .radial-label.confirming .verb { color: #ff8a9c; text-transform: uppercase; letter-spacing: 0.6px; }
+    /* While confirming a destructive action, force the label verb red and
+       slightly tighter — overrides the per-agent --label-color since this is
+       a stark warning state, not a per-agent affordance. */
+    .radial-label.confirming .verb {
+      color: #ff8a9c;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
 
     /* ---------------------------------------------------------------------
        Inline settings panel — owned by the radial menu
@@ -765,7 +1003,27 @@
       flex-direction: column;
       gap: 10px;
 
-      background: var(--bg-deep);
+      /* v2.7 belt-and-suspenders fallback: cap to viewport-minus-padding +
+         scroll inside the popover when the window can't grow tall enough
+         to fit the measured height. Spec: even if main caps the resize-
+         window IPC at display.workArea.bottom (which it does), the user
+         can still reach STARTUP via an inner scroll. The measure-and-grow
+         logic (renderSettingsPanel) still does its job first; this is
+         purely a safety net for constrained displays.
+
+         scrollbar-gutter: stable both-edges keeps layout from shifting the
+         instant the scrollbar paints (avoids the 14px content-jump that
+         `overflow: auto` introduces on macOS when overlay scrollbars are
+         disabled). */
+      max-height: calc(100vh - 80px);
+      overflow-y: auto;
+      scrollbar-gutter: stable both-edges;
+
+      /* Hardcoded higher-alpha background (NOT --bg-deep, which dropped to
+         5% for the near-transparent panel) so this popover reads as a
+         distinct floating surface even when its parent panel is barely
+         visible. */
+      background: rgba(8, 8, 14, 0.78);
       backdrop-filter: blur(30px) saturate(140%);
       -webkit-backdrop-filter: blur(30px) saturate(140%);
       border: 1px solid var(--border-medium);
@@ -898,6 +1156,104 @@
       letter-spacing: 0.3px;
     }
 
+    /* Detach-actions section inside the settings popover. Two glass buttons
+       stacked vertically. Each button shows a verb + a one-liner hint. The
+       intent is "advanced layout management" — break this pane out into a
+       new window, or join it as a horizontal split into another window.
+       Sits below the auto-restart toggle and above the three text fields. */
+    .radial-settings .detach-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 4px;
+    }
+    .radial-settings .detach-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 7px 9px;
+      cursor: pointer;
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      text-align: left;
+      transition: all 0.2s var(--ease);
+      -webkit-app-region: no-drag;
+    }
+    .radial-settings .detach-btn:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: var(--border-medium);
+    }
+    .radial-settings .detach-btn .glyph {
+      font-size: 14px;
+      line-height: 1;
+      width: 16px;
+      text-align: center;
+      color: var(--accent);
+    }
+    .radial-settings .detach-btn .text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      flex: 1;
+    }
+    .radial-settings .detach-btn .text .verb {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .radial-settings .detach-btn .text .hint {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 0.2px;
+    }
+    .radial-settings .detach-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .radial-settings .detach-btn.flash-ok {
+      border-color: var(--status-on);
+      background: rgba(52, 208, 88, 0.10);
+      transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
+    }
+    .radial-settings .detach-btn.flash-err {
+      border-color: #ff7090;
+      background: rgba(255, 112, 144, 0.10);
+      transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
+    }
+
+    /* Disabled orb — the agent isn't running in any chq pane, so the action
+       can't operate. Dim the orb, suppress hover transforms, kill the cursor
+       affordance. Click handlers in JS no-op (with a flash-error so Richard
+       sees why). The label still reveals on hover so the verb + a "(not
+       running)" hint can explain. */
+    .radial-orb.disabled {
+      opacity: 0.32;
+      cursor: not-allowed;
+      filter: saturate(0.4);
+    }
+    .radial-orbs.settled .radial-orb.disabled:hover {
+      transform: scale(1);
+      box-shadow: none;
+    }
+    .radial-orbs.settled .radial-orb.disabled:active {
+      transform: scale(1);
+    }
+    /* Disabled label — keep the verb readable but mute the color and append a
+       greyed-out detail line. */
+    .radial-label.disabled .verb {
+      opacity: 0.85;
+    }
+    .radial-label.disabled .detail {
+      color: var(--text-muted);
+      opacity: 0.85;
+    }
+
     /* Settings-mode orb — visually distinct from the four action orbs. Slightly
        cooler bleed, matches the inline panel feel. Active state when the panel
        is open keeps the orb glowing so the source of the popover is obvious. */
@@ -966,7 +1322,7 @@
       <div class="chat-wrap">
         <input id="chat-input" placeholder="Type to selected agents — or select all to broadcast" autocomplete="off" />
       </div>
-      <button class="send-btn" id="send-btn">Send</button>
+      <button class="send-btn" id="send-btn" title="Send message to selected agents">Send</button>
     </div>
 
     <!-- Row 3: recipient summary + utility -->
@@ -975,8 +1331,35 @@
         <span class="pill">no agents selected</span>
       </div>
       <div class="util-buttons">
-        <button class="util-btn" id="edit-btn" title="Edit mode — reveal × buttons to remove agents from registry">Edit</button>
-        <button class="util-btn" id="select-all-btn" title="Select all">All</button>
+        <!-- Stop-session button — tear down the running chq tmux session. Only
+             meaningful when chq is up; visually muted otherwise. Click → inline
+             ✓✗ confirm → kill-session IPC. The confirm pattern guards against a
+             stray click wiping a multi-agent session. Lives next to the layout
+             pills because its primary use case is "stop running session so the
+             pill choice can take effect on the next Deploy". -->
+        <button class="stop-session-btn disabled" id="stop-session-btn"
+                title="Tear down the chq tmux session (no session running)"
+                aria-label="Stop running chq session">
+          <span class="glyph">✕</span>
+          <span class="confirm"><span class="ok">✓</span><span class="no">✗</span></span>
+        </button>
+        <!-- Layout-mode segmented control. Affects the Deploy button: the
+             selected mode rides along as the `layout` field on spawn-agents.
+             Persists to localStorage so the choice survives across launches.
+             When chq is running AND the active pill differs from the session's
+             stashed @chq_layout, the wrapper gets a `mismatch` class — amber
+             border + tooltip telegraphing "stop session and redeploy to apply". -->
+        <!-- Layout-pill base tooltips set here; applyLayoutMismatchHint() below
+             swaps in the running-state suffix on each poll tick when a session
+             is up. Spec: each pill carries a short explainer of how that
+             layout actually behaves. -->
+        <div class="layout-pills" id="layout-pills" role="radiogroup" aria-label="Spawn layout mode">
+          <button class="layout-pill active" data-layout="panes"   data-base-title="Horizontal split-panes in one tmux window. Cramped at 5+ agents." title="Horizontal split-panes in one tmux window. Cramped at 5+ agents.">PANES</button>
+          <button class="layout-pill"        data-layout="windows" data-base-title="One tmux window per agent. Switch with Ctrl-b N." title="One tmux window per agent. Switch with Ctrl-b N.">WINDOWS</button>
+          <button class="layout-pill"        data-layout="ittab"   data-base-title="One iTerm window per agent (tmux -CC). Drag, dock, split freely." title="One iTerm window per agent (tmux -CC). Drag, dock, split freely.">MULTI</button>
+        </div>
+        <button class="util-btn" id="edit-btn" title="Edit mode — show × badges to remove agents from registry">Edit</button>
+        <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
         <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
       </div>
     </div>
@@ -988,8 +1371,8 @@
                           during emergence so they merge into mercury blobs;
                           filter is dropped (.settled class) once they reach
                           rest so hover/halo render normally.
-         .radial-labels — glass pills anchored to each orb's right edge,
-                          NOT filtered (so backdrop-filter survives).
+         .radial-labels — 2-line text blocks anchored UNDER each orb, NOT
+                          filtered (so text rendering survives).
        JS populates both layers in openRadialMenu(). -->
   <div id="radial-menu" aria-hidden="true">
     <div class="radial-orbs" id="radial-orbs"></div>
@@ -1007,13 +1390,16 @@
                                whose blurs overlap get merged into one shape
          3. feComposite        re-composites the original orb on top of the
                                merged shape, so internal detail stays sharp
-       Tuning: stdDeviation higher = more melt; matrix `0 0 0 18 -7` controls
-       what merges vs. stays separate. Conservative values here so the orbs
-       still read as four discrete shapes by the time they finish settling. -->
+       Tuning: stdDeviation higher = more melt; matrix `0 0 0 18 -7` is
+       Bebber's exact threshold (Lucas Bebber Gooey Menu — codepen LELBEo).
+       stdDeviation=10 lands in the Bebber range and is wide enough that
+       adjacent orbs (50px pitch, 44px diameter, ~6px gap) goo-bridge at rest,
+       which is the explicit aesthetic — orbs stay mercury-connected even
+       after they settle, never resolve to discrete buttons. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <filter id="goo">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+        <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
         <feColorMatrix in="blur" mode="matrix"
           values="1 0 0 0 0
                   0 1 0 0 0
@@ -1046,6 +1432,23 @@
     let agents = {};        // id -> { id, displayName, tmuxTarget, color, avatar, selected, running }
     let agentOrder = [];    // preserve registry order
     let statusTimer = null;
+
+    // Spawn-layout mode — affects the Deploy button. One of:
+    //   panes    → single chq window split horizontally (default, today's behavior)
+    //   windows  → each agent in its own tmux window (Ctrl-b N to switch)
+    //   ittab    → tmux -CC attach so iTerm renders each tmux window as its
+    //              own iTerm window (multi-pane via iTerm windows).
+    // Persisted to localStorage as `helmLayoutMode` so the choice sticks.
+    // Whitelisted on read; stale/corrupt values fall back to 'ittab'.
+    // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
+    // multi-pane via iTerm windows is way more flexible than the cramped
+    // horizontal-split-pane layout that piled 5+ agents into one tab.
+    const LAYOUT_MODES = ['panes', 'windows', 'ittab'];
+    let layoutMode = 'ittab';
+    try {
+      const stored = localStorage.getItem('helmLayoutMode');
+      if (stored && LAYOUT_MODES.includes(stored)) layoutMode = stored;
+    } catch { /* localStorage may be disabled in sandboxed contexts */ }
 
     // ---------------------------------------------------------------------
     // Layout: measure DOM, ask main to setContentSize
@@ -1136,7 +1539,11 @@
         const btn = document.createElement('button');
         btn.className = `agent-btn ${id}` + (a.selected ? ' active' : '');
         btn.id = `btn-${id}`;
-        btn.title = a.displayName;
+        // v2.7: spec — every clickable element carries a native title so a
+        // hover surfaces what it does. The avatar's primary action is
+        // toggle-select; the secondary action is the right-click radial
+        // (CWD / kill / restart / attach / settings). Hint both.
+        btn.title = `${a.displayName} — right-click for actions`;
         btn.addEventListener('click', (ev) => {
           // Edit mode disables tile-body selection — only badges and overlay
           // controls are interactive. This prevents the "click a tile in edit
@@ -1214,19 +1621,29 @@
         overlay.appendChild(label);
         btn.appendChild(overlay);
 
-        // Wrap the avatar button + a small text label below it. The label
-        // shows the registry display_name, but with one alias: "overlordswarmy"
-        // is too wide at 10px and gets clipped — show "Swarmy" instead. The
-        // alias is purely cosmetic; tmux_target / display_name in the
-        // registry stay unchanged.
+        // Wrap the avatar button + a small text label below it. Label text
+        // is resolved by labelTextFor(): rename_to wins when set (so editing
+        // the radial-settings field flips the label live), otherwise the
+        // mixed-case display_name with the overlordswarmy → Swarmy alias.
+        // tmux_target / display_name in the registry stay untouched.
         const tile = document.createElement('div');
         tile.className = 'agent-tile';
+        tile.dataset.agentId = id;
+        tile.draggable = true;
         tile.appendChild(btn);
 
         const nameLabel = document.createElement('div');
         nameLabel.className = 'agent-label';
-        nameLabel.textContent = displayLabelFor(a);
+        nameLabel.id = `label-${id}`;
+        nameLabel.textContent = labelTextFor(a);
         tile.appendChild(nameLabel);
+
+        // Drag-and-reorder wiring (v2.5). HTML5 DnD on the tile itself.
+        // Source-side: dim the tile + suppress the default drag-image (which
+        // looks awful on transparent windows — we use opacity dim as feedback
+        // instead). Target-side: paint a vertical drop-indicator on the LEFT
+        // or RIGHT edge of the hovered tile based on cursor X.
+        wireTileDragAndDrop(tile, id);
 
         dock.appendChild(tile);
       });
@@ -1234,10 +1651,121 @@
       // Add (+) button at the end of the dock.
       const add = document.createElement('button');
       add.className = 'add-btn';
-      add.title = 'Add agent';
+      add.title = 'Add agent to registry';
       add.textContent = '+';
       add.addEventListener('click', toggleAddForm);
       dock.appendChild(add);
+    }
+
+    // ---------------------------------------------------------------------
+    // Label resolution (v2.7)
+    // ---------------------------------------------------------------------
+    // The dock label ALWAYS reflects the registry's rename_to whenever it's
+    // set, even if the value happens to equal display_name uppercased. This
+    // is what Richard expects: the radial-settings "Rename to" field is the
+    // single source of truth for the label below the avatar — type "XAVIER"
+    // and the label flips from "Xavier" to "XAVIER" immediately.
+    //
+    // Falls back to displayLabelFor() (mixed-case display_name + the
+    // overlordswarmy → Swarmy alias) ONLY when rename_to is empty.
+    //
+    // main.js exposes the raw registry value in agent.renameTo (empty when
+    // unset), which is what makes this discrimination possible. Earlier
+    // versions had main.js resolve empty → display_name uppercased, which
+    // collapsed "user explicitly typed XAVIER" into "user set nothing" — that
+    // resolution moved out of main.js (see loadAgents).
+    function labelTextFor(agent) {
+      const renameTo = (agent.renameTo || '').trim();
+      if (renameTo) return renameTo;
+      return displayLabelFor(agent);
+    }
+
+    // ---------------------------------------------------------------------
+    // Drag-and-reorder helpers
+    // ---------------------------------------------------------------------
+    // 1px transparent PNG to suppress the default HTML5 drag-image. Without
+    // this, transparent Electron windows render the drag-image with an opaque
+    // black backdrop on macOS, which looks broken. We rely on the source-tile
+    // opacity dim + the drop-indicator line for visual feedback instead.
+    const TRANSPARENT_DRAG_IMG = (() => {
+      const img = new Image(1, 1);
+      img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
+      return img;
+    })();
+
+    let dragSourceId = null;
+    function wireTileDragAndDrop(tileEl, id) {
+      tileEl.addEventListener('dragstart', (ev) => {
+        // Edit mode: don't reorder while badges are visible — too easy to
+        // hit the × instead. The dimmed tiles + dashed borders signal a
+        // configuration view, not a reorder one.
+        if (document.body.classList.contains('editing')) {
+          ev.preventDefault();
+          return;
+        }
+        dragSourceId = id;
+        tileEl.classList.add('drag-source');
+        try {
+          ev.dataTransfer.effectAllowed = 'move';
+          ev.dataTransfer.setData('text/plain', id);
+          ev.dataTransfer.setDragImage(TRANSPARENT_DRAG_IMG, 0, 0);
+        } catch { /* some platforms refuse setData/setDragImage; the source-tile
+                     opacity dim is still a valid affordance. */ }
+      });
+      tileEl.addEventListener('dragend', () => {
+        tileEl.classList.remove('drag-source');
+        dragSourceId = null;
+        clearDropIndicators();
+      });
+      tileEl.addEventListener('dragover', (ev) => {
+        if (!dragSourceId) return;
+        // Without preventDefault, the browser's "no drop allowed" cursor
+        // shows and the drop event never fires.
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        // Indicator on the left or right edge depending on cursor X.
+        clearDropIndicators();
+        if (id === dragSourceId) return;   // can't drop onto self
+        const r = tileEl.getBoundingClientRect();
+        const onLeftHalf = (ev.clientX - r.left) < (r.width / 2);
+        tileEl.classList.add(onLeftHalf ? 'drop-before' : 'drop-after');
+      });
+      tileEl.addEventListener('dragleave', () => {
+        tileEl.classList.remove('drop-before', 'drop-after');
+      });
+      tileEl.addEventListener('drop', async (ev) => {
+        ev.preventDefault();
+        const sourceId = dragSourceId;
+        const onLeftHalf = tileEl.classList.contains('drop-before');
+        clearDropIndicators();
+        if (!sourceId || sourceId === id) return;
+
+        // Compute new ordering. Remove sourceId from its current slot, then
+        // insert it before/after the target tile's id.
+        const next = agentOrder.filter(x => x !== sourceId);
+        const targetIdx = next.indexOf(id);
+        if (targetIdx < 0) return;
+        const insertAt = onLeftHalf ? targetIdx : targetIdx + 1;
+        next.splice(insertAt, 0, sourceId);
+
+        // No-op if order didn't actually change (drop on the slot already
+        // adjacent in the right direction).
+        if (next.every((v, i) => v === agentOrder[i])) return;
+
+        const result = await ipcRenderer.invoke('reorder-agents', next);
+        if (!result.ok) {
+          flashTileError(document.getElementById(`btn-${sourceId}`), result.error || 'reorder failed');
+          return;
+        }
+        // Re-render from the persisted registry so what the user sees is
+        // verified-from-disk, not just optimistic local state.
+        await loadAndRender();
+      });
+    }
+    function clearDropIndicators() {
+      document.querySelectorAll('.agent-tile.drop-before, .agent-tile.drop-after').forEach(t => {
+        t.classList.remove('drop-before', 'drop-after');
+      });
     }
 
     // ---------------------------------------------------------------------
@@ -1278,47 +1806,55 @@
     // ---------------------------------------------------------------------
     // Right-click radial menu — gooey/liquid-mercury fan-out (Bebber)
     // ---------------------------------------------------------------------
-    // Solid colored orbs squeeze out of the tile center along an arc, gooey-
-    // connected via SVG #goo filter so they read as mercury blobs during
-    // emergence. Once they reach rest, we drop the filter (.settled class)
-    // and slide in glass label pills to the right of each orb so the verbs
-    // and detail strings (CWD path, "iTerm") stay readable.
+    // Solid colored orbs squeeze out of the tile center along a downward
+    // arc, gooey-connected via SVG #goo filter so they read as mercury
+    // blobs both during emergence AND at rest (filter is persistent — see
+    // the .radial-orbs CSS block). When the user hovers an orb, ONE
+    // 2-line text label fades in DIRECTLY BELOW it (verb + optional
+    // detail). Labels are unframed (no glass pill) — colored to match
+    // the orb so the orb-and-label read as one unit.
     //
     // Two DOM layers inside #radial-menu:
     //   .radial-orbs     — the filtered container, holds .radial-orb circles
-    //   .radial-labels   — sibling, NOT filtered, holds .radial-label pills
+    //   .radial-labels   — sibling, NOT filtered, holds .radial-label blocks
     //
     // Items, in order (left → right along the arc):
-    //   1. CWD     — opens directory picker, writes back to registry
-    //   2. Close   — tmux kill-pane (DANGER, inline ✓✗ confirm on the orb)
-    //   3. Restart — SIGINT, pane_loop respawns
-    //   4. Attach  — osascript opens iTerm tab focused on the agent's pane
-    //
-    // Geometry: arc with the bottom of the smile sitting ~110px below the
-    // panel. The four orbs trace a shallow downward curve — outer orbs
-    // higher, inner orbs lower. Spacing ~70px so neighbouring orbs JUST
-    // overlap during emergence (gooey merge), then settle separately.
+    //   1. CWD      — opens directory picker, writes back to registry
+    //   2. Close    — tmux kill-pane (DANGER, inline ✓✗ confirm on the orb)
+    //   3. Restart  — SIGINT, pane_loop respawns
+    //   4. Attach   — osascript opens iTerm tab focused on the agent's pane
+    //   5. Settings — toggles the inline panel for auto-restart + startup cmds
 
-    // Arc geometry — UPWARD fan. The arc now rises ABOVE the panel, anchored
-    // to its top edge. X-offsets stay symmetric around the tile center (wide
-    // enough that resting orbs don't goo-merge); Y-offsets are NEGATIVE so the
-    // orbs travel up from the panel. The shape inverts to a "frown" arc —
-    // outer orbs lower (closer to the panel), inner orbs higher (further up)
-    // — which keeps the visual mass hugging the panel's top edge.
+    // Arc geometry — DOWNWARD fan, BEBBER-TIGHT spacing, TILE-ANCHORED. The
+    // cluster blooms JUST BELOW the right-clicked tile, into the transparent
+    // dead space under the panel. v2.4 inverts the v2.3 upward direction —
+    // upward kept clipping at the menu bar even with cap-and-overflow, and
+    // the panel had to bottom-anchor itself during open. Downward sidesteps
+    // both: window grows from the bottom, panel doesn't move at all.
     //
-    // Five orbs now: CWD / Close / Restart / Attach / Settings. Settings is
-    // the rightmost one (inverted from the spec "5th orb" wording so it
-    // doesn't push the danger orb off-balance — Close stays in slot 2 so the
+    // X-offsets are tight (50px pitch) so the goo filter visibly bridges
+    // every adjacent pair at rest — Bebber's pen has center-to-center
+    // spacing of ~40-50px on ~30px circles, and we match that ratio with
+    // 44px orbs at 50px pitch (~6px gap, well within stdDeviation=10's
+    // bridging range). Y-offsets are POSITIVE (downward) — the arc is a
+    // mercury puddle hugging the tile bottom. Magnitudes mirror v2.3 but
+    // inverted: outer orbs at +46, center orb at +72. Range 26px (flat
+    // enough to keep the goo chain continuous across all 5 orbs).
+    //
+    // Five orbs: CWD / Close / Restart / Attach / Settings. Settings is the
+    // rightmost one (inverted from the spec "5th orb" wording so it doesn't
+    // push the danger orb off-balance — Close stays in slot 2 so the
     // confirm-morph still has its existing geometry).
-    const RADIAL_X_OFFSETS = [-150, -75, 0, 75, 150];
-    const RADIAL_Y_OFFSETS = [-44, -82, -96, -82, -44];   // negative = upward
+    const RADIAL_X_OFFSETS = [-100, -50, 0, 50, 100];
+    const RADIAL_Y_OFFSETS = [46, 64, 72, 64, 46];   // positive = downward, flat arc for continuous goo bridge
     // Animation timing. Stagger short so orbs emerge as a connected blob
-    // (the gooey filter merges them mid-flight), then drop the filter once
-    // every orb has reached rest.
+    // (the gooey filter merges them mid-flight). Settle delay is when
+    // we add .settled to the orbs container — gates hover-label reveal
+    // (so labels can't appear mid-emergence and race the goo merge);
+    // does NOT drop the filter, which is now persistent.
     const RADIAL_STAGGER_MS = 55;
-    const RADIAL_TRANSITION_MS = 550;          // matches CSS .radial-orb left/top duration
-    const RADIAL_SETTLE_DELAY_MS = 480;        // when to drop the goo filter
-    const RADIAL_LABEL_DELAY_MS = 560;         // when to fade in labels
+    const RADIAL_TRANSITION_MS = 550;          // matches CSS .radial-orb left/top duration (informational)
+    const RADIAL_SETTLE_DELAY_MS = 480;        // when to mark orbs as settled (gates hover labels)
 
     // Per-agent palette → orb gradient stops. Pulled from the active-tile
     // glow tokens at lines ~173–178: orb mid-tone matches the agent's brand
@@ -1345,7 +1881,15 @@
     let radialDismissCleanup = null;
     let radialSettleTimer = null;
     let radialLabelTimer = null;
-    let radialAnchorActive = false;   // tracks whether main owns a captured y offset
+    // Pre-radial window height — captured at open, restored at close. v2.4:
+    // we no longer anchor the window (panel doesn't move), but we still need
+    // to remember the original height so close can shrink back to the panel's
+    // natural footprint instead of leaving the window oversized.
+    let radialPreOpenHeight = null;
+    // Bumped at the start of each openRadialMenu call. Used to abort the rest
+    // of the open flow if a newer open call landed during our await on main's
+    // resize response (rapid right-click-spam scenario).
+    let radialOpenToken = 0;
 
     function tildeCollapse(p) {
       if (!p) return '';
@@ -1359,7 +1903,7 @@
       return '…' + p.slice(p.length - (max - 1));
     }
 
-    function openRadialMenu(id, tileBtn) {
+    async function openRadialMenu(id, tileBtn) {
       ipcRenderer.send('tile-rightclick-suppress');
       if (radialOpenForId) closeRadialMenu();
 
@@ -1376,52 +1920,75 @@
       orbsLayer.classList.remove('settled');
       menu.classList.remove('open');
 
+      // Race-guard token. If the user fires another open during our await, the
+      // newer call bumps this token and we bail before mutating the DOM.
+      const openToken = ++radialOpenToken;
+
       // Per-agent palette — orbs colour-match the right-clicked tile so the
       // menu reads as "this menu belongs to that tile".
       const palette = paletteForAgent(id);
 
       // Tile center (viewport coords) = mercury origin. All orbs spawn here.
-      // Note: the window grows UPWARD via resize-window-anchored below, which
-      // shifts the panel DOWN inside the (now taller) window by `delta`. We
-      // capture pre-resize coords first, then add `delta` to every y so the
-      // orbs land in the correct post-resize viewport position.
+      // v2.4: window grows DOWNWARD only (top-left fixed), so the panel's
+      // viewport position is invariant — no pre/post-resize coord split,
+      // no `delta` adjustment needed. tileCx and tileCy are the values used
+      // throughout.
       const r = tileBtn.getBoundingClientRect();
       const tileCx = r.left + r.width / 2;
-      const tileCyPre = r.top + r.height / 2;
+      const tileCy = r.top + r.height / 2;
 
-      // Anchor the arc ABOVE the panel — orbs travel UPWARD from the tile.
-      // arcBaseY is where the outer two orbs sit; the inner three ride higher
-      // (more negative) per RADIAL_Y_OFFSETS so the curve reads as a "frown"
-      // arc whose visual mass hugs the panel's top edge.
-      const panelEl = document.getElementById('panel');
-      const panelRect = panelEl.getBoundingClientRect();
-      const arcBaseYPre = panelRect.top - 18;
+      // Anchor the arc BELOW the right-clicked TILE. The cluster blooms into
+      // the transparent dead space below the panel — orbs cascade down with
+      // the OUTER orbs' top edges sitting CLUSTER_TILE_GAP px below the
+      // tile's bottom edge. Reads as a Bebber FAB dropping straight out of
+      // the source avatar.
+      //
+      // Math: outer orb has Y_OFFSET = RADIAL_Y_OFFSETS[0]; its TOP edge
+      // sits at arcBaseY + Y_OFFSET[0] - ORB_SIZE/2. Setting that equal to
+      // (r.bottom + CLUSTER_TILE_GAP) and solving for arcBaseY:
+      //   arcBaseY = r.bottom + CLUSTER_TILE_GAP - Y_OFFSET[0] + 22
+      //            = r.bottom + CLUSTER_TILE_GAP - 46 + 22
+      //            = r.bottom + CLUSTER_TILE_GAP - 24
+      // (with current Y_OFFSETS[0] = +46). Express via the formula so a
+      // future Y_OFFSETS tweak doesn't desync the anchor.
+      const CLUSTER_TILE_GAP = 10;          // px between outer-orb-top and tile-bottom
+      const arcBaseY = r.bottom + CLUSTER_TILE_GAP - RADIAL_Y_OFFSETS[0] + 22;
 
-      const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 28);
+      // Verbs are SHORT (single word where possible) so they fit the 120px
+      // hover-label width comfortably above each 44px orb. Long detail
+      // strings (cwd path) ellipsis.
+      // requiresRunning: true marks orbs that need a live chq pane to operate
+      // on. When agent.running is false, these orbs render disabled (dimmed,
+      // click no-ops with a friendly flash). CWD + Settings are always live —
+      // they edit the registry, not the pane. v2.6.
+      const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 18);
       const items = [
         {
           icon: '📁',
-          verb: 'Change CWD',
+          verb: 'CWD',
           detail: cwdDisplay || '(unset)',
           action: () => doChangeCwd(id),
           danger: false,
+          requiresRunning: false,
           title: 'Change working directory'
         },
         {
           icon: '⏹',
-          verb: 'Close session',
+          verb: 'Close',
           detail: '',
           action: (orbEl, labelEl) => requestRadialConfirm(orbEl, labelEl, 'kill?', () => doKillPane(id, tileBtn)),
           danger: true,
           keepOpenOnClick: true,
+          requiresRunning: true,
           title: 'Close (kill) tmux pane'
         },
         {
           icon: '⟳',
-          verb: 'Restart session',
+          verb: 'Restart',
           detail: '',
           action: () => doRestart(id, tileBtn),
           danger: false,
+          requiresRunning: true,
           title: 'SIGINT — pane respawns automatically'
         },
         {
@@ -1430,6 +1997,7 @@
           detail: 'iTerm',
           action: () => doAttach(id, tileBtn),
           danger: false,
+          requiresRunning: true,
           title: 'Open iTerm tab attached to this pane'
         },
         {
@@ -1446,72 +2014,93 @@
       ];
 
       const ORB_SIZE = 44;                  // matches .radial-orb width/height
-      const LABEL_GAP = 12;                 // gap between orb edge and label
+      const LABEL_W = 120;                  // matches .radial-label width (hover-only, only one visible)
+      const LABEL_GAP_BELOW = 6;            // vertical gap from orb-bottom → label-top
+      const LABEL_BLOCK_H = 32;             // approx 2-line text-block height (verb + detail)
       const MARGIN = 12;                    // viewport-edge clamp
-      // Reserve enough space for the widest possible label so we can clamp.
-      const LABEL_RESERVED = 230;
 
       // Center the arc on the tile, then shift left/right to keep all orbs
-      // (and their labels) inside the viewport. Outer orbs at ±150 now (5
-      // orbs needs more spread); also reserve room right of the rightmost
-      // orb for its label pill.
+      // (and the hover-revealed label of the leftmost / rightmost orb) inside
+      // the viewport. Even though only one label shows at a time, the LEFTMOST
+      // orb's label could overflow left (or RIGHTMOST overflow right) when
+      // hovered, so we clamp using `orbCx ± LABEL_W/2` for the outer slots.
       const groupCx = tileCx;
-      const minRequired = groupCx + Math.min(...RADIAL_X_OFFSETS) - ORB_SIZE / 2;
-      const maxRequired = groupCx + Math.max(...RADIAL_X_OFFSETS) + ORB_SIZE / 2 + LABEL_GAP + LABEL_RESERVED;
+      const minRequired = groupCx + Math.min(...RADIAL_X_OFFSETS) - LABEL_W / 2;
+      const maxRequired = groupCx + Math.max(...RADIAL_X_OFFSETS) + LABEL_W / 2;
       let shiftX = 0;
       if (minRequired < MARGIN) shiftX = MARGIN - minRequired;
       else if (maxRequired > window.innerWidth - MARGIN) shiftX = (window.innerWidth - MARGIN) - maxRequired;
 
-      // Settings panel sits between the rightmost orb and the panel; reserve
-      // vertical headroom up-front so opening the settings popover later
-      // doesn't need another window resize. 200px easily fits the toggle row
-      // + 3 input rows + the connecting arrow gap.
-      const settingsHeadroom = 200;
-
-      // First pre-compute positions in PRE-resize viewport coords so we can
-      // figure out the upward extension. Positive RADIAL_Y_OFFSETS would mean
-      // downward; ours are negative (upward). The most-negative orb gives us
-      // how far above the panel top edge we need to extend.
-      const prePositions = items.map((_, idx) => {
-        const cx = groupCx + RADIAL_X_OFFSETS[idx] + shiftX;
-        const cy = arcBaseYPre + RADIAL_Y_OFFSETS[idx];
-        return { cx, cy };
-      });
-      const minTopPre = Math.min(...prePositions.map(p => p.cy - ORB_SIZE / 2));
-      // Upward extension delta — how many extra pixels of window-height we
-      // need so the topmost orb (and the settings-headroom above it) fits
-      // inside the viewport. If the orbs already fit (e.g. the panel was
-      // dragged to mid-screen), delta = 0 and no resize happens.
-      const delta = Math.max(0, MARGIN + settingsHeadroom - minTopPre);
-
-      // Recompute final positions in POST-resize viewport coords. The window
-      // grows UP by `delta`, the panel anchors to the new bottom (body gets
-      // .radial-open + justify-content:flex-end), so every viewport-y shifts
-      // DOWN by `delta` inside the new (taller) window. Adding `delta` to
-      // every y gets us the right post-resize coordinates.
-      const tileCy = tileCyPre + delta;
-      const arcBaseY = arcBaseYPre + delta;
+      // Compute final positions directly. v2.4: panel doesn't move (window
+      // grows downward only), so there's no pre/post-resize coord split.
+      // Each orb's center sits at (groupCx + X_OFFSET + shiftX, arcBaseY +
+      // Y_OFFSET). Labels sit BELOW each orb, anchored at orb-bottom + gap.
       const positions = items.map((_, idx) => {
         const cx = groupCx + RADIAL_X_OFFSETS[idx] + shiftX;
         const cy = arcBaseY + RADIAL_Y_OFFSETS[idx];
         return {
           orbX: cx - ORB_SIZE / 2,
           orbY: cy - ORB_SIZE / 2,
-          labelX: cx + ORB_SIZE / 2 + LABEL_GAP,
-          labelY: cy,
+          // Label block sits BELOW the orb (hover-only, so adjacent-column
+          // collision is impossible). CSS uses translate3d(-50%, ...) so
+          // passing orb-center-x for labelX is correct; labelY is the
+          // label-block's TOP edge = orb-bottom + gap.
+          labelX: cx,
+          labelY: cy + ORB_SIZE / 2 + LABEL_GAP_BELOW,
           orbCx: cx,
           orbCy: cy
         };
       });
 
+      // Window growth — DOWNWARD only. Compute the lowest pixel any visible
+      // surface might occupy:
+      //   - lowest orb-bottom = max(positions[].orbCy + ORB_SIZE/2)
+      //   - hover-label of that lowest orb extends LABEL_GAP_BELOW +
+      //     LABEL_BLOCK_H further down
+      //   - + MARGIN viewport-edge breathing room
+      // main caps this to display.workArea.bottom; if the request exceeds
+      // the display, main grows as far as it can. Width clamp uses the
+      // hover-label-extended outer slots (same as the X clamp above).
+      const lowestOrbBottom = Math.max(...positions.map(p => p.orbCy + ORB_SIZE / 2));
+      const lowestLabelBottom = lowestOrbBottom + LABEL_GAP_BELOW + LABEL_BLOCK_H;
+      const neededWidth = Math.max(window.innerWidth, Math.ceil(maxRequired + shiftX + MARGIN));
+      const neededHeight = Math.max(window.innerHeight, Math.ceil(lowestLabelBottom + MARGIN));
+
+      // Capture pre-open height so close can shrink back to it. Only on the
+      // first grow per open arc — subsequent regrows (e.g. settings popover
+      // opening) shouldn't overwrite the original height.
+      if (radialPreOpenHeight === null) {
+        radialPreOpenHeight = window.innerHeight;
+      }
+
+      if (neededWidth > window.innerWidth || neededHeight > window.innerHeight) {
+        // Fire-and-forget — main caps to display.workArea bottom (no anchor
+        // dance needed since top-left stays fixed). Race-guard the open
+        // token after a microtask so a stale open doesn't paint orbs into
+        // a window the user already dismissed.
+        ipcRenderer.send('resize-window', { width: neededWidth, height: neededHeight });
+      }
+
+      // Race-guard before mutating the DOM. If the user fired another open
+      // (rapid right-click-spam), bail before we paint stale orbs.
+      if (radialOpenToken !== openToken) return;
+
       items.forEach((item, idx) => {
         // The orb itself — solid colored circle, gooey-merge candidate.
         const orb = document.createElement('div');
+        // requiresRunning + agent.running drives the .disabled class. We mark
+        // it inert if the agent isn't currently in a chq pane (the action
+        // would error with "isn't running in chq" anyway). Stashed on the
+        // orb so refreshOpenRadialDisabledState() can flip it on poll.
+        const isDisabled = !!item.requiresRunning && !agents[id].running;
         orb.className = 'radial-orb'
           + (item.danger ? ' danger' : '')
           + (item.settings ? ' settings' : '')
+          + (isDisabled ? ' disabled' : '')
           + ` ${id}`;        // tag with agent id for any future per-agent tweaks
-        orb.title = item.title || item.verb;
+        orb.title = isDisabled
+          ? `${agent.displayName || id} isn't running in chq — Deploy it first`
+          : (item.title || item.verb);
         orb.innerHTML = `
           <span class="orb-icon">${item.icon}</span>
           <div class="confirm">
@@ -1528,6 +2117,13 @@
           orb.style.setProperty('--orb-deep',  palette.deep);
           orb.style.setProperty('--orb-glow',  palette.glow);
         }
+        // Label-text color tracks the orb. Use the LIGHTEST stop of the palette
+        // (or the danger pink / settings grey for those overrides) so type
+        // pops against the dark glass + text-shadow halo.
+        let labelColor;
+        if (item.danger)        labelColor = '#ff8a9c';   // matches .radial-orb.danger --orb-light
+        else if (item.settings) labelColor = '#e0e4ee';   // a touch brighter than .radial-orb.settings --orb-light for readable type
+        else                    labelColor = palette.light;
         // Stagger so orbs leave the tile in sequence — the goo filter then
         // smears them into a single blob that splits as it travels.
         orb.style.transitionDelay = `${idx * RADIAL_STAGGER_MS}ms`;
@@ -1535,42 +2131,72 @@
         const p = positions[idx];
         orb.style.setProperty('--x', `${p.orbX}px`);
         orb.style.setProperty('--y', `${p.orbY}px`);
-        // Mercury origin = post-resize tile center. Pre-resize tileCyPre + delta
-        // (computed above) so the start point lines up with where the tile
-        // actually sits in the new (taller) viewport.
+        // Mercury origin = tile center. v2.4: panel doesn't move during open
+        // (window grows downward only), so tileCx/tileCy from r.{left,top}
+        // are valid throughout — no pre/post-resize delta to apply.
         orb.style.setProperty('--start-x', `${tileCx - ORB_SIZE / 2}px`);
         orb.style.setProperty('--start-y', `${tileCy - ORB_SIZE / 2}px`);
 
-        // The matching glass label pill — separate DOM node, not filtered.
+        // The matching label block — separate DOM node, not filtered. Lives
+        // directly under the orb (CSS centers it on labelX via translate-X).
         const label = document.createElement('div');
-        label.className = 'radial-label' + (item.danger ? ' danger' : '');
-        const detailHtml = item.detail ? `<span class="detail">${escapeHtml(item.detail)}</span>` : '';
+        label.className = 'radial-label'
+          + (item.danger ? ' danger' : '')
+          + (isDisabled ? ' disabled' : '');
+        // When disabled, swap the per-orb detail for a "(not running)" hint so
+        // the hover label explains why the action is inert. Otherwise use the
+        // item's normal detail (cwd path, "iTerm", etc).
+        const effectiveDetail = isDisabled ? '(not running)' : item.detail;
+        const detailHtml = effectiveDetail ? `<span class="detail">${escapeHtml(effectiveDetail)}</span>` : '';
         label.innerHTML = `
           <span class="verb">${escapeHtml(item.verb)}</span>
           ${detailHtml}
         `;
         label.style.setProperty('--lx', `${p.labelX}px`);
         label.style.setProperty('--ly', `${p.labelY}px`);
+        // Color matches the orb's lightest palette stop (or danger/settings
+        // override) so the orb-and-label read as one unit.
+        label.style.setProperty('--label-color', labelColor);
         // Stagger label fade-in slightly so they appear left-to-right after
         // their respective orbs land.
         label.style.transitionDelay = `${idx * 40}ms`;
 
         // Click on either the orb OR its label fires the action. Both nodes
         // share the same handler so users can hit the bigger label area too.
+        // Disabled gating reads the LIVE class list (not the captured
+        // isDisabled at construction) so refreshOpenRadialDisabledState() can
+        // re-enable an orb on a poll tick without rebinding handlers.
         const fire = (ev) => {
           ev.stopPropagation();
+          if (orb.classList.contains('disabled')) {
+            // Friendly flash on the source tile so Richard sees the reason
+            // the click was a no-op rather than wondering if it registered.
+            flashTileError(tileBtn, `${agent.displayName || id} isn't running — Deploy it first`);
+            return;
+          }
           item.action(orb, label);
           if (!item.keepOpenOnClick) closeRadialMenu();
         };
         orb.addEventListener('click', fire);
-        // Labels are pointer-events:none by default so they don't block the
-        // orb's hover effects mid-emergence; enable once visible.
         label.addEventListener('click', fire);
 
-        // Cross-hover: hover on orb visually highlights its label, and vice
-        // versa, so the pairing reads as one unit.
-        const hoverOn = () => { orb.classList.add('hover'); label.classList.add('hover'); };
-        const hoverOff = () => { orb.classList.remove('hover'); label.classList.remove('hover'); };
+        // Hover-gated label reveal — the Bebber-tight spacing means we can't
+        // show all labels at once, so hovering an orb (or its already-revealed
+        // label) reveals THAT label. Gate on .radial-orbs.settled so labels
+        // can't appear mid-emergence (would race with the goo-merge animation).
+        // Pointer-events on the label switch to `auto` while .visible so the
+        // user can move the cursor onto the label without losing the reveal.
+        const hoverOn = () => {
+          if (!orbsLayer.classList.contains('settled')) return;
+          orb.classList.add('hover');
+          label.classList.add('hover', 'visible');
+          label.style.pointerEvents = 'auto';
+        };
+        const hoverOff = () => {
+          orb.classList.remove('hover');
+          label.classList.remove('hover', 'visible');
+          label.style.pointerEvents = 'none';
+        };
         orb.addEventListener('mouseenter', hoverOn);
         orb.addEventListener('mouseleave', hoverOff);
         label.addEventListener('mouseenter', hoverOn);
@@ -1583,43 +2209,24 @@
         // (which would return an interpolated mid-animation position if the
         // user clicked during emergence).
         orb._restCenter = { x: p.orbCx, y: p.orbCy };
+        // Stash item flags + original verb/detail/title so the poll-tick
+        // refresh can flip disabled state without rebuilding the entire menu.
+        orb._requiresRunning = !!item.requiresRunning;
+        orb._origVerb = item.verb;
+        orb._origDetail = item.detail || '';
+        orb._origTitle = item.title || item.verb;
+        orb._agentId = id;
 
         orbsLayer.appendChild(orb);
         labelsLayer.appendChild(label);
       });
 
-      // Window growth math. The radial menu hangs ABOVE the panel, so the
-      // window extends UPWARD into transparent space — and to keep the panel
-      // visually fixed, main.js shifts the window's y by the same delta
-      // (resize-window-anchored with anchor='top'). body.radial-open then
-      // anchors the panel to the bottom of the (now taller) body so every
-      // pixel of new height becomes empty space above the panel.
-      const neededWidth = Math.max(window.innerWidth, Math.ceil(maxRequired + shiftX + MARGIN));
-      const neededHeight = window.innerHeight + delta;
-      // Apply bottom-anchor only when we're actually growing the window. If
-      // the orbs already fit (rare — would need a very tall existing window),
-      // skipping radial-open avoids visually pushing the panel to the bottom
-      // of an unchanged window.
-      if (delta > 0) {
-        document.body.classList.add('radial-open');
-        ipcRenderer.send('resize-window-anchored', {
-          width: neededWidth,
-          height: neededHeight,
-          anchor: 'top'
-        });
-        radialAnchorActive = true;
-      } else if (neededWidth > window.innerWidth) {
-        // Pure horizontal expansion (orbs already fit vertically) — use the
-        // unanchored resize so width can grow without touching y.
-        ipcRenderer.send('resize-window', { width: neededWidth, height: window.innerHeight });
-      }
-
-      // Defer .open until after the next paint so:
-      //   (a) the resize-window-anchored has had a chance to land — orbs at
-      //       --start-x/--start-y are valid screen coords in the new viewport
-      //   (b) body.radial-open has reflowed (panel now at flex-end) — start
-      //       coords align with the tile's actual on-screen position
-      // Two rAF tics are belt-and-suspenders: one for layout, one for paint.
+      // Defer .open until after the next paint so the (fire-and-forget)
+      // resize-window IPC has propagated — Chromium needs a beat to
+      // recompute layout after the window grows. Two rAF tics are belt-
+      // and-suspenders: one for layout, one for paint. v2.4: panel doesn't
+      // move during open (window grows downward only), so this is purely
+      // about waiting for the resize to settle, not for any anchor flip.
       radialOpenForId = id;
       const launchOpen = () => {
         // Re-check we weren't already closed in the meantime (rapid
@@ -1628,19 +2235,14 @@
         void menu.offsetWidth;
         menu.classList.add('open');
 
-        // Settle / label timers fire RELATIVE to the moment the .open class
-        // was added — not relative to openRadialMenu entry — so the deferral
-        // doesn't visually clip the emergence animation.
+        // Settle timer marks emergence as complete. Hover handlers gate label
+        // reveal on this class so labels can't appear mid-emergence and race
+        // the mercury-merge animation. Bulk label-reveal removed — labels
+        // are hover-only now (Bebber-tight spacing forces it).
         const totalEmergeMs = RADIAL_SETTLE_DELAY_MS + (items.length - 1) * RADIAL_STAGGER_MS;
         radialSettleTimer = setTimeout(() => {
           orbsLayer.classList.add('settled');
         }, totalEmergeMs);
-        radialLabelTimer = setTimeout(() => {
-          labelsLayer.querySelectorAll('.radial-label').forEach(l => {
-            l.classList.add('visible');
-            l.style.pointerEvents = 'auto';
-          });
-        }, RADIAL_LABEL_DELAY_MS + (items.length - 1) * RADIAL_STAGGER_MS);
       };
       requestAnimationFrame(() => requestAnimationFrame(launchOpen));
 
@@ -1663,6 +2265,64 @@
       };
     }
 
+    // Re-evaluate disabled state on every open orb when the status poll comes
+    // back. Lets the menu stay open across a state change (e.g. user spawns
+    // the agent in a separate terminal while the menu is up). For each orb
+    // tagged with requiresRunning: flip .disabled based on agents[id].running,
+    // rewrite the hover label's detail line, and update the title attribute.
+    // Also runs on the settings popover's detach buttons since they share the
+    // same constraint. v2.6.
+    function refreshOpenRadialDisabledState() {
+      if (!radialOpenForId) return;
+      const orbsLayer = document.getElementById('radial-orbs');
+      if (!orbsLayer) return;
+      const orbs = orbsLayer.querySelectorAll('.radial-orb');
+      orbs.forEach(orb => {
+        if (!orb._requiresRunning) return;
+        const id = orb._agentId;
+        const agent = agents[id];
+        if (!agent) return;
+        const shouldDisable = !agent.running;
+        const isDisabled = orb.classList.contains('disabled');
+        if (shouldDisable === isDisabled) return;          // no-op
+        orb.classList.toggle('disabled', shouldDisable);
+        orb.title = shouldDisable
+          ? `${agent.displayName || id} isn't running in chq — Deploy it first`
+          : orb._origTitle;
+        const label = orb._labelEl;
+        if (label) {
+          label.classList.toggle('disabled', shouldDisable);
+          // Don't clobber the confirming-state HTML if a destructive confirm
+          // is mid-flight on this orb; the cleanup() inside requestRadialConfirm
+          // restores the original markup, so let it own the detail until then.
+          if (!orb.classList.contains('confirming')) {
+            const effectiveDetail = shouldDisable ? '(not running)' : orb._origDetail;
+            const detailHtml = effectiveDetail
+              ? `<span class="detail">${escapeHtml(effectiveDetail)}</span>`
+              : '';
+            label.innerHTML = `<span class="verb">${escapeHtml(orb._origVerb)}</span>${detailHtml}`;
+          }
+        }
+      });
+      // Settings popover's detach buttons — same gate, same source.
+      const settingsLayer = document.getElementById('radial-settings');
+      if (settingsLayer && settingsLayer.classList.contains('visible')) {
+        const id = settingsLayer.dataset.agentId;
+        const agent = agents[id];
+        if (agent) {
+          const shouldDisable = !agent.running;
+          ['detach-window', 'detach-split'].forEach(btnId => {
+            const btn = settingsLayer.querySelector(`#${btnId}`);
+            if (!btn) return;
+            btn.disabled = shouldDisable;
+            btn.title = shouldDisable
+              ? `${agent.displayName || id} isn't running in chq — Deploy it first`
+              : btn.dataset.origTitle || btn.title;
+          });
+        }
+      }
+    }
+
     function closeRadialMenu() {
       const menu = document.getElementById('radial-menu');
       const orbsLayer = document.getElementById('radial-orbs');
@@ -1675,31 +2335,29 @@
       if (radialLabelTimer)  { clearTimeout(radialLabelTimer);  radialLabelTimer  = null; }
       if (radialDismissCleanup) { radialDismissCleanup(); radialDismissCleanup = null; }
       // Hide the container after the closing animation finishes and shrink
-      // the window back to the panel's natural size, restoring the captured
-      // y-position so we don't drift across multiple open/close cycles.
+      // the window back to the panel's natural size. v2.4: panel never
+      // moved during open (window grew downward only), so close just needs
+      // to drop the extra height — no anchor-release IPC, no body-class
+      // flip, no captured-bounds restore.
       setTimeout(() => {
         if (!menu.classList.contains('open')) {
           orbsLayer.innerHTML = '';
           document.getElementById('radial-labels').innerHTML = '';
           settingsLayer.innerHTML = '';
-          // Order matters here:
-          //   1. Release the captured-y anchor on the main side. Main snaps
-          //      the window back to its original bounds (x, y, w, h). With
-          //      body still at .radial-open (panel at flex-end), the panel
-          //      stays glued to the bottom of the now-shrunken window —
-          //      which IS the original visible position. No jump.
-          //   2. Remove .radial-open. Panel goes back to its natural top-
-          //      aligned position. Since the window is already at original
-          //      height, top-aligned matches flex-end-aligned in this case
-          //      (panel.height + 28 padding == window.height), still no jump.
-          //   3. syncWindowSize as belt-and-suspenders. Renormalises in case
-          //      anything drifted (e.g. add-form was open across the radial
-          //      cycle and changed the natural height).
-          if (radialAnchorActive) {
-            ipcRenderer.send('resize-window-anchored', { release: true });
-            radialAnchorActive = false;
+          // Restore the pre-open height. syncWindowSize would also do this
+          // by remeasuring the panel, but using the captured value avoids a
+          // re-layout dependency. Reset the capture so the next open arc
+          // re-captures fresh.
+          if (radialPreOpenHeight !== null) {
+            ipcRenderer.send('resize-window', {
+              width: window.innerWidth,
+              height: radialPreOpenHeight
+            });
+            radialPreOpenHeight = null;
           }
-          document.body.classList.remove('radial-open');
+          // Belt-and-suspenders: renormalise in case anything drifted (e.g.
+          // add-form was opened across the radial cycle and changed the
+          // natural height while the radial was up).
           syncWindowSize();
         }
       }, 320);
@@ -1751,6 +2409,22 @@
             <span class="knob"></span>
           </label>
         </div>
+        <div class="detach-section">
+          <button class="detach-btn" id="detach-window" title="Move pane into its own tmux window (Ctrl-b !)">
+            <span class="glyph">↗</span>
+            <span class="text">
+              <span class="verb">Detach to new window</span>
+              <span class="hint">Break pane out of current window</span>
+            </span>
+          </button>
+          <button class="detach-btn" id="detach-split" title="Move pane into another window as a horizontal split">
+            <span class="glyph">↔</span>
+            <span class="text">
+              <span class="verb">Detach to split</span>
+              <span class="hint">Move pane into another window as split</span>
+            </span>
+          </button>
+        </div>
         <div class="settings-row">
           <label for="set-color">Color</label>
           <input type="text" id="set-color" value="${escapeHtml(agent.color || '')}"
@@ -1786,18 +2460,66 @@
       const flipRightX = center.x + ORB_HALF + PANEL_GAP;
       const sx = tryLeftX >= 12 ? tryLeftX : Math.min(flipRightX, window.innerWidth - PANEL_W - 12);
       // Vertically clamp so the panel doesn't poke off the top/bottom of the
-      // viewport. Estimate panel height ~190px; --sy is the panel's CENTER
-      // (because of CSS translate3d(0, -50%, 0)), so we want
-      // 12 + 95 <= sy <= viewport - 12 - 95.
-      const PANEL_HALF_H = 95;
+      // viewport. The popover's height varies with content (auto-restart row +
+      // detach section + 3 text inputs + gaps + padding) — the v2.5 hardcoded
+      // PANEL_HALF_H = 145 undersized once the detach-section landed and the
+      // STARTUP row clipped at the bottom on Richard's display.
+      //
+      // Fix: measure the actual rendered height BEFORE applying transforms,
+      // derive PANEL_HALF_H from that, then ask main to grow the window
+      // enough to fit it. main caps at the display's workArea bottom; if we
+      // hit that cap, the inner clamp below shifts the popover's center up
+      // so the bottom edge stays in-frame, and the v2.7 max-height +
+      // overflow-y on .radial-settings catches whatever still doesn't fit
+      // by letting the user scroll inside the popover.
+      //
+      // Why measure pre-visible: the .visible class triggers a scale + opacity
+      // transition; we need natural height, which requires the element to be
+      // laid out (display:flex with content) but unscaled. The .radial-settings
+      // base CSS uses `transform: ... scale(0.92)` and `opacity: 0` but the
+      // bounding-rect ignores transforms and reports the layout box, so
+      // measuring here is correct.
+      //
+      // v2.7: use scrollHeight (the unconstrained content height) instead of
+      // getBoundingClientRect().height. scrollHeight ignores the new
+      // `max-height: calc(100vh - 80px)` cap, so we still see the natural
+      // content size and ask main to grow accordingly. Without this swap, on
+      // a fresh launch where window.innerHeight is small, max-height would
+      // pre-clamp the measured value and we'd never request a grow.
+      // Position offscreen first to allow measurement without a flash.
+      layer.style.setProperty('--sx', `-9999px`);
+      layer.style.setProperty('--sy', `-9999px`);
+      // Force a reflow so the rect is current after innerHTML replacement.
+      void layer.offsetHeight;
+      const measuredH = layer.scrollHeight || layer.getBoundingClientRect().height || 290;
+      const PANEL_HALF_H = Math.ceil(measuredH / 2) + 4;   // +4 for safety pad
       const wantedY = center.y;
-      const sy = Math.max(12 + PANEL_HALF_H, Math.min(window.innerHeight - 12 - PANEL_HALF_H, wantedY));
-      layer.style.setProperty('--sx', `${sx}px`);
-      layer.style.setProperty('--sy', `${sy}px`);
-
+      // If the popover (centered at wantedY, half-height = PANEL_HALF_H)
+      // would extend below the current window bottom, grow the window down
+      // to fit. main caps at workArea.bottom — if we hit that, the inner
+      // clamp below moves the popover up to fit whatever room main granted
+      // us. Same applies if it would extend above the current window top:
+      // we can't grow the window upward (top-left fixed), so the clamp
+      // alone handles that side by snapping the popover down.
+      const popoverBottomNeeded = wantedY + PANEL_HALF_H + 12;
+      if (popoverBottomNeeded > window.innerHeight) {
+        ipcRenderer.send('resize-window', {
+          width: window.innerWidth,
+          height: Math.ceil(popoverBottomNeeded)
+        });
+      }
       // Enable the slide-in transition on the next frame so it actually
-      // animates rather than appearing instantly.
-      requestAnimationFrame(() => layer.classList.add('visible'));
+      // animates rather than appearing instantly. Two rAF passes — one for
+      // the resize-window IPC to land + lay out, one for the new
+      // window.innerHeight to be readable. This ensures the clamp uses the
+      // grown size, not the pre-grow size (otherwise the popover snaps up
+      // even after we asked for more room).
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const sy = Math.max(12 + PANEL_HALF_H, Math.min(window.innerHeight - 12 - PANEL_HALF_H, wantedY));
+        layer.style.setProperty('--sx', `${sx}px`);
+        layer.style.setProperty('--sy', `${sy}px`);
+        layer.classList.add('visible');
+      }));
 
       // ---- Wire up the toggle ----
       const toggle = layer.querySelector('#set-autorestart');
@@ -1812,6 +2534,46 @@
           toggle.checked = prev;
           flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
         }
+      });
+
+      // ---- Wire up the detach action buttons (v2.5) ----
+      // Both invoke main IPCs and flash success/error feedback on the button
+      // itself rather than yanking attention to the agent tile. The radial
+      // menu stays open so Richard can chain follow-up actions.
+      // v2.6: detach actions need a live chq pane to operate on. When the
+      // agent isn't running, render the buttons disabled with a tooltip
+      // explaining why. Click handlers also gate on .disabled so a poll-tick
+      // refresh that re-enables works without rebinding.
+      const detachWindowBtn = layer.querySelector('#detach-window');
+      const detachSplitBtn = layer.querySelector('#detach-split');
+      // Stash original tooltips so refreshOpenRadialDisabledState can restore
+      // them when the agent comes back up.
+      detachWindowBtn.dataset.origTitle = detachWindowBtn.title;
+      detachSplitBtn.dataset.origTitle  = detachSplitBtn.title;
+      const initiallyDisabled = !agent.running;
+      detachWindowBtn.disabled = initiallyDisabled;
+      detachSplitBtn.disabled  = initiallyDisabled;
+      if (initiallyDisabled) {
+        const msg = `${agent.displayName || id} isn't running in chq — Deploy it first`;
+        detachWindowBtn.title = msg;
+        detachSplitBtn.title  = msg;
+      }
+      detachWindowBtn.addEventListener('click', async () => {
+        if (detachWindowBtn.disabled) return;
+        detachWindowBtn.disabled = true;
+        const r = await ipcRenderer.invoke('detach-pane-to-window', id);
+        // Re-evaluate against current running state — the IPC may have failed
+        // because the agent died between poll and click; respect that, not
+        // the optimistic re-enable.
+        detachWindowBtn.disabled = !agent.running;
+        flashDetachResult(detachWindowBtn, r, id);
+      });
+      detachSplitBtn.addEventListener('click', async () => {
+        if (detachSplitBtn.disabled) return;
+        detachSplitBtn.disabled = true;
+        const r = await ipcRenderer.invoke('detach-pane-to-split', { id });
+        detachSplitBtn.disabled = !agent.running;
+        flashDetachResult(detachSplitBtn, r, id);
       });
 
       // ---- Wire up the three text inputs ----
@@ -1842,7 +2604,23 @@
           const res = await ipcRenderer.invoke('update-agent', { id, patch: { [patchKey]: v } });
           if (res.ok) {
             el.dataset.savedValue = v;
-            agent[localKey] = v;
+            // main.js coerces (trim, lowercase for color) and writes the
+            // value verbatim to the registry; the returned entry mirrors
+            // what's now on disk. Use it so local state matches saved.
+            const returned = (res.entry && res.entry[patchKey] !== undefined) ? res.entry[patchKey] : v;
+            agent[localKey] = returned;
+
+            // v2.7: when rename_to changes, refresh the dock-label DOM
+            // immediately so Richard sees the new label without waiting for
+            // a full re-render. labelTextFor() honors any non-empty value
+            // (so editing to "XAVIER" really does flip "Xavier" → "XAVIER")
+            // and falls back to displayLabelFor() only when the field is
+            // cleared.
+            if (patchKey === 'rename_to') {
+              agent.renameTo = returned;
+              const labelEl = document.getElementById(`label-${id}`);
+              if (labelEl) labelEl.textContent = labelTextFor(agent);
+            }
             // Brief green pulse to confirm the save landed.
             el.classList.add('saved');
             setTimeout(() => el.classList.remove('saved'), 700);
@@ -1985,7 +2763,210 @@
     function deploy() {
       const ids = Object.values(agents).filter(a => a.selected).map(a => a.id);
       if (ids.length === 0) return;
-      ipcRenderer.send('spawn-agents', ids);
+      // v2.5: ride the layout-mode along as the `layout` field. main.js
+      // whitelists the value to one of LAYOUT_MODES before passing it through
+      // to chq-tmux.sh as CHQ_LAYOUT.
+      ipcRenderer.send('spawn-agents', { agents: ids, layout: layoutMode });
+    }
+
+    // Wire the layout-mode segmented control. Click → set as active, persist,
+    // and update layoutMode for the next Deploy. No IPC fired here — the value
+    // is only consumed when Deploy runs. After a click we also re-evaluate the
+    // mismatch hint so the visual feedback updates immediately (without waiting
+    // for the next 3s poll).
+    function wireLayoutPills() {
+      const pills = document.querySelectorAll('.layout-pill');
+      // Initial render: mark the persisted layoutMode as active.
+      pills.forEach(p => p.classList.toggle('active', p.dataset.layout === layoutMode));
+      pills.forEach(p => {
+        p.addEventListener('click', () => {
+          const next = p.dataset.layout;
+          if (!LAYOUT_MODES.includes(next)) return;
+          layoutMode = next;
+          try { localStorage.setItem('helmLayoutMode', next); } catch { /* sandboxed */ }
+          pills.forEach(o => o.classList.toggle('active', o.dataset.layout === next));
+          applyLayoutMismatchHint();
+        });
+      });
+      // v2.7: prime per-pill / Deploy tooltips at boot so a hover during
+      // the first 3s (before pollSessionLayoutOnce returns) still shows the
+      // base explainer with no stale text.
+      applyLayoutMismatchHint();
+    }
+
+    // ---------------------------------------------------------------------
+    // Session-layout tracking + tear-down button (Issue 2)
+    // ---------------------------------------------------------------------
+    // chq-tmux.sh stashes the chosen layout in a tmux session option
+    // @chq_layout at start time, and cmd_add reads it back on every Deploy.
+    // So once a session is up in (e.g.) `panes` mode, flipping the WINDOWS
+    // pill in the panel and re-Deploying re-uses the existing session under
+    // the OLD layout — confusing. Surface that with:
+    //
+    //   1. A tooltip / amber border on .layout-pills when the active pill
+    //      differs from the session's @chq_layout (and a session is running).
+    //   2. A small ✕ "stop session" button next to the pills that runs
+    //      `tmux kill-session -t chq` after an inline ✓✗ confirm.
+    //
+    // sessionLayout is refreshed on each pollStatusOnce() tick (3s) via the
+    // get-session-layout IPC. Empty string = no session.
+    let sessionLayout = '';
+
+    async function pollSessionLayoutOnce() {
+      try {
+        const v = await ipcRenderer.invoke('get-session-layout');
+        sessionLayout = String(v || '').trim();
+      } catch {
+        sessionLayout = '';
+      }
+      applyLayoutMismatchHint();
+      applyStopButtonState();
+    }
+
+    // Toggle the .mismatch class on .layout-pills when chq is running AND the
+    // active pill differs from the session's stashed layout. When that's true,
+    // also set a tooltip on the wrapper explaining why the pill choice isn't
+    // taking effect. When chq isn't running or the layouts agree, strip both.
+    // Special case: sessionLayout === 'unknown' means the session exists but
+    // its layout wasn't stashed (legacy or external session) — we can't tell
+    // if there's a mismatch, so don't show the hint.
+    //
+    // v2.7: ALSO refresh per-pill tooltips here (they live in data-base-title)
+    // so each pill keeps its own explainer + a running-state suffix when
+    // applicable. Same poll tick that flips the .mismatch class also rewrites
+    // the per-pill .title — Richard hovers PANES and sees "Horizontal split-
+    // panes…" plus the suffix "Session running in PANES mode" when it applies.
+    function applyLayoutMismatchHint() {
+      const pills = document.getElementById('layout-pills');
+      if (!pills) return;
+      const running = sessionLayout && sessionLayout.length > 0;
+      const known = running && sessionLayout !== 'unknown';
+      const mismatch = known && sessionLayout !== layoutMode;
+      pills.classList.toggle('mismatch', mismatch);
+      if (mismatch) {
+        pills.title = `Session running in ${sessionLayout.toUpperCase()} mode. Stop the session and redeploy to apply ${layoutMode.toUpperCase()}.`;
+      } else if (known) {
+        pills.title = `Session running in ${sessionLayout.toUpperCase()} mode.`;
+      } else if (running) {
+        pills.title = 'Session running (layout unknown — started outside helm).';
+      } else {
+        pills.title = '';
+      }
+
+      // Per-pill tooltips. Suffix added only when chq is running so the
+      // base explainer reads cleanly when there's no session yet. Spec
+      // wording: "${baseTooltip} | Session running in ${runningLayout} mode
+      // — stop and redeploy to apply." Only the active pill gets the
+      // "stop and redeploy" hint when there's a mismatch — the inactive
+      // pills get a simpler "Session running in X mode" suffix.
+      const pillEls = pills.querySelectorAll('.layout-pill');
+      pillEls.forEach(p => {
+        const base = p.dataset.baseTitle || p.title || '';
+        let suffix = '';
+        if (known) {
+          if (mismatch && p.classList.contains('active')) {
+            suffix = ` | Session running in ${sessionLayout.toUpperCase()} mode — stop and redeploy to apply.`;
+          } else {
+            suffix = ` | Session running in ${sessionLayout.toUpperCase()} mode.`;
+          }
+        } else if (running) {
+          suffix = ' | Session running (layout unknown — started outside helm).';
+        }
+        p.title = base + suffix;
+      });
+
+      // Also refresh the Deploy button — its tooltip surfaces the current
+      // layout mode so Richard knows what'll spawn before clicking. When a
+      // running session exists, the suffix mirrors the pills so the same
+      // "stop and redeploy" hint surfaces here too.
+      const deployBtn = document.getElementById('deploy-btn');
+      if (deployBtn) {
+        let t = `Spawn selected agents in tmux (current layout: ${layoutMode.toUpperCase()})`;
+        if (mismatch) {
+          t += ` — session is in ${sessionLayout.toUpperCase()}; stop and redeploy to apply.`;
+        }
+        deployBtn.title = t;
+      }
+    }
+
+    // Reflect session presence on the stop button. Running → enabled + warning
+    // tooltip; not running → dimmed + "no session" tooltip. Clicks on the
+    // disabled button are ignored.
+    function applyStopButtonState() {
+      const btn = document.getElementById('stop-session-btn');
+      if (!btn) return;
+      const running = sessionLayout && sessionLayout.length > 0;
+      btn.classList.toggle('disabled', !running);
+      if (!running) {
+        btn.title = 'Tear down the chq tmux session (no session running)';
+      } else if (sessionLayout === 'unknown') {
+        btn.title = 'Tear down the chq tmux session';
+      } else {
+        btn.title = `Tear down the chq tmux session (${sessionLayout.toUpperCase()})`;
+      }
+    }
+
+    // Wire the inline confirm + kill-session IPC on the stop-session button.
+    // Pattern mirrors requestRadialConfirm but at button scale: click swaps
+    // glyph for ✓✗ pair, ✓ fires IPC, ✗ or 4s timeout cancels. After kill we
+    // optimistically blank sessionLayout so the next poll doesn't re-show the
+    // mismatch hint mid-tear-down.
+    let stopBtnConfirmTimer = null;
+    function wireStopSessionButton() {
+      const btn = document.getElementById('stop-session-btn');
+      if (!btn) return;
+      const ok = btn.querySelector('.confirm .ok');
+      const no = btn.querySelector('.confirm .no');
+
+      const cleanup = () => {
+        btn.classList.remove('confirming');
+        if (stopBtnConfirmTimer) { clearTimeout(stopBtnConfirmTimer); stopBtnConfirmTimer = null; }
+      };
+
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // Disabled (no session) → no-op. Hover tooltip already says why.
+        if (btn.classList.contains('disabled')) return;
+        // Already in confirm state → ignore the wrapper click; ✓/✗ have their
+        // own handlers which fire via stopPropagation.
+        if (btn.classList.contains('confirming')) return;
+        btn.classList.add('confirming');
+        if (stopBtnConfirmTimer) clearTimeout(stopBtnConfirmTimer);
+        stopBtnConfirmTimer = setTimeout(cleanup, 4000);
+      });
+
+      ok.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        cleanup();
+        const result = await ipcRenderer.invoke('kill-session');
+        if (!result || !result.ok) {
+          // Surface failure on the button itself (red flash via title hint).
+          btn.title = `Stop failed: ${(result && result.error) || 'unknown'}`;
+          setTimeout(applyStopButtonState, 2200);
+          return;
+        }
+        // Optimistic: clear local state so the UI reflects "no session" before
+        // the next poll runs. pollStatusOnce will reconcile in 3s.
+        sessionLayout = '';
+        applyLayoutMismatchHint();
+        applyStopButtonState();
+        // Force a status repoll so the dock dots flip grey within one paint
+        // rather than waiting for the next 3s tick.
+        pollStatusOnce();
+      });
+
+      no.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        cleanup();
+      });
+
+      // Outside-click cancellation while in confirm state — keeps the pattern
+      // consistent with the radial confirm.
+      document.addEventListener('mousedown', (ev) => {
+        if (!btn.classList.contains('confirming')) return;
+        if (btn.contains(ev.target)) return;
+        cleanup();
+      }, true);
     }
 
     // ---------------------------------------------------------------------
@@ -2048,6 +3029,39 @@
       // flicker grey then come back green on the next poll cycle.
     }
 
+    // Flash success/error feedback on a detach button inside the settings
+    // popover. Success: brief green border + console log of what happened.
+    // Error: red border + flash the error string in the button's hint slot
+    // for 2s before reverting. Keeps the popover open either way so Richard
+    // can see the result without losing context.
+    function flashDetachResult(btnEl, result, agentId) {
+      const hintEl = btnEl.querySelector('.text .hint');
+      const originalHint = hintEl ? hintEl.textContent : '';
+      if (result && result.ok) {
+        btnEl.classList.add('flash-ok');
+        if (hintEl) {
+          if (result.newWindow)      hintEl.textContent = `→ ${result.newWindow}`;
+          else if (result.joinedTo)  hintEl.textContent = `→ ${result.joinedTo}`;
+          else                       hintEl.textContent = 'done';
+        }
+        setTimeout(() => {
+          btnEl.classList.remove('flash-ok');
+          if (hintEl) hintEl.textContent = originalHint;
+        }, 1800);
+      } else {
+        btnEl.classList.add('flash-err');
+        if (hintEl) hintEl.textContent = String((result && result.error) || 'failed').slice(0, 36);
+        // Also flash the agent tile so the failure registers even if the user's
+        // eyes were on the dock rather than the popover.
+        const tileBtn = document.getElementById(`btn-${agentId}`);
+        if (tileBtn) flashTileError(tileBtn, (result && result.error) || 'failed');
+        setTimeout(() => {
+          btnEl.classList.remove('flash-err');
+          if (hintEl) hintEl.textContent = originalHint;
+        }, 2200);
+      }
+    }
+
     // Briefly flash an error tooltip beneath the tile when an action fails
     // (e.g. trying to restart an agent that isn't running). Avoids alert().
     function flashTileError(tileEl, msg) {
@@ -2095,11 +3109,22 @@
       } catch (err) {
         // Quiet: if tmux isn't running, all dots stay grey, nothing to do.
       }
+      // After the dock-dot pass, refresh any open radial menu so newly-stopped
+      // (or newly-started) agents have their orbs flipped to the right
+      // disabled/enabled state without the user re-opening the menu.
+      refreshOpenRadialDisabledState();
     }
 
     function startStatusPolling() {
       if (statusTimer) return;
-      statusTimer = setInterval(pollStatusOnce, 3000);
+      // Poll pane-status AND session-layout together so the layout-mismatch
+      // hint and the stop-session button update on the same cadence as the
+      // dock dots. Both are cheap (single tmux call each, no shell). Run
+      // both immediately on startup so the panel doesn't show stale state
+      // for the first 3s after launch.
+      const tick = () => { pollStatusOnce(); pollSessionLayoutOnce(); };
+      tick();
+      statusTimer = setInterval(tick, 3000);
     }
 
     // ---------------------------------------------------------------------
@@ -2114,6 +3139,12 @@
     document.getElementById('f-avatar-pick').addEventListener('click', pickAvatar);
     document.getElementById('f-cancel').addEventListener('click', () => { document.body.classList.remove('adding'); syncWindowSize(); });
     document.getElementById('f-submit').addEventListener('click', submitAdd);
+
+    // v2.5: wire the layout-mode segmented control. Reads localStorage on
+    // boot for the persisted choice; clicks update layoutMode and persist.
+    wireLayoutPills();
+    // v2.6: wire the tear-down session button (✕ next to layout pills).
+    wireStopSessionButton();
 
     loadAndRender().then(startStatusPolling);
     window.addEventListener('resize', syncWindowSize);

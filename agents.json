@@ -46,8 +46,8 @@
       "display_name": "overlordswarmy",
       "tmux_target": "overlordswarmy",
       "cwd": "~/ai_projects/swarmy",
-      "color": "cyan",
-      "rename_to": "overlordswarmy",
+      "color": "red",
+      "rename_to": "OVERLORD-SWARMY",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
     },
@@ -57,7 +57,7 @@
       "tmux_target": "claude",
       "cwd": "~/agent-launch-scripts",
       "color": "orange",
-      "rename_to": "Claude",
+      "rename_to": "TMUX-MASTA",
       "startup_slash": "/gogo",
       "avatar": "claude.svg"
     }
