@@ -59,6 +59,17 @@
       -webkit-app-region: drag;
     }
 
+    /* While the radial menu is open the window grows UPWARD (so the orbs have
+       transparent space to fan into above the panel). To keep the panel's
+       on-screen position fixed during that growth, anchor the panel to the
+       BOTTOM of the body — every pixel of new height becomes empty space
+       above. Without this, the panel would visually jump up when the window
+       resized. Only active during radial-open; resets cleanly on close. */
+    body.radial-open {
+      min-height: 100vh;
+      justify-content: flex-end;
+    }
+
     /* ---------------------------------------------------------------------
        Panel
        --------------------------------------------------------------------- */
@@ -485,25 +496,23 @@
     }
 
     /* ---------------------------------------------------------------------
-       Right-click context menu — fan-out per agent
+       Right-click radial menu — gooey/liquid-mercury fan-out
        ---------------------------------------------------------------------
-       Geometry: 4 items spread along a shallow downward smile-arc beneath
-       the right-clicked tile, in the transparent dead space below the
-       panel. Items occupy x-offsets [-180,-60,+60,+180] from the tile's
-       center, at y-offsets [+30,+60,+60,+30] below the panel's bottom
-       edge. Outer items hang slightly higher so the four resting points
-       form an arc rather than a horizontal line.
+       Bebber-style mercury blobs squeeze out of the tile center along an
+       arc, gooey-connected via SVG filter (#goo). After they settle, the
+       filter is removed (class .settled on the orb container) and labels
+       fade in to the right of each orb as readable glass pills. The orbs
+       themselves stay as solid colored circles — required for the goo
+       filter to do its blob-merging math (transparent / blurred sources
+       break the threshold matrix).
 
-       JS clamps the layout horizontally if the tile's center is too close
-       to a viewport edge for the symmetric spread to fit — so far-left
-       or far-right tiles still get all 4 items inside the window without
-       any items overlapping each other.
-
-       Each item is a glass card built from the same primitives as the
-       panel itself: backdrop-filter blur+saturate, --bg-deep background,
-       --border-medium border, inset 1px highlight, drop shadow. Default
-       state is neutral; orange accent only on hover/active. Matches the
-       panel's terminal-luxe glassmorphism. */
+       Layer hierarchy:
+         #radial-menu              fixed full-viewport, pointer-events:none
+           .radial-orbs            container with filter:url(#goo) during emerge
+             .radial-orb           solid colored circle (the FAB-spawned blob)
+           .radial-labels          NOT filtered, holds glass pills
+             .radial-label         glass pill anchored to the right of an orb
+    */
     #radial-menu {
       position: fixed;
       left: 0;
@@ -516,138 +525,390 @@
     }
     #radial-menu.open { display: block; }
 
-    .radial-item {
+    /* The gooey container. Filter eats anything inside, so labels live in a
+       sibling container (.radial-labels) instead of in here. */
+    .radial-orbs {
       position: absolute;
-      /* JS sets --x and --y as the resting position (px from viewport top-left).
-         Initial state: items fly out FROM the right-clicked tile's center,
-         held in --start-x / --start-y, scaled down + transparent. The .open
-         state on #radial-menu transitions them out to (--x, --y) at scale 1. */
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      filter: url(#goo);
+    }
+    /* Once items have settled into resting positions, drop the filter so
+       hover halos / shadows on individual orbs read crisply. */
+    .radial-orbs.settled {
+      filter: none;
+    }
+
+    .radial-orb {
+      position: absolute;
+      /* JS sets --x/--y (resting) and --start-x/--start-y (tile center).
+         Initial state: parked AT the tile center, full opacity, slightly
+         compressed scale — so all four orbs overlap into a single mercury
+         blob, then squeeze apart. The scale-in micro-pop sells the "fluid
+         pressure releasing" feel.
+
+         Per-agent palette: the orb's gradient/glow read from --orb-light /
+         --orb-mid / --orb-deep / --orb-glow, set per-orb by JS based on the
+         right-clicked agent's color token. Falls back to anthropic-orange
+         for unknown agents (the original v1 palette). Danger orbs override
+         the same vars to red below. */
+      --orb-light: #ff9a6a;
+      --orb-mid:   var(--accent);
+      --orb-deep:  #b85a30;
+      --orb-glow:  var(--accent-glow);
+
       left: var(--start-x, 0px);
       top: var(--start-y, 0px);
-      transform: translate3d(0, 0, 0) scale(0.5);
-      opacity: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
       pointer-events: auto;
       -webkit-app-region: no-drag;
+      transform: scale(0.7);
+      opacity: 0.85;
+
+      /* Solid color disc (no glass / blur — required for goo filter math). */
+      background: radial-gradient(circle at 35% 30%,
+        var(--orb-light) 0%,
+        var(--orb-mid) 55%,
+        var(--orb-deep) 100%);
+      color: #0a0a14;
 
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 9px 14px 9px 11px;
-      min-width: 152px;
+      justify-content: center;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      user-select: none;
 
-      /* Glass card: same primitives as .panel */
+      /* Spring out: position uses an overshoot easing so orbs bounce-settle
+         into rest. Scale + opacity ride a quicker easing so the orb is at
+         full size by the time it lands. */
+      transition:
+        left 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+        top 0.55s cubic-bezier(0.34, 1.56, 0.64, 1),
+        transform 0.45s var(--ease),
+        opacity 0.25s var(--ease),
+        background 0.2s var(--ease),
+        box-shadow 0.2s var(--ease);
+    }
+    #radial-menu.open .radial-orb {
+      left: var(--x, 0px);
+      top: var(--y, 0px);
+      transform: scale(1);
+      opacity: 1;
+    }
+    /* Hover only meaningful AFTER settle (filter is off then). The halo
+       inherits the per-agent --orb-glow so it visually anchors back to the
+       owning tile. */
+    .radial-orbs.settled .radial-orb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 24px var(--orb-glow);
+    }
+    .radial-orbs.settled .radial-orb:active {
+      transform: scale(0.94);
+    }
+    .radial-orb .orb-icon {
+      pointer-events: none;
+      /* The icon needs to read on the colored disc. Light highlight underneath
+         lifts the glyph off the saturated mid-tone. */
+      filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
+      font-weight: 700;
+    }
+
+    /* Danger orb — the Close-session blob bleeds red instead of the per-agent
+       palette so it visually warns even before hover. Overrides the same vars
+       used by the gradient + glow, regardless of which agent owns the menu. */
+    .radial-orb.danger {
+      --orb-light: #ff8a9c;
+      --orb-mid:   #ff5a78;
+      --orb-deep:  #b8304a;
+      --orb-glow:  rgba(255, 90, 120, 0.65);
+    }
+
+    /* Labels container — sibling of .radial-orbs, NOT filtered. This is
+       where the glass pills live so backdrop-filter still works. */
+    .radial-labels {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .radial-label {
+      position: absolute;
+      /* Anchored to the right edge of its orb, JS sets --lx/--ly. Starts
+         tucked behind the orb (translateX -8px + opacity 0); after settle,
+         slides out to its anchor and fades in. */
+      left: var(--lx, 0px);
+      top: var(--ly, 0px);
+      transform: translate3d(-8px, -50%, 0);
+      opacity: 0;
+      pointer-events: none;
+      -webkit-app-region: no-drag;
+
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 6px 11px;
+      max-width: 260px;
+      white-space: nowrap;
+
+      /* Glass pill — same primitives as .panel, smaller scale. */
       background: var(--bg-deep);
-      backdrop-filter: blur(40px) saturate(140%);
-      -webkit-backdrop-filter: blur(40px) saturate(140%);
+      backdrop-filter: blur(30px) saturate(140%);
+      -webkit-backdrop-filter: blur(30px) saturate(140%);
+      border: 1px solid var(--border-medium);
+      border-radius: 10px;
+      box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      user-select: none;
+
+      transition:
+        transform 0.35s var(--ease),
+        opacity 0.3s var(--ease);
+    }
+    /* Labels reveal only AFTER orbs settle. Class .visible toggled by JS. */
+    .radial-label.visible {
+      transform: translate3d(0, -50%, 0);
+      opacity: 1;
+    }
+    .radial-label .verb {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .radial-label .detail {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 10.5px;
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Inline confirm-replace inside an orb. Replaces the icon glyph with a
+       compact ✓ / ✗ pair stacked horizontally inside (slightly wider) blob.
+       The whole orb morphs slightly wider for the confirm row. */
+    .radial-orb.confirming {
+      width: 78px;
+      border-radius: 22px;
+      font-size: 13px;
+    }
+    .radial-orb .confirm {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      height: 100%;
+    }
+    .radial-orb.confirming .orb-icon { display: none; }
+    .radial-orb.confirming .confirm { display: flex; }
+    .radial-orb .confirm .ok,
+    .radial-orb .confirm .no {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 26px;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid rgba(0, 0, 0, 0.45);
+      pointer-events: auto;
+    }
+    .radial-orb .confirm .ok { background: var(--status-on); color: #062b10; }
+    .radial-orb .confirm .no { background: rgba(255, 255, 255, 0.85); color: #1a0608; }
+
+    /* Hide the danger label while confirming, swap to a stark "kill?" prompt
+       on the label pill. */
+    .radial-label.confirming .verb { color: #ff8a9c; text-transform: uppercase; letter-spacing: 0.6px; }
+
+    /* ---------------------------------------------------------------------
+       Inline settings panel — owned by the radial menu
+       ---------------------------------------------------------------------
+       The 5th orb (gear) toggles a glass mini-panel that hosts the auto-restart
+       switch + 3 startup-command text fields (color, rename_to, startup_slash).
+       It lives in #radial-menu (not the main panel) so it dismisses with the
+       rest of the radial UI on outside-click / Escape / blur, and so it
+       inherits the upward-anchored growth math.
+
+       Geometry: positioned absolutely at viewport coords by JS so it sits to
+       the LEFT of the gear orb, anchored to the orb's vertical center. Falls
+       back to the right side if there's no horizontal room. */
+    .radial-settings {
+      position: absolute;
+      left: var(--sx, 0px);
+      top: var(--sy, 0px);
+      transform: translate3d(0, -50%, 0) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+      -webkit-app-region: no-drag;
+
+      width: 280px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      background: var(--bg-deep);
+      backdrop-filter: blur(30px) saturate(140%);
+      -webkit-backdrop-filter: blur(30px) saturate(140%);
       border: 1px solid var(--border-medium);
       border-radius: 14px;
       box-shadow:
         0 18px 48px rgba(0, 0, 0, 0.55),
         inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
-      color: var(--text-primary);
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-      cursor: pointer;
-      white-space: nowrap;
-      user-select: none;
-      transition:
-        left 0.42s var(--ease),
-        top 0.42s var(--ease),
-        transform 0.42s var(--ease),
-        opacity 0.32s var(--ease),
-        border-color 0.2s var(--ease),
-        box-shadow 0.2s var(--ease),
-        background 0.2s var(--ease);
-    }
-    #radial-menu.open .radial-item {
-      left: var(--x, 0px);
-      top: var(--y, 0px);
-      transform: translate3d(0, 0, 0) scale(1);
-      opacity: 1;
-    }
-    .radial-item:hover {
-      border-color: var(--accent);
-      background: rgba(20, 16, 12, 0.85);
-      box-shadow:
-        0 0 28px var(--accent-glow),
-        0 18px 48px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    }
-    .radial-item .icon {
-      width: 22px;
-      height: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      color: var(--text-muted);          /* neutral by default */
-      flex-shrink: 0;
-      transition: color 0.18s var(--ease);
-    }
-    .radial-item:hover .icon { color: var(--accent); }
-    .radial-item .label {
-      max-width: 220px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-    }
-    .radial-item .label .verb {
       color: var(--text-primary);
-      font-weight: 600;
-    }
-    .radial-item .label .detail {
-      color: var(--text-muted);
-      font-weight: 400;
-      font-size: 11px;
-      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;   /* mono for paths/values */
-    }
-    .radial-item.danger:hover {
-      border-color: rgba(255, 90, 120, 0.8);
-      background: rgba(28, 12, 16, 0.85);
-      box-shadow:
-        0 0 28px rgba(255, 70, 100, 0.45),
-        0 18px 48px rgba(0, 0, 0, 0.55),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-    }
-    .radial-item.danger:hover .icon { color: rgba(255, 110, 130, 0.95); }
 
-    /* Inline confirm-replace inside a radial item (for the destructive
-       "Close active sessions" action). Replaces the item's content with a
-       compact ✓ ✗ pair without changing the item's position. */
-    .radial-item.confirming { padding: 8px 12px; }
-    .radial-item .confirm {
-      display: none;
+      transition:
+        transform 0.28s var(--ease),
+        opacity 0.22s var(--ease);
+      z-index: 2;
+    }
+    .radial-settings.visible {
+      transform: translate3d(0, -50%, 0) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .radial-settings .settings-title {
+      font-size: 10px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+    .radial-settings .settings-row {
+      display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
-    .radial-item.confirming .icon,
-    .radial-item.confirming .label { display: none; }
-    .radial-item.confirming .confirm { display: flex; }
-    .radial-item .confirm .ok,
-    .radial-item .confirm .no {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 22px;
-      text-align: center;
-      cursor: pointer;
-      border: 1px solid rgba(0, 0, 0, 0.4);
-    }
-    .radial-item .confirm .ok { background: var(--status-on); color: #062b10; }
-    .radial-item .confirm .no { background: rgba(255, 255, 255, 0.18); color: #fff; }
-    .radial-item .confirm .prompt {
+    .radial-settings .settings-row label {
+      flex: 0 0 80px;
       font-size: 11px;
       color: var(--text-muted);
       letter-spacing: 0.4px;
       text-transform: uppercase;
-      margin-right: 4px;
+    }
+    .radial-settings .settings-row input[type=text] {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 6px 9px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s var(--ease);
+    }
+    .radial-settings .settings-row input[type=text]:focus {
+      border-color: var(--accent);
+    }
+    .radial-settings .settings-row input[type=text].invalid {
+      border-color: #ff7090;
+      box-shadow: 0 0 0 1px rgba(255, 112, 144, 0.15) inset;
+    }
+    .radial-settings .settings-row input[type=text].saved {
+      border-color: var(--status-on);
+      transition: border-color 0.6s var(--ease);
+    }
+
+    /* iOS-style toggle for auto_restart. Solid colors, no transparency, so the
+       state reads at a glance against the glass background. */
+    .toggle-switch {
+      position: relative;
+      width: 38px;
+      height: 22px;
+      flex: 0 0 38px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+    .toggle-switch .track {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+      cursor: pointer;
+    }
+    .toggle-switch .knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      transition: transform 0.22s var(--ease), background 0.22s var(--ease);
+      pointer-events: none;
+    }
+    .toggle-switch input:checked + .track {
+      background: var(--status-on);
+      border-color: var(--status-on);
+    }
+    .toggle-switch input:checked + .track + .knob {
+      transform: translateX(16px);
+    }
+    .radial-settings .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-soft);
+      margin-bottom: 4px;
+    }
+    .radial-settings .toggle-row .toggle-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .radial-settings .toggle-row .toggle-meta .verb {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .radial-settings .toggle-row .toggle-meta .hint {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    /* Settings-mode orb — visually distinct from the four action orbs. Slightly
+       cooler bleed, matches the inline panel feel. Active state when the panel
+       is open keeps the orb glowing so the source of the popover is obvious. */
+    .radial-orb.settings {
+      --orb-light: #d4d8e6;
+      --orb-mid:   #8c93a8;
+      --orb-deep:  #4a4f63;
+      --orb-glow:  rgba(180, 188, 210, 0.55);
+    }
+    .radial-orb.settings.open {
+      box-shadow: 0 0 28px var(--orb-glow);
     }
   </style>
 </head>
@@ -721,10 +982,47 @@
     </div>
   </div>
 
-  <!-- Right-click radial menu — fixed-positioned container, items animate
-       outward from a center point that JS sets to the right-clicked tile.
-       Hidden by default; .open class triggers the staggered fan-out. -->
-  <div id="radial-menu" aria-hidden="true"></div>
+  <!-- Right-click radial menu — gooey/liquid-mercury fan-out (Bebber).
+       Two sibling layers inside #radial-menu:
+         .radial-orbs   — solid colored circles, gets filter:url(#goo)
+                          during emergence so they merge into mercury blobs;
+                          filter is dropped (.settled class) once they reach
+                          rest so hover/halo render normally.
+         .radial-labels — glass pills anchored to each orb's right edge,
+                          NOT filtered (so backdrop-filter survives).
+       JS populates both layers in openRadialMenu(). -->
+  <div id="radial-menu" aria-hidden="true">
+    <div class="radial-orbs" id="radial-orbs"></div>
+    <div class="radial-labels" id="radial-labels"></div>
+    <!-- Inline settings popover. Populated + positioned by openSettingsPanel(),
+         dismissed alongside the rest of the radial UI. Lives inside #radial-menu
+         so existing dismiss handlers (outside-click / Escape / blur) cover it. -->
+    <div class="radial-settings" id="radial-settings" aria-hidden="true"></div>
+  </div>
+
+  <!-- Bebber's gooey SVG filter. Lives in a 0×0 SVG so it doesn't affect
+       layout. The pipeline:
+         1. feGaussianBlur     blurs the source (orbs) outward
+         2. feColorMatrix      thresholds alpha to a hard edge — nearby blobs
+                               whose blurs overlap get merged into one shape
+         3. feComposite        re-composites the original orb on top of the
+                               merged shape, so internal detail stays sharp
+       Tuning: stdDeviation higher = more melt; matrix `0 0 0 18 -7` controls
+       what merges vs. stays separate. Conservative values here so the orbs
+       still read as four discrete shapes by the time they finish settling. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <filter id="goo">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
+        <feColorMatrix in="blur" mode="matrix"
+          values="1 0 0 0 0
+                  0 1 0 0 0
+                  0 0 1 0 0
+                  0 0 0 18 -7" result="goo" />
+        <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+      </filter>
+    </defs>
+  </svg>
 
   <script>
     const { ipcRenderer } = require('electron');
@@ -753,9 +1051,16 @@
     // Layout: measure DOM, ask main to setContentSize
     // ---------------------------------------------------------------------
     function syncWindowSize() {
-      // Run twice: once now, once after the next frame, to handle late
-      // layout (object SVG load, font swap, etc).
+      // Skip while the radial menu is open. The menu sizes the window itself
+      // (openRadialMenu computes width/height that include the fanned items
+      // hanging below the panel). If we ran here, we'd measure only the panel
+      // and shrink the window back, clipping every item except the topmost.
+      // The window 'resize' listener at the bottom of this script is the
+      // trigger that made this footgun fire — Electron's setContentSize emits
+      // a resize event in the renderer, which would re-enter this function.
+      if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
       const measure = () => {
+        if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
         const panel = document.getElementById('panel');
         if (!panel) return;
         const rect = panel.getBoundingClientRect();
@@ -971,29 +1276,76 @@
     }
 
     // ---------------------------------------------------------------------
-    // Right-click context menu — fan-out per-agent action menu
+    // Right-click radial menu — gooey/liquid-mercury fan-out (Bebber)
     // ---------------------------------------------------------------------
-    // Final positions form a smile-arc beneath the tile, in transparent dead
-    // space below the panel. Items don't overlap; the panel content stays
-    // unobstructed. The fan-out animation is the items springing outward
-    // from the tile center to their resting positions, with 60ms stagger.
+    // Solid colored orbs squeeze out of the tile center along an arc, gooey-
+    // connected via SVG #goo filter so they read as mercury blobs during
+    // emergence. Once they reach rest, we drop the filter (.settled class)
+    // and slide in glass label pills to the right of each orb so the verbs
+    // and detail strings (CWD path, "iTerm") stay readable.
     //
-    // Items, in order:
-    //   1. CWD — opens directory picker, writes back to registry
-    //   2. Close — tmux kill-pane (destructive, inline confirm)
+    // Two DOM layers inside #radial-menu:
+    //   .radial-orbs     — the filtered container, holds .radial-orb circles
+    //   .radial-labels   — sibling, NOT filtered, holds .radial-label pills
+    //
+    // Items, in order (left → right along the arc):
+    //   1. CWD     — opens directory picker, writes back to registry
+    //   2. Close   — tmux kill-pane (DANGER, inline ✓✗ confirm on the orb)
     //   3. Restart — SIGINT, pane_loop respawns
-    //   4. Attach — osascript opens iTerm tab focused on the agent's pane
+    //   4. Attach  — osascript opens iTerm tab focused on the agent's pane
+    //
+    // Geometry: arc with the bottom of the smile sitting ~110px below the
+    // panel. The four orbs trace a shallow downward curve — outer orbs
+    // higher, inner orbs lower. Spacing ~70px so neighbouring orbs JUST
+    // overlap during emergence (gooey merge), then settle separately.
 
-    // Vertical cascade with diagonal x-stagger. Items 200px wide × ~40px tall.
-    // Vertical spacing 50px (no overlap), x-stagger ±60px around tile center
-    // so the four resting positions trace a gentle diagonal — reads as a fan
-    // dealt sideways. Animation springs each item out from the tile center
-    // with 80ms stagger so the cascade visibly cascades.
-    const RADIAL_X_OFFSETS = [-90, -30, 30, 90];
-    const RADIAL_Y_OFFSETS = [0, 50, 100, 150];
+    // Arc geometry — UPWARD fan. The arc now rises ABOVE the panel, anchored
+    // to its top edge. X-offsets stay symmetric around the tile center (wide
+    // enough that resting orbs don't goo-merge); Y-offsets are NEGATIVE so the
+    // orbs travel up from the panel. The shape inverts to a "frown" arc —
+    // outer orbs lower (closer to the panel), inner orbs higher (further up)
+    // — which keeps the visual mass hugging the panel's top edge.
+    //
+    // Five orbs now: CWD / Close / Restart / Attach / Settings. Settings is
+    // the rightmost one (inverted from the spec "5th orb" wording so it
+    // doesn't push the danger orb off-balance — Close stays in slot 2 so the
+    // confirm-morph still has its existing geometry).
+    const RADIAL_X_OFFSETS = [-150, -75, 0, 75, 150];
+    const RADIAL_Y_OFFSETS = [-44, -82, -96, -82, -44];   // negative = upward
+    // Animation timing. Stagger short so orbs emerge as a connected blob
+    // (the gooey filter merges them mid-flight), then drop the filter once
+    // every orb has reached rest.
+    const RADIAL_STAGGER_MS = 55;
+    const RADIAL_TRANSITION_MS = 550;          // matches CSS .radial-orb left/top duration
+    const RADIAL_SETTLE_DELAY_MS = 480;        // when to drop the goo filter
+    const RADIAL_LABEL_DELAY_MS = 560;         // when to fade in labels
+
+    // Per-agent palette → orb gradient stops. Pulled from the active-tile
+    // glow tokens at lines ~173–178: orb mid-tone matches the agent's brand
+    // color, light/deep stops are derived for the radial gradient, and the
+    // box-shadow halo uses the same color at ~55% alpha. Falls back to the
+    // anthropic-orange token (--accent) for unknown agents.
+    //
+    // light / mid / deep / glow are CSS color strings, applied to the orb
+    // via inline style.setProperty() at openRadialMenu time.
+    const AGENT_ORB_PALETTE = {
+      xavier: { light: '#7df9ff', mid: '#00f2ff', deep: '#0a8a96', glow: 'rgba(0, 242, 255, 0.55)' },
+      lucius: { light: '#ffd070', mid: '#ffaa00', deep: '#a86b00', glow: 'rgba(255, 170, 0, 0.55)' },
+      gekko:  { light: '#7dffc1', mid: '#00ff88', deep: '#0a8a4a', glow: 'rgba(0, 255, 136, 0.55)' },
+      swarmy: { light: '#ffb8e0', mid: '#ff77cc', deep: '#a8467f', glow: 'rgba(255, 119, 204, 0.55)' },
+      claude: { light: '#ff9a6a', mid: '#e07c4c', deep: '#b85a30', glow: 'rgba(224, 124, 76, 0.55)' }
+    };
+    function paletteForAgent(id) {
+      return AGENT_ORB_PALETTE[id] || {
+        light: '#ff9a6a', mid: 'var(--accent)', deep: '#b85a30', glow: 'var(--accent-glow)'
+      };
+    }
 
     let radialOpenForId = null;
     let radialDismissCleanup = null;
+    let radialSettleTimer = null;
+    let radialLabelTimer = null;
+    let radialAnchorActive = false;   // tracks whether main owns a captured y offset
 
     function tildeCollapse(p) {
       if (!p) return '';
@@ -1014,19 +1366,36 @@
       const agent = agents[id];
       if (!agent) return;
       const menu = document.getElementById('radial-menu');
-      menu.innerHTML = '';
+      const orbsLayer = document.getElementById('radial-orbs');
+      const labelsLayer = document.getElementById('radial-labels');
+      const settingsLayer = document.getElementById('radial-settings');
+      orbsLayer.innerHTML = '';
+      labelsLayer.innerHTML = '';
+      settingsLayer.innerHTML = '';
+      settingsLayer.classList.remove('visible');
+      orbsLayer.classList.remove('settled');
       menu.classList.remove('open');
 
-      // Tile center (viewport coords) = animation origin.
+      // Per-agent palette — orbs colour-match the right-clicked tile so the
+      // menu reads as "this menu belongs to that tile".
+      const palette = paletteForAgent(id);
+
+      // Tile center (viewport coords) = mercury origin. All orbs spawn here.
+      // Note: the window grows UPWARD via resize-window-anchored below, which
+      // shifts the panel DOWN inside the (now taller) window by `delta`. We
+      // capture pre-resize coords first, then add `delta` to every y so the
+      // orbs land in the correct post-resize viewport position.
       const r = tileBtn.getBoundingClientRect();
       const tileCx = r.left + r.width / 2;
-      const tileCy = r.top + r.height / 2;
+      const tileCyPre = r.top + r.height / 2;
 
-      // Anchor the cascade beneath the panel. The first item sits 18px below
-      // the panel's bottom edge; each subsequent item drops another 50px.
+      // Anchor the arc ABOVE the panel — orbs travel UPWARD from the tile.
+      // arcBaseY is where the outer two orbs sit; the inner three ride higher
+      // (more negative) per RADIAL_Y_OFFSETS so the curve reads as a "frown"
+      // arc whose visual mass hugs the panel's top edge.
       const panelEl = document.getElementById('panel');
       const panelRect = panelEl.getBoundingClientRect();
-      const arcBaseY = panelRect.bottom + 18;
+      const arcBaseYPre = panelRect.top - 18;
 
       const cwdDisplay = truncatePath(tildeCollapse(agent.cwd || ''), 28);
       const items = [
@@ -1035,109 +1404,245 @@
           verb: 'Change CWD',
           detail: cwdDisplay || '(unset)',
           action: () => doChangeCwd(id),
-          danger: false
+          danger: false,
+          title: 'Change working directory'
         },
         {
           icon: '⏹',
           verb: 'Close session',
           detail: '',
-          action: (itemEl) => requestRadialConfirm(itemEl, 'kill?', () => doKillPane(id, tileBtn)),
+          action: (orbEl, labelEl) => requestRadialConfirm(orbEl, labelEl, 'kill?', () => doKillPane(id, tileBtn)),
           danger: true,
-          keepOpenOnClick: true
+          keepOpenOnClick: true,
+          title: 'Close (kill) tmux pane'
         },
         {
           icon: '⟳',
           verb: 'Restart session',
           detail: '',
           action: () => doRestart(id, tileBtn),
-          danger: false
+          danger: false,
+          title: 'SIGINT — pane respawns automatically'
         },
         {
           icon: '↗',
           verb: 'Attach',
           detail: 'iTerm',
           action: () => doAttach(id, tileBtn),
-          danger: false
+          danger: false,
+          title: 'Open iTerm tab attached to this pane'
+        },
+        {
+          icon: '⚙',
+          verb: 'Settings',
+          detail: '',
+          // Toggle the inline panel; keep the radial open while it's up.
+          action: (orbEl) => toggleSettingsPanel(id, orbEl),
+          danger: false,
+          settings: true,
+          keepOpenOnClick: true,
+          title: 'Auto-restart toggle + startup commands'
         }
       ];
 
-      // Item dimensions used for clamping. Match CSS min-width / typical height.
-      const ITEM_WIDTH = 200;
-      const ITEM_HEIGHT = 40;
-      const MARGIN = 12;
+      const ORB_SIZE = 44;                  // matches .radial-orb width/height
+      const LABEL_GAP = 12;                 // gap between orb edge and label
+      const MARGIN = 12;                    // viewport-edge clamp
+      // Reserve enough space for the widest possible label so we can clamp.
+      const LABEL_RESERVED = 230;
 
-      // Symmetric x-offsets centered on the tile. If the tile is far-left or
-      // far-right of the window, the symmetric layout would clip; shift the
-      // entire group to keep all items inside the viewport.
+      // Center the arc on the tile, then shift left/right to keep all orbs
+      // (and their labels) inside the viewport. Outer orbs at ±150 now (5
+      // orbs needs more spread); also reserve room right of the rightmost
+      // orb for its label pill.
       const groupCx = tileCx;
-      const minRequired = groupCx + Math.min(...RADIAL_X_OFFSETS) - ITEM_WIDTH / 2;
-      const maxRequired = groupCx + Math.max(...RADIAL_X_OFFSETS) + ITEM_WIDTH / 2;
+      const minRequired = groupCx + Math.min(...RADIAL_X_OFFSETS) - ORB_SIZE / 2;
+      const maxRequired = groupCx + Math.max(...RADIAL_X_OFFSETS) + ORB_SIZE / 2 + LABEL_GAP + LABEL_RESERVED;
       let shiftX = 0;
       if (minRequired < MARGIN) shiftX = MARGIN - minRequired;
       else if (maxRequired > window.innerWidth - MARGIN) shiftX = (window.innerWidth - MARGIN) - maxRequired;
 
-      // Pre-compute resting positions so we can pass max-y into the resize call.
-      const positions = items.map((_, idx) => {
-        // Item top-left coordinates (subtracting half item w/h so the offset
-        // refers to item center, not corner).
-        const x = groupCx + RADIAL_X_OFFSETS[idx] + shiftX - ITEM_WIDTH / 2;
-        const y = arcBaseY + RADIAL_Y_OFFSETS[idx] - ITEM_HEIGHT / 2;
-        return { x, y };
+      // Settings panel sits between the rightmost orb and the panel; reserve
+      // vertical headroom up-front so opening the settings popover later
+      // doesn't need another window resize. 200px easily fits the toggle row
+      // + 3 input rows + the connecting arrow gap.
+      const settingsHeadroom = 200;
+
+      // First pre-compute positions in PRE-resize viewport coords so we can
+      // figure out the upward extension. Positive RADIAL_Y_OFFSETS would mean
+      // downward; ours are negative (upward). The most-negative orb gives us
+      // how far above the panel top edge we need to extend.
+      const prePositions = items.map((_, idx) => {
+        const cx = groupCx + RADIAL_X_OFFSETS[idx] + shiftX;
+        const cy = arcBaseYPre + RADIAL_Y_OFFSETS[idx];
+        return { cx, cy };
       });
-      const maxBottom = Math.max(...positions.map(p => p.y)) + ITEM_HEIGHT;
+      const minTopPre = Math.min(...prePositions.map(p => p.cy - ORB_SIZE / 2));
+      // Upward extension delta — how many extra pixels of window-height we
+      // need so the topmost orb (and the settings-headroom above it) fits
+      // inside the viewport. If the orbs already fit (e.g. the panel was
+      // dragged to mid-screen), delta = 0 and no resize happens.
+      const delta = Math.max(0, MARGIN + settingsHeadroom - minTopPre);
+
+      // Recompute final positions in POST-resize viewport coords. The window
+      // grows UP by `delta`, the panel anchors to the new bottom (body gets
+      // .radial-open + justify-content:flex-end), so every viewport-y shifts
+      // DOWN by `delta` inside the new (taller) window. Adding `delta` to
+      // every y gets us the right post-resize coordinates.
+      const tileCy = tileCyPre + delta;
+      const arcBaseY = arcBaseYPre + delta;
+      const positions = items.map((_, idx) => {
+        const cx = groupCx + RADIAL_X_OFFSETS[idx] + shiftX;
+        const cy = arcBaseY + RADIAL_Y_OFFSETS[idx];
+        return {
+          orbX: cx - ORB_SIZE / 2,
+          orbY: cy - ORB_SIZE / 2,
+          labelX: cx + ORB_SIZE / 2 + LABEL_GAP,
+          labelY: cy,
+          orbCx: cx,
+          orbCy: cy
+        };
+      });
 
       items.forEach((item, idx) => {
-        const el = document.createElement('div');
-        el.className = 'radial-item' + (item.danger ? ' danger' : '');
-        const detailHtml = item.detail ? `<span class="detail">${escapeHtml(item.detail)}</span>` : '';
-        el.innerHTML = `
-          <div class="icon">${item.icon}</div>
-          <div class="label">
-            <span class="verb">${escapeHtml(item.verb)}</span>
-            ${detailHtml}
-          </div>
+        // The orb itself — solid colored circle, gooey-merge candidate.
+        const orb = document.createElement('div');
+        orb.className = 'radial-orb'
+          + (item.danger ? ' danger' : '')
+          + (item.settings ? ' settings' : '')
+          + ` ${id}`;        // tag with agent id for any future per-agent tweaks
+        orb.title = item.title || item.verb;
+        orb.innerHTML = `
+          <span class="orb-icon">${item.icon}</span>
           <div class="confirm">
-            <span class="prompt"></span>
             <span class="ok">✓</span>
             <span class="no">✗</span>
           </div>
         `;
-        // Cascade stagger: top item lands first, each subsequent item 80ms
-        // later. Total reveal ~320ms. Reads as deal-out animation.
-        el.style.transitionDelay = `${idx * 80}ms`;
+        // Per-agent palette — applied as inline CSS variables. Danger and
+        // settings orbs override these via their own selectors so their CSS
+        // wins regardless of the agent.
+        if (!item.danger && !item.settings) {
+          orb.style.setProperty('--orb-light', palette.light);
+          orb.style.setProperty('--orb-mid',   palette.mid);
+          orb.style.setProperty('--orb-deep',  palette.deep);
+          orb.style.setProperty('--orb-glow',  palette.glow);
+        }
+        // Stagger so orbs leave the tile in sequence — the goo filter then
+        // smears them into a single blob that splits as it travels.
+        orb.style.transitionDelay = `${idx * RADIAL_STAGGER_MS}ms`;
 
-        const { x, y } = positions[idx];
-        // Resting position
-        el.style.setProperty('--x', `${x}px`);
-        el.style.setProperty('--y', `${y}px`);
-        // Spring origin: tile center, slightly offset so each item starts
-        // visually anchored to the right-clicked tile.
-        el.style.setProperty('--start-x', `${tileCx - ITEM_WIDTH / 2}px`);
-        el.style.setProperty('--start-y', `${tileCy - ITEM_HEIGHT / 2}px`);
+        const p = positions[idx];
+        orb.style.setProperty('--x', `${p.orbX}px`);
+        orb.style.setProperty('--y', `${p.orbY}px`);
+        // Mercury origin = post-resize tile center. Pre-resize tileCyPre + delta
+        // (computed above) so the start point lines up with where the tile
+        // actually sits in the new (taller) viewport.
+        orb.style.setProperty('--start-x', `${tileCx - ORB_SIZE / 2}px`);
+        orb.style.setProperty('--start-y', `${tileCy - ORB_SIZE / 2}px`);
 
-        el.addEventListener('click', (ev) => {
+        // The matching glass label pill — separate DOM node, not filtered.
+        const label = document.createElement('div');
+        label.className = 'radial-label' + (item.danger ? ' danger' : '');
+        const detailHtml = item.detail ? `<span class="detail">${escapeHtml(item.detail)}</span>` : '';
+        label.innerHTML = `
+          <span class="verb">${escapeHtml(item.verb)}</span>
+          ${detailHtml}
+        `;
+        label.style.setProperty('--lx', `${p.labelX}px`);
+        label.style.setProperty('--ly', `${p.labelY}px`);
+        // Stagger label fade-in slightly so they appear left-to-right after
+        // their respective orbs land.
+        label.style.transitionDelay = `${idx * 40}ms`;
+
+        // Click on either the orb OR its label fires the action. Both nodes
+        // share the same handler so users can hit the bigger label area too.
+        const fire = (ev) => {
           ev.stopPropagation();
-          item.action(el);
+          item.action(orb, label);
           if (!item.keepOpenOnClick) closeRadialMenu();
-        });
-        menu.appendChild(el);
+        };
+        orb.addEventListener('click', fire);
+        // Labels are pointer-events:none by default so they don't block the
+        // orb's hover effects mid-emergence; enable once visible.
+        label.addEventListener('click', fire);
+
+        // Cross-hover: hover on orb visually highlights its label, and vice
+        // versa, so the pairing reads as one unit.
+        const hoverOn = () => { orb.classList.add('hover'); label.classList.add('hover'); };
+        const hoverOff = () => { orb.classList.remove('hover'); label.classList.remove('hover'); };
+        orb.addEventListener('mouseenter', hoverOn);
+        orb.addEventListener('mouseleave', hoverOff);
+        label.addEventListener('mouseenter', hoverOn);
+        label.addEventListener('mouseleave', hoverOff);
+
+        // Stash the label on the orb for confirm-mode toggling.
+        orb._labelEl = label;
+        // Stash the resting orb-center too, so the settings panel can position
+        // itself off the gear orb without depending on getBoundingClientRect
+        // (which would return an interpolated mid-animation position if the
+        // user clicked during emergence).
+        orb._restCenter = { x: p.orbCx, y: p.orbCy };
+
+        orbsLayer.appendChild(orb);
+        labelsLayer.appendChild(label);
       });
 
-      // Expand window so the fan has room to render. The frameless transparent
-      // window has no visible bounds, so growing it just unlocks more usable
-      // viewport — the panel itself stays where it was.
+      // Window growth math. The radial menu hangs ABOVE the panel, so the
+      // window extends UPWARD into transparent space — and to keep the panel
+      // visually fixed, main.js shifts the window's y by the same delta
+      // (resize-window-anchored with anchor='top'). body.radial-open then
+      // anchors the panel to the bottom of the (now taller) body so every
+      // pixel of new height becomes empty space above the panel.
       const neededWidth = Math.max(window.innerWidth, Math.ceil(maxRequired + shiftX + MARGIN));
-      const neededHeight = Math.max(window.innerHeight, Math.ceil(maxBottom + MARGIN));
-      if (neededWidth > window.innerWidth || neededHeight > window.innerHeight) {
-        ipcRenderer.send('resize-window', { width: neededWidth, height: neededHeight });
+      const neededHeight = window.innerHeight + delta;
+      // Apply bottom-anchor only when we're actually growing the window. If
+      // the orbs already fit (rare — would need a very tall existing window),
+      // skipping radial-open avoids visually pushing the panel to the bottom
+      // of an unchanged window.
+      if (delta > 0) {
+        document.body.classList.add('radial-open');
+        ipcRenderer.send('resize-window-anchored', {
+          width: neededWidth,
+          height: neededHeight,
+          anchor: 'top'
+        });
+        radialAnchorActive = true;
+      } else if (neededWidth > window.innerWidth) {
+        // Pure horizontal expansion (orbs already fit vertically) — use the
+        // unanchored resize so width can grow without touching y.
+        ipcRenderer.send('resize-window', { width: neededWidth, height: window.innerHeight });
       }
 
-      // Force reflow so the start positions are committed before .open
-      // transitions to resting. Without this, the browser may collapse the
-      // start+end into a single frame and skip the spring animation.
-      void menu.offsetWidth;
-      menu.classList.add('open');
+      // Defer .open until after the next paint so:
+      //   (a) the resize-window-anchored has had a chance to land — orbs at
+      //       --start-x/--start-y are valid screen coords in the new viewport
+      //   (b) body.radial-open has reflowed (panel now at flex-end) — start
+      //       coords align with the tile's actual on-screen position
+      // Two rAF tics are belt-and-suspenders: one for layout, one for paint.
       radialOpenForId = id;
+      const launchOpen = () => {
+        // Re-check we weren't already closed in the meantime (rapid
+        // open-close-open pattern).
+        if (radialOpenForId !== id) return;
+        void menu.offsetWidth;
+        menu.classList.add('open');
+
+        // Settle / label timers fire RELATIVE to the moment the .open class
+        // was added — not relative to openRadialMenu entry — so the deferral
+        // doesn't visually clip the emergence animation.
+        const totalEmergeMs = RADIAL_SETTLE_DELAY_MS + (items.length - 1) * RADIAL_STAGGER_MS;
+        radialSettleTimer = setTimeout(() => {
+          orbsLayer.classList.add('settled');
+        }, totalEmergeMs);
+        radialLabelTimer = setTimeout(() => {
+          labelsLayer.querySelectorAll('.radial-label').forEach(l => {
+            l.classList.add('visible');
+            l.style.pointerEvents = 'auto';
+          });
+        }, RADIAL_LABEL_DELAY_MS + (items.length - 1) * RADIAL_STAGGER_MS);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(launchOpen));
 
       // Dismiss handlers: outside click, Escape, scroll, window blur.
       const onPointerDown = (ev) => {
@@ -1146,8 +1651,6 @@
       const onKey = (ev) => { if (ev.key === 'Escape') closeRadialMenu(); };
       const onScroll = () => closeRadialMenu();
       const onBlur = () => closeRadialMenu();
-      // Use capture phase for pointerdown so we catch the click before any
-      // tile's own handler retoggles selection.
       document.addEventListener('mousedown', onPointerDown, true);
       document.addEventListener('keydown', onKey);
       window.addEventListener('scroll', onScroll, true);
@@ -1162,33 +1665,233 @@
 
     function closeRadialMenu() {
       const menu = document.getElementById('radial-menu');
+      const orbsLayer = document.getElementById('radial-orbs');
+      const settingsLayer = document.getElementById('radial-settings');
       menu.classList.remove('open');
+      orbsLayer.classList.remove('settled');
+      settingsLayer.classList.remove('visible');
       radialOpenForId = null;
+      if (radialSettleTimer) { clearTimeout(radialSettleTimer); radialSettleTimer = null; }
+      if (radialLabelTimer)  { clearTimeout(radialLabelTimer);  radialLabelTimer  = null; }
       if (radialDismissCleanup) { radialDismissCleanup(); radialDismissCleanup = null; }
-      // Hide the container after the closing animation finishes (keeps items
-      // from blocking pointer events while invisible) and shrink the window
-      // back to the panel's natural size.
+      // Hide the container after the closing animation finishes and shrink
+      // the window back to the panel's natural size, restoring the captured
+      // y-position so we don't drift across multiple open/close cycles.
       setTimeout(() => {
         if (!menu.classList.contains('open')) {
-          menu.innerHTML = '';
+          orbsLayer.innerHTML = '';
+          document.getElementById('radial-labels').innerHTML = '';
+          settingsLayer.innerHTML = '';
+          // Order matters here:
+          //   1. Release the captured-y anchor on the main side. Main snaps
+          //      the window back to its original bounds (x, y, w, h). With
+          //      body still at .radial-open (panel at flex-end), the panel
+          //      stays glued to the bottom of the now-shrunken window —
+          //      which IS the original visible position. No jump.
+          //   2. Remove .radial-open. Panel goes back to its natural top-
+          //      aligned position. Since the window is already at original
+          //      height, top-aligned matches flex-end-aligned in this case
+          //      (panel.height + 28 padding == window.height), still no jump.
+          //   3. syncWindowSize as belt-and-suspenders. Renormalises in case
+          //      anything drifted (e.g. add-form was open across the radial
+          //      cycle and changed the natural height).
+          if (radialAnchorActive) {
+            ipcRenderer.send('resize-window-anchored', { release: true });
+            radialAnchorActive = false;
+          }
+          document.body.classList.remove('radial-open');
           syncWindowSize();
         }
       }, 320);
     }
 
-    // Inline confirm inside a radial item — used by the destructive "Close
-    // active sessions" action. Replaces the item's icon + label with a
-    // ✓ ✗ pair until one is clicked or 4s elapse.
-    function requestRadialConfirm(itemEl, prompt, onConfirm) {
-      const promptEl = itemEl.querySelector('.confirm .prompt');
-      promptEl.textContent = prompt;
-      itemEl.classList.add('confirming');
-      const ok = itemEl.querySelector('.confirm .ok');
-      const no = itemEl.querySelector('.confirm .no');
+    // ---------------------------------------------------------------------
+    // Inline settings panel — opens off the gear orb. Hosts the auto_restart
+    // toggle + 3 startup-command text fields (color, rename_to, startup_slash).
+    //
+    // Save semantics:
+    //   - toggle  → fire IPC immediately on change
+    //   - inputs  → fire IPC on blur AND on Enter (and only if value differs
+    //               from last-saved). Lightweight invalid-tint on garbage,
+    //               doesn't block save (user might genuinely want a custom
+    //               value the renderer doesn't recognise).
+    //
+    // Each save is a partial PATCH against /update-agent. On success we mutate
+    // the local agents[id] object so the UI stays in sync without a full reload
+    // (a reload would yank focus from the input the user just edited).
+    // ---------------------------------------------------------------------
+    function toggleSettingsPanel(id, gearOrbEl) {
+      const layer = document.getElementById('radial-settings');
+      // Already open for THIS gear → close.
+      if (layer.classList.contains('visible') && layer.dataset.agentId === id) {
+        layer.classList.remove('visible');
+        gearOrbEl.classList.remove('open');
+        return;
+      }
+      // Otherwise (re)open with current agent data.
+      gearOrbEl.classList.add('open');
+      renderSettingsPanel(id, gearOrbEl);
+    }
+
+    function renderSettingsPanel(id, gearOrbEl) {
+      const agent = agents[id];
+      if (!agent) return;
+      const layer = document.getElementById('radial-settings');
+      layer.dataset.agentId = id;
+      layer.innerHTML = `
+        <div class="settings-title">${escapeHtml(agent.displayName || id)} · settings</div>
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="verb">Auto-restart</div>
+            <div class="hint">Re-launch when the agent exits</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="set-autorestart" ${agent.autoRestart ? 'checked' : ''} />
+            <span class="track"></span>
+            <span class="knob"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label for="set-color">Color</label>
+          <input type="text" id="set-color" value="${escapeHtml(agent.color || '')}"
+                 placeholder="orange" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="settings-row">
+          <label for="set-rename">Rename to</label>
+          <input type="text" id="set-rename" value="${escapeHtml(agent.renameTo || '')}"
+                 placeholder="${escapeHtml((agent.displayName || id).toUpperCase())}"
+                 autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="settings-row">
+          <label for="set-slash">Startup</label>
+          <input type="text" id="set-slash" value="${escapeHtml(agent.startupSlash || '')}"
+                 placeholder="/gogo (empty = none)" autocomplete="off" spellcheck="false" />
+        </div>
+      `;
+
+      // Position the panel to the LEFT of the gear orb, vertically centered
+      // on the orb. If there's not enough room on the left (e.g. gear was
+      // shifted near the left edge of the screen by clamp logic), flip to
+      // the right side. Use the orb's RESTING center (stashed at create-time)
+      // rather than getBoundingClientRect() — the latter returns interpolated
+      // coords if the user clicked mid-emergence-animation.
+      const PANEL_W = 280;
+      const PANEL_GAP = 14;
+      const ORB_HALF = 22;
+      const center = gearOrbEl._restCenter || {
+        x: gearOrbEl.getBoundingClientRect().left + ORB_HALF,
+        y: gearOrbEl.getBoundingClientRect().top  + ORB_HALF
+      };
+      const tryLeftX = center.x - ORB_HALF - PANEL_GAP - PANEL_W;
+      const flipRightX = center.x + ORB_HALF + PANEL_GAP;
+      const sx = tryLeftX >= 12 ? tryLeftX : Math.min(flipRightX, window.innerWidth - PANEL_W - 12);
+      // Vertically clamp so the panel doesn't poke off the top/bottom of the
+      // viewport. Estimate panel height ~190px; --sy is the panel's CENTER
+      // (because of CSS translate3d(0, -50%, 0)), so we want
+      // 12 + 95 <= sy <= viewport - 12 - 95.
+      const PANEL_HALF_H = 95;
+      const wantedY = center.y;
+      const sy = Math.max(12 + PANEL_HALF_H, Math.min(window.innerHeight - 12 - PANEL_HALF_H, wantedY));
+      layer.style.setProperty('--sx', `${sx}px`);
+      layer.style.setProperty('--sy', `${sy}px`);
+
+      // Enable the slide-in transition on the next frame so it actually
+      // animates rather than appearing instantly.
+      requestAnimationFrame(() => layer.classList.add('visible'));
+
+      // ---- Wire up the toggle ----
+      const toggle = layer.querySelector('#set-autorestart');
+      toggle.addEventListener('change', async () => {
+        const next = toggle.checked;
+        // Optimistic update — flip local state immediately, roll back on err.
+        const prev = agent.autoRestart;
+        agent.autoRestart = next;
+        const res = await ipcRenderer.invoke('update-agent', { id, patch: { auto_restart: next } });
+        if (!res.ok) {
+          agent.autoRestart = prev;
+          toggle.checked = prev;
+          flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+        }
+      });
+
+      // ---- Wire up the three text inputs ----
+      // Map renderer-input-id → registry-field name + agent local field name.
+      const inputs = [
+        { el: layer.querySelector('#set-color'),  patchKey: 'color',         localKey: 'color' },
+        { el: layer.querySelector('#set-rename'), patchKey: 'rename_to',     localKey: 'renameTo' },
+        { el: layer.querySelector('#set-slash'),  patchKey: 'startup_slash', localKey: 'startupSlash' }
+      ];
+      inputs.forEach(({ el, patchKey, localKey }) => {
+        // Track the last-saved value so we can skip identical re-saves.
+        el.dataset.savedValue = el.value;
+
+        const validate = () => {
+          // Light validation only — tint border red on obvious garbage,
+          // never block save. The user might know something the renderer
+          // doesn't.
+          let bad = false;
+          const v = el.value.trim();
+          if (patchKey === 'startup_slash' && v && !/^\/[a-zA-Z][a-zA-Z0-9_-]*/.test(v)) bad = true;
+          if (patchKey === 'rename_to' && v && /\s/.test(v)) bad = true;
+          el.classList.toggle('invalid', bad);
+        };
+
+        const save = async () => {
+          const v = el.value.trim();
+          if (v === el.dataset.savedValue) return;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { [patchKey]: v } });
+          if (res.ok) {
+            el.dataset.savedValue = v;
+            agent[localKey] = v;
+            // Brief green pulse to confirm the save landed.
+            el.classList.add('saved');
+            setTimeout(() => el.classList.remove('saved'), 700);
+          } else {
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          }
+        };
+
+        el.addEventListener('input', validate);
+        el.addEventListener('blur', save);
+        el.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            ev.stopPropagation();
+            save();
+            el.blur();
+          }
+          if (ev.key === 'Escape') {
+            // Revert to last-saved + blur — but DON'T close the radial menu.
+            // stopPropagation prevents the document-level Escape handler
+            // (which would dismiss the entire menu) from firing.
+            ev.preventDefault();
+            ev.stopPropagation();
+            el.value = el.dataset.savedValue;
+            el.classList.remove('invalid');
+            el.blur();
+          }
+        });
+      });
+    }
+
+    // Inline confirm inside a radial orb — used by the destructive "Close
+    // session" action. Morphs the orb wider, swaps the icon for a ✓ ✗ pair,
+    // and rewrites the label to "KILL?". Auto-cancels after 4s.
+    function requestRadialConfirm(orbEl, labelEl, prompt, onConfirm) {
+      orbEl.classList.add('confirming');
+      labelEl.classList.add('confirming');
+      // Snapshot original label content so we can restore on cancel.
+      const originalLabelHtml = labelEl.innerHTML;
+      labelEl.innerHTML = `<span class="verb">${escapeHtml(prompt)}</span>`;
+
+      const ok = orbEl.querySelector('.confirm .ok');
+      const no = orbEl.querySelector('.confirm .no');
       let cancelled = false;
       const cleanup = () => {
         cancelled = true;
-        itemEl.classList.remove('confirming');
+        orbEl.classList.remove('confirming');
+        labelEl.classList.remove('confirming');
+        labelEl.innerHTML = originalLabelHtml;
         ok.removeEventListener('click', okHandler);
         no.removeEventListener('click', noHandler);
       };

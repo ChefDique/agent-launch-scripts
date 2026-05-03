@@ -50,6 +50,14 @@ function loadAgents() {
       tmuxTarget: a.tmux_target || a.display_name.toLowerCase(),
       cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
       color: a.color || null,
+      // Auto-restart defaults to true when the field is omitted (matches the
+      // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
+      autoRestart: a.auto_restart !== false,
+      // rename_to defaults to display_name uppercased (matches launch-agent.sh).
+      // We expose the resolved value so the renderer can show what's actually
+      // sent to /rename without re-implementing the default.
+      renameTo: a.rename_to || a.display_name.toUpperCase(),
+      startupSlash: a.startup_slash || '',
       avatar: a.avatar || `${a.id}.svg`
     }));
   } catch (err) {
@@ -252,6 +260,74 @@ ipcMain.on('resize-window', (event, { width, height }) => {
   const w = Math.max(380, Math.min(1200, Math.round(width || 620)));
   const h = Math.max(180, Math.min(900, Math.round(height || 240)));
   mainWindow.setContentSize(w, h, true);
+});
+
+// Resize-window-anchored: same as resize-window, but anchors the window's
+// y-coordinate so the panel stays visually fixed when the window grows
+// upward (the radial menu now fans ABOVE the panel — without this, growing
+// the window from the top-left origin pushes the panel downward visually).
+//
+// Strategy: track the original y the FIRST time the renderer asks for an
+// upward-anchored resize, then for every subsequent resize compute new y =
+// originalY - (newHeight - originalHeight). On 'release' the renderer asks
+// to restore — we replay the saved bounds.
+//
+// The renderer is the source of truth for w/h; we just shift y to compensate.
+let anchorOriginalBounds = null; // { x, y, width, height } captured at first resize-up
+ipcMain.on('resize-window-anchored', (event, { width, height, anchor, release } = {}) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  if (release) {
+    // Undo the upward shift while preserving any user-initiated motion that
+    // happened while the radial was open. We don't restore (x, y) verbatim
+    // from anchorOriginalBounds — that would yank the window back to its old
+    // position, undoing any drag the user did with the radial up. Instead:
+    //   newY = currentY + (currentHeight - originalHeight)
+    //   newHeight = originalHeight
+    //   keep current x, current width
+    // Net effect: window shrinks vertically by `delta` from the TOP, so the
+    // panel (anchored to the bottom in body.radial-open) stays put while the
+    // empty space above it disappears.
+    if (anchorOriginalBounds) {
+      const cur = mainWindow.getBounds();
+      const baseHeight = anchorOriginalBounds.height;
+      const heightDelta = cur.height - baseHeight;
+      mainWindow.setBounds({
+        x: cur.x,
+        y: cur.y + heightDelta,
+        width: cur.width,
+        height: baseHeight
+      });
+      anchorOriginalBounds = null;
+    }
+    return;
+  }
+
+  const w = Math.max(380, Math.min(1200, Math.round(width || 620)));
+  const h = Math.max(180, Math.min(900, Math.round(height || 240)));
+
+  // Capture the pre-grow bounds the first time we go upward, so close-time
+  // restore puts the panel exactly where it was. Subsequent calls during the
+  // same open arc reuse the original anchor (don't drift y on each goose).
+  const cur = mainWindow.getBounds();
+  if (!anchorOriginalBounds) {
+    anchorOriginalBounds = { x: cur.x, y: cur.y, width: cur.width, height: cur.height };
+  }
+
+  if (anchor === 'top') {
+    // Window grows upward: shift y up by (newHeight - originalHeight) so the
+    // panel's bottom edge stays put. We use CURRENT x/y as the base for the
+    // shift (rather than captured baseX/baseY) so that if the user dragged
+    // the window between grows, the drag is preserved. The captured values
+    // are only used to compute the height delta, not to relocate the window.
+    const baseHeight = anchorOriginalBounds.height;
+    const cur = mainWindow.getBounds();
+    const yShift = h - cur.height;       // additional upward extension this call
+    mainWindow.setBounds({ x: cur.x, y: cur.y - yShift, width: w, height: h });
+  } else {
+    // Default behavior matches the existing resize-window handler.
+    mainWindow.setContentSize(w, h, true);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -499,6 +575,44 @@ ipcMain.handle('restart-agent', async (event, id) => {
       });
     });
     return { ok: true, message: `sent SIGINT to ${match.coord} — restart loop will respawn in ~3s` };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Update-agent IPC — partial PATCH of a registry entry. The right-click menu
+// uses this to toggle auto_restart and edit color / rename_to / startup_slash.
+// Whitelist the writable fields so a renderer bug can't clobber load-bearing
+// keys like display_name or cwd. Booleans are coerced; strings are trimmed.
+const UPDATABLE_FIELDS = {
+  auto_restart:  v => Boolean(v),
+  color:         v => String(v || '').trim().toLowerCase(),
+  rename_to:     v => String(v || '').trim(),
+  startup_slash: v => String(v || '').trim()
+};
+ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+    if (!patch || typeof patch !== 'object') throw new Error('patch required');
+
+    // Filter the patch down to whitelisted fields with coerced values.
+    const cleanPatch = {};
+    for (const [k, v] of Object.entries(patch)) {
+      const coerce = UPDATABLE_FIELDS[k];
+      if (!coerce) continue;
+      cleanPatch[k] = coerce(v);
+    }
+    if (Object.keys(cleanPatch).length === 0) throw new Error('no updatable fields in patch');
+
+    let updatedEntry = null;
+    writeRegistry(data => {
+      const entry = (data.agents || []).find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent "${safeId}" not in registry`);
+      Object.assign(entry, cleanPatch);
+      updatedEntry = entry;
+    });
+    return { ok: true, entry: updatedEntry };
   } catch (err) {
     return { ok: false, error: err.message };
   }

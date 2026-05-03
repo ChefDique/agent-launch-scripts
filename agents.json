@@ -8,6 +8,7 @@
     "color": "Argument to claude's /color slash command. Set during the auto-inject sequence.",
     "rename_to": "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
     "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
+    "auto_restart": "If false, chq-tmux.sh's pane_loop exits after the agent quits instead of relooping after RESTART_DELAY. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
     "pre_launch": "Optional path to a hook script run before exec claude. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
     "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
     "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."

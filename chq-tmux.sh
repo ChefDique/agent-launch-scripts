@@ -112,8 +112,13 @@ pane_loop() {
   else
     invoke="bash \"$script\""
   fi
+  # auto_restart gate: re-read the registry each iteration so a renderer-side
+  # toggle takes effect without restarting the loop. `// true` makes the field
+  # opt-out — entries without it keep the historical always-restart behavior.
+  # Static agent-factory entries have no registry row; jq returns empty and the
+  # `[[ -z ... ]]` branch falls through to the always-restart path.
   cat <<LOOP
-cd "${cwd}" && { echo "[\$(date '+%F %T')] pane_loop start cmd=${invoke} log=${log}" | tee -a "${log}"; while true; do echo "[\$(date '+%F %T')] -> ${invoke}" | tee -a "${log}"; ${invoke}; rc=\$?; echo "[\$(date '+%F %T')] <- exit=\$rc, restarting in ${RESTART_DELAY}s" | tee -a "${log}"; sleep ${RESTART_DELAY}; done; }
+cd "${cwd}" && { echo "[\$(date '+%F %T')] pane_loop start cmd=${invoke} log=${log}" | tee -a "${log}"; while true; do echo "[\$(date '+%F %T')] -> ${invoke}" | tee -a "${log}"; ${invoke}; rc=\$?; ar=\$(jq -r --arg id "${slug}" '.agents[]? | select(.id==\$id) | .auto_restart // true' "${REGISTRY}" 2>/dev/null); if [[ -n "\$ar" && "\$ar" != "true" ]]; then echo "[\$(date '+%F %T')] <- exit=\$rc, auto_restart=false; loop exiting" | tee -a "${log}"; break; fi; echo "[\$(date '+%F %T')] <- exit=\$rc, restarting in ${RESTART_DELAY}s" | tee -a "${log}"; sleep ${RESTART_DELAY}; done; }
 LOOP
 }
 
