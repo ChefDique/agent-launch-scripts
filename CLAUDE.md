@@ -37,6 +37,7 @@ Default disposition: lean, executive, decision-disciplined per `~/.claude/rules/
 ## Outstanding for AgentRemote (the local Electron HUD)
 
 Backlog after the recent overhaul:
+- **Cron-driven `tmux send-keys` schedules** (deferred from 2026-05-03 session). Richard wants a clean way to schedule recurring tmux send-keys broadcasts to specific agent panes (e.g., daily standups, "kick off review" prompts). Plain `crontab -e` works (`/opt/homebrew/bin/tmux send-keys -t chq:0 "msg" Enter`) but the `/cron` skill handles the PATH and tmux-socket gotchas. Pick this up next session — explore whether a small helper script (`scripts/cron-poke.sh agent-id "msg"`) wrapping the right `tmux` env makes the cron entries cleaner.
 - Tmux command palette popover (~14 curated commands: pane break/join/kill/split/swap/zoom/resize, layout presets, window/session ops). Use the same hardened `execFile`-with-argv pattern.
 - Layout-preset selector for Deploy flow (un-greenlit pending iso direction).
 - Bidirectional chat (read agent replies into the panel via tmux pipe-pane / xterm.js) — explicitly deferred per Phase 3 in DESIGN.md.
