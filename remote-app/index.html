@@ -330,6 +330,282 @@
       text-transform: uppercase;
     }
 
+    /* ---------------------------------------------------------------------
+       F-key voice + select — keycap badge, recording state, transcript bubble,
+       toast. Tap F1-F5 = toggle select for that dock-position tile. Hold > 250ms
+       = start recording targeting just that agent (Web Speech API + AnalyserNode
+       for the audio-level ring). Release = transcribe + broadcast-message IPC
+       directly to that one agent. Esc during hold = cancel without sending.
+       --------------------------------------------------------------------- */
+
+    /* Tiny mechanical-keycap badge stacked below the avatar label inside the
+       tile's flex column. Reads "press this key, get this agent" without
+       competing with the avatar or status dot. Inset shadows + dual gradient
+       give a real-keycap depth feel; monospace character. */
+    .fkey-badge {
+      font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: rgba(255, 255, 255, 0.74);
+      width: 22px;
+      height: 13px;
+      line-height: 11px;
+      text-align: center;
+      border-radius: 4px;
+      background: linear-gradient(180deg, rgba(40, 42, 56, 0.95), rgba(20, 22, 32, 0.95));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.16),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      user-select: none;
+      margin-top: 1px;
+      transition:
+        color 0.18s var(--ease),
+        transform 0.18s var(--ease),
+        box-shadow 0.18s var(--ease),
+        opacity 0.18s var(--ease);
+    }
+    /* Edit mode hides keycap badges so they don't compete with the × badge. */
+    body.editing .fkey-badge { opacity: 0; }
+    /* When the recording state is on the tile, its keycap "depresses". */
+    .agent-tile.voice-recording-tile .fkey-badge {
+      color: var(--voice-rec);
+      background: linear-gradient(180deg, rgba(60, 24, 36, 0.96), rgba(38, 12, 22, 0.96));
+      border-color: rgba(255, 82, 116, 0.5);
+      box-shadow:
+        inset 0 1px 0 rgba(0, 0, 0, 0.4),
+        inset 0 -1px 0 rgba(255, 82, 116, 0.18),
+        0 0 8px var(--voice-rec-glow);
+      transform: translateY(1px);
+    }
+
+    /* Recording-color token: a saturated rose-coral that reads as "live"
+       without being stop-light red, and stays distinct from the panel's
+       amber accent. Glow alpha mirrors the .on status dot so the family
+       feels coherent. */
+    :root {
+      --voice-rec:        #ff5274;
+      --voice-rec-glow:   rgba(255, 82, 116, 0.6);
+      --voice-rec-soft:   rgba(255, 82, 116, 0.22);
+      --voice-rec-aurora: rgba(255, 82, 116, 0.28);
+    }
+
+    /* Audio-level reactive ring around the recording avatar. The ring is a
+       pseudo-element on .agent-btn so it can paint outside the 46px footprint
+       without layout. Scale tracks --audio-level (0..1) set by the rAF analyser
+       loop; brightness tracks it too via a CSS calc on the box-shadow alpha.
+       Default state (no recording) keeps it invisible / no transition cost. */
+    .agent-btn::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 18px;
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.92);
+      transition: opacity 0.18s var(--ease);
+      z-index: 0;
+    }
+    .agent-btn.voice-recording::after {
+      opacity: 1;
+      border: 2px solid var(--voice-rec);
+      box-shadow:
+        0 0 calc(12px + var(--audio-level, 0) * 28px) var(--voice-rec-glow),
+        inset 0 0 calc(8px + var(--audio-level, 0) * 18px) var(--voice-rec-soft);
+      transform: scale(calc(1 + var(--audio-level, 0) * 0.16));
+      transition: transform 0.06s linear, box-shadow 0.06s linear, opacity 0.18s var(--ease);
+    }
+    /* The active tile lifts and brightens its avatar. */
+    .agent-btn.voice-recording {
+      transform: translateY(-3px) scale(1.05);
+      border-color: var(--voice-rec) !important;
+      background: rgba(255, 82, 116, 0.08);
+      z-index: 8;
+    }
+    /* Aurora bloom directly behind the recording tile. Soft pulse tied to a
+       slow keyframe — the sharp reactivity comes from the ring, this is the
+       atmospheric backing layer. Inset kept tight so the panel's overflow:
+       hidden doesn't strip the bleed at the dock edges. */
+    .agent-tile.voice-recording-tile::before {
+      content: '';
+      position: absolute;
+      inset: -10px -8px;
+      background:
+        radial-gradient(ellipse at center, var(--voice-rec-aurora), transparent 65%);
+      pointer-events: none;
+      z-index: -1;
+      animation: voiceAurora 2.4s ease-in-out infinite;
+      filter: blur(8px);
+    }
+    @keyframes voiceAurora {
+      0%, 100% { opacity: 0.55; transform: scale(0.94); }
+      50%      { opacity: 0.95; transform: scale(1.08); }
+    }
+    /* Dim every other tile so the active one owns attention. body.voice-recording
+       is set by JS while a recording is live; the inverse selector targets only
+       the tiles that ARE NOT the recording one. */
+    body.voice-recording .agent-tile:not(.voice-recording-tile) {
+      opacity: 0.45;
+      filter: saturate(0.7);
+      transition: opacity 0.18s var(--ease), filter 0.18s var(--ease);
+    }
+    body.voice-recording .agent-tile.voice-recording-tile {
+      transition: opacity 0.18s var(--ease);
+    }
+
+    /* Cancel feedback: collapse-shake when Esc fires mid-hold. The class is
+       added immediately and removed after the animation so the tile reads
+       "cancelled" even after the recording state classes are stripped. */
+    .agent-tile.voice-cancel-shake .agent-btn {
+      animation: voiceCancelShake 0.28s ease-out;
+    }
+    @keyframes voiceCancelShake {
+      0%   { transform: translateX(0); }
+      20%  { transform: translateX(-3px) scale(0.97); }
+      40%  { transform: translateX(3px) scale(0.97); }
+      60%  { transform: translateX(-2px) scale(0.99); }
+      80%  { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+
+    /* Live transcript preview bubble — anchored ABOVE the active tile so it
+       doesn't fight the dock + label below the avatar. Fixed-position so it
+       can spill outside .panel without clipping. JS positions it on hold-start
+       relative to the tile's bounding rect. Same glass language as the radial
+       settings popover (rgba(8,8,14,0.78) + blur + saturate). */
+    .voice-transcript {
+      position: fixed;
+      pointer-events: none;
+      z-index: 9999;
+      max-width: 320px;
+      padding: 8px 12px 9px;
+      background: rgba(8, 8, 14, 0.86);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid var(--voice-rec);
+      border-radius: 10px;
+      box-shadow:
+        0 10px 32px rgba(0, 0, 0, 0.55),
+        0 0 18px var(--voice-rec-glow);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.2px;
+      line-height: 1.35;
+      opacity: 0;
+      transform: translateY(6px) scale(0.97);
+      transition:
+        opacity 0.18s var(--ease),
+        transform 0.18s var(--ease);
+    }
+    .voice-transcript.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    .voice-transcript .vt-target {
+      display: block;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      color: var(--voice-rec);
+      margin-bottom: 3px;
+    }
+    .voice-transcript .vt-text {
+      display: block;
+      max-height: 4.4em;
+      overflow: hidden;
+    }
+    .voice-transcript .vt-text.empty {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .voice-transcript .vt-cursor {
+      display: inline-block;
+      width: 6px;
+      margin-left: 2px;
+      background: var(--voice-rec);
+      animation: voiceTypingBlink 1s steps(1) infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes voiceTypingBlink {
+      0%, 50%   { opacity: 1; height: 0.9em; }
+      51%, 100% { opacity: 0; height: 0.9em; }
+    }
+    /* Permission-pending state — visible while getUserMedia is awaiting the
+       user's approval prompt. Light the bubble in muted text, no recording
+       color, so it's distinguishable from "transcribing". */
+    .voice-transcript.permission-pending {
+      border-color: var(--border-medium);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+    }
+    .voice-transcript.permission-pending .vt-target { color: var(--text-muted); }
+
+    /* Send / cancel toast — bottom-anchored thin bar that floats below the
+       panel. Fixed positioning so it can spill below the panel even when the
+       window has been auto-sized to the dock height. Auto-dismisses via JS
+       after 2.5s. Glass language matches the chat overlay's surface. */
+    .voice-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(8px);
+      z-index: 10000;
+      padding: 8px 14px;
+      background: rgba(8, 8, 14, 0.86);
+      backdrop-filter: blur(24px) saturate(140%);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      border: 1px solid var(--voice-rec);
+      border-radius: 999px;
+      box-shadow:
+        0 14px 36px rgba(0, 0, 0, 0.55),
+        0 0 18px var(--voice-rec-glow);
+      color: var(--text-primary);
+      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      font-size: 11.5px;
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+      max-width: 460px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s var(--ease), transform 0.22s var(--ease);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .voice-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .voice-toast.error {
+      border-color: rgba(255, 100, 130, 0.85);
+      box-shadow:
+        0 14px 36px rgba(0, 0, 0, 0.55),
+        0 0 18px rgba(255, 100, 130, 0.45);
+    }
+    .voice-toast .vt-arrow {
+      color: var(--voice-rec);
+      font-weight: 700;
+      letter-spacing: 0.6px;
+    }
+    .voice-toast.error .vt-arrow { color: #ff7090; }
+    .voice-toast .vt-target-name {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .voice-toast .vt-snippet {
+      color: var(--text-muted);
+      font-style: italic;
+      max-width: 360px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
     .add-btn {
       width: 46px;
       height: 46px;
@@ -2135,6 +2411,25 @@
     // Render
     // ---------------------------------------------------------------------
     async function loadAndRender() {
+      // Defensive: if a voice hold is mid-flight when the dock rebuilds (e.g.
+      // a status poll came back during a hold and triggered a re-render via
+      // some path, or drag-reorder fired), cancel it cleanly so we don't keep
+      // stale tile/btn references and orphan the analyser loop. Voice holds
+      // don't span re-renders.
+      if (typeof voiceRec !== 'undefined' && voiceRec) {
+        if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+          if (voiceRec.holdTimer) { clearTimeout(voiceRec.holdTimer); voiceRec.holdTimer = null; }
+          if (voiceRec.state === 'recording') {
+            try { cancelVoiceRecording({ shake: false }); } catch { /* ignore */ }
+          } else {
+            voiceRec.state = 'idle';
+            voiceRec.activeId = null;
+            voiceRec.activeIdx = null;
+          }
+          voiceRec.keyDown = null;
+        }
+      }
+
       let registry = [];
       try { registry = await ipcRenderer.invoke('get-agents'); }
       catch (err) { console.error('failed to load registry:', err); }
@@ -2318,6 +2613,19 @@
         nameLabel.textContent = labelTextFor(a);
         tile.appendChild(nameLabel);
 
+        // F-key keycap badge — small mechanical-keycap affordance below the
+        // label showing F1..F5 by dock position. Tap = toggle select for that
+        // tile (same as click); hold > 250ms = voice-record targeting that
+        // agent. Only the first 5 dock slots get a badge; F6+ no-op. The
+        // index is set after the dock is populated by tagFkeyBadges() so
+        // drag-reorder updates the assignment live.
+        const fkey = document.createElement('div');
+        fkey.className = 'fkey-badge';
+        fkey.id = `fkey-${id}`;
+        fkey.textContent = '';     // populated by tagFkeyBadges()
+        fkey.title = `Tap F-key to select · hold to dictate`;
+        tile.appendChild(fkey);
+
         // Drag-and-reorder wiring (v2.5). HTML5 DnD on the tile itself.
         // Source-side: dim the tile + suppress the default drag-image (which
         // looks awful on transparent windows — we use opacity dim as feedback
@@ -2335,6 +2643,29 @@
       add.textContent = '+';
       add.addEventListener('click', toggleAddForm);
       dock.appendChild(add);
+
+      // Tag F-key badges by current dock position. Called here so it runs
+      // every render — drag-reorder triggers a re-render via loadAndRender,
+      // which re-runs renderDock, which calls this. Slots beyond F5 get the
+      // empty hidden state.
+      tagFkeyBadges();
+    }
+
+    // Stamp F1..F5 onto the keycap badges of the leftmost 5 dock tiles. Tiles
+    // beyond slot 5 get an invisible badge (kept in DOM so the layout doesn't
+    // shift on drag-reorder; just hidden via opacity:0). Called from renderDock.
+    function tagFkeyBadges() {
+      agentOrder.forEach((id, idx) => {
+        const el = document.getElementById(`fkey-${id}`);
+        if (!el) return;
+        if (idx < 5) {
+          el.textContent = `F${idx + 1}`;
+          el.style.opacity = '';
+        } else {
+          el.textContent = '';
+          el.style.opacity = '0';
+        }
+      });
     }
 
     // ---------------------------------------------------------------------
@@ -3888,6 +4219,649 @@
       const id = agentOrder[idx];
       const btn = document.getElementById(`btn-${id}`);
       doAttach(id, btn);
+    });
+
+    // ---------------------------------------------------------------------
+    // F-key voice + select — F1..F5 mapped to dock display order.
+    // ---------------------------------------------------------------------
+    // Tap (press + release < 250ms) = toggle select for that tile (same as a
+    // click on the avatar — calls toggleAgent).
+    //
+    // Hold (press > 250ms without release) = start voice recording targeting
+    // ONLY that agent. Web Speech API for transcription, AnalyserNode for the
+    // audio-level reactive ring. On release: send the final transcript via the
+    // existing broadcast-message IPC with selectedAgents=[that one] and isAll
+    // false. The current multi-select state is NOT touched by hold-recordings.
+    //
+    // Esc during hold = cancel without sending (audio + transcript discarded).
+    // Mid-hold F-key = cancel the current recording, start a new one targeting
+    // the new agent.
+    //
+    // Dead-agent gate: if agents[id].running is false at release time, the
+    // tmux send is suppressed and an error toast surfaces ("X is offline —
+    // message discarded"). The recording itself runs normally; only the send
+    // is gated. This avoids mid-hold flickering on a stale running flag.
+    //
+    // Permission: getUserMedia is gated by macOS the first time. We surface a
+    // "requesting mic access…" hint while the prompt is up, and a permanent
+    // error toast if denied (hold-to-record disabled until next launch). Tap
+    // toggle stays available either way.
+    //
+    // Constraints (from the dispatch brief):
+    //   - No new dependencies; Web Speech + Web Audio are browser-builtin.
+    //   - Reuse broadcast-message IPC; don't introduce a new send pipeline.
+    //   - The keydown listener must NOT intercept F-keys when an INPUT or
+    //     TEXTAREA is focused (so the user can still type Fn shortcuts into
+    //     forms — none defined today, but the contract holds).
+    //   - rAF loop for the analyser, stopped on key release; no 60fps poll
+    //     while idle.
+
+    const FKEY_HOLD_THRESHOLD_MS = 250;
+    const FKEY_MAP = { F1: 0, F2: 1, F3: 2, F4: 3, F5: 4 };
+    const FKEY_KEYCODES = ['F1', 'F2', 'F3', 'F4', 'F5'];
+
+    // Single-instance state. A second F-key during an active hold cancels
+    // the first and replaces it; no concurrency.
+    const voiceRec = {
+      // Lifecycle:
+      //   idle           — no key pressed
+      //   pending        — key down, threshold timer running, hasn't crossed yet
+      //   recording      — threshold crossed; analyser running, recog active
+      //   permission_denied — getUserMedia rejected; only tap-toggle remains
+      state: 'idle',
+      activeId: null,           // agent id of the held tile (null when idle)
+      activeIdx: null,          // dock index, for the keycap depress animation
+      pressedAt: 0,
+      holdTimer: null,          // setTimeout firing on threshold cross
+      keyDown: null,            // currently-held key code (F1..F5) — used to
+                                // gate the keyup matcher when the user holds
+                                // multiple keys (we only respond to release of
+                                // the same key that started the hold)
+      tapAlreadyToggled: false, // true once a key crossed threshold so the
+                                // keyup handler doesn't fire toggleAgent
+      // Audio:
+      mediaStream: null,
+      audioCtx: null,
+      analyser: null,
+      analyserBuf: null,
+      rafId: null,
+      // Speech:
+      recog: null,
+      finalTranscript: '',
+      interimTranscript: '',
+      // DOM caches for the active tile:
+      btnEl: null,
+      tileEl: null,
+      transcriptEl: null
+    };
+
+    function fkeyAgentId(idx) {
+      if (idx < 0 || idx >= agentOrder.length) return null;
+      return agentOrder[idx];
+    }
+
+    // Web Speech API capability check. The constructor exists in Chromium
+    // even on platforms where the underlying engine is absent — we'll find
+    // out for sure at recog.start() time. Treat absence as a soft no-op:
+    // taps still toggle, holds simply don't transcribe.
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    function isSpeechAvailable() { return !!SpeechRecognitionCtor; }
+
+    // ---- Toast ----
+    let voiceToastTimer = null;
+    function showVoiceToast({ kind, target, snippet, ms = 2500 }) {
+      let el = document.getElementById('voice-toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'voice-toast';
+        el.className = 'voice-toast';
+        document.body.appendChild(el);
+      }
+      el.classList.toggle('error', kind === 'error');
+      const arrow = kind === 'error' ? '!' : '→';
+      const safeTarget = escapeHtml(target || '');
+      const safeSnippet = escapeHtml(String(snippet || '').slice(0, 60));
+      el.innerHTML = `<span class="vt-arrow">${arrow}</span>` +
+                     `<span class="vt-target-name">${safeTarget}</span>` +
+                     (safeSnippet ? `<span class="vt-snippet">${safeSnippet}</span>` : '');
+      requestAnimationFrame(() => el.classList.add('visible'));
+      if (voiceToastTimer) clearTimeout(voiceToastTimer);
+      voiceToastTimer = setTimeout(() => {
+        el.classList.remove('visible');
+        voiceToastTimer = null;
+      }, ms);
+    }
+
+    // ---- Transcript bubble ----
+    function ensureTranscriptEl() {
+      let el = document.getElementById('voice-transcript');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'voice-transcript';
+        el.className = 'voice-transcript';
+        el.innerHTML = '<span class="vt-target"></span><span class="vt-text empty"></span>';
+        document.body.appendChild(el);
+      }
+      return el;
+    }
+    function positionTranscriptBubble(tileEl) {
+      const el = ensureTranscriptEl();
+      const r = tileEl.getBoundingClientRect();
+      // Anchor above the tile, centered. Clamp to viewport so a left-edge
+      // tile doesn't push the bubble off-screen.
+      const winW = window.innerWidth;
+      const desiredW = Math.min(320, winW - 24);
+      let left = r.left + r.width / 2 - desiredW / 2;
+      left = Math.max(12, Math.min(left, winW - desiredW - 12));
+      el.style.left = `${Math.round(left)}px`;
+      el.style.maxWidth = `${desiredW}px`;
+      // Place above the tile with an 8px gap; collapse to below if the bubble
+      // would clip past the top of the window.
+      const bubbleH = el.offsetHeight || 56;
+      let top = r.top - bubbleH - 8;
+      if (top < 8) {
+        top = r.bottom + 8;
+      }
+      el.style.top = `${Math.round(top)}px`;
+      return el;
+    }
+    function setTranscriptText({ targetName, finalText, interimText, hint, permissionPending }) {
+      const el = ensureTranscriptEl();
+      el.classList.toggle('permission-pending', !!permissionPending);
+      const tgt = el.querySelector('.vt-target');
+      const txt = el.querySelector('.vt-text');
+      tgt.textContent = permissionPending
+        ? 'requesting mic access'
+        : `→ ${targetName || ''}`;
+      const composed = (finalText || '') + (interimText || '');
+      if (hint) {
+        txt.classList.add('empty');
+        txt.textContent = hint;
+        return;
+      }
+      if (!composed) {
+        txt.classList.add('empty');
+        txt.innerHTML = 'listening…<span class="vt-cursor">&nbsp;</span>';
+      } else {
+        txt.classList.remove('empty');
+        // Show final text in primary color, interim in muted italic so the
+        // user can see what's still subject to revision. Cursor follows.
+        const safeFinal = escapeHtml(finalText || '');
+        const safeInterim = escapeHtml(interimText || '');
+        txt.innerHTML =
+          (safeFinal ? `<span>${safeFinal}</span>` : '') +
+          (safeInterim
+            ? `<span style="color: var(--text-muted); font-style: italic;">${safeFinal ? ' ' : ''}${safeInterim}</span>`
+            : '') +
+          '<span class="vt-cursor">&nbsp;</span>';
+      }
+    }
+    function showTranscriptBubble(tileEl) {
+      const el = positionTranscriptBubble(tileEl);
+      requestAnimationFrame(() => el.classList.add('visible'));
+    }
+    function hideTranscriptBubble() {
+      const el = document.getElementById('voice-transcript');
+      if (!el) return;
+      el.classList.remove('visible');
+      // Leave element in DOM for re-use; cheap.
+    }
+
+    // ---- Audio analyser loop ----
+    // Drives the --audio-level CSS var from getByteFrequencyData. Levels are
+    // smoothed with a leaky integrator so the ring breathes rather than
+    // flickering on every frame. The rAF id is stashed so cancelVoiceRec can
+    // tear it down on release / cancel.
+    function startAnalyserLoop() {
+      const buf = voiceRec.analyserBuf;
+      const analyser = voiceRec.analyser;
+      const btn = voiceRec.btnEl;
+      if (!buf || !analyser || !btn) return;
+      let smoothed = 0;
+      const tick = () => {
+        if (!voiceRec.analyser || voiceRec.state !== 'recording') {
+          voiceRec.rafId = null;
+          return;
+        }
+        analyser.getByteFrequencyData(buf);
+        // RMS-ish: average bin energy / 255 (already byte-scaled). Skipping
+        // the actual sqrt because perceptual smoothing handles the curve.
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i];
+        const avg = sum / (buf.length * 255);   // 0..1
+        // Leaky integrator: 0.7 prev + 0.3 new — fast enough to feel reactive
+        // without strobing. Bump the floor a touch so the ring never sits
+        // dead-flat even in silence (gives ambient breath).
+        smoothed = smoothed * 0.7 + avg * 0.3;
+        const level = Math.min(1, Math.max(0.04, smoothed * 2.0));
+        btn.style.setProperty('--audio-level', level.toFixed(3));
+        voiceRec.rafId = requestAnimationFrame(tick);
+      };
+      voiceRec.rafId = requestAnimationFrame(tick);
+    }
+
+    // ---- Recording lifecycle ----
+    function applyRecordingClasses(idx, id) {
+      const tile = document.querySelector(`.agent-tile[data-agent-id="${id}"]`);
+      const btn = document.getElementById(`btn-${id}`);
+      if (!tile || !btn) return null;
+      // Strip any prior recording classes (defensive — should already be clean).
+      document.querySelectorAll('.agent-tile.voice-recording-tile').forEach(t => t.classList.remove('voice-recording-tile'));
+      document.querySelectorAll('.agent-btn.voice-recording').forEach(b => b.classList.remove('voice-recording'));
+      tile.classList.add('voice-recording-tile');
+      btn.classList.add('voice-recording');
+      btn.style.setProperty('--audio-level', '0.04');
+      document.body.classList.add('voice-recording');
+      voiceRec.btnEl = btn;
+      voiceRec.tileEl = tile;
+      return { tile, btn };
+    }
+    function clearRecordingClasses() {
+      if (voiceRec.btnEl) {
+        voiceRec.btnEl.classList.remove('voice-recording');
+        voiceRec.btnEl.style.removeProperty('--audio-level');
+      }
+      if (voiceRec.tileEl) voiceRec.tileEl.classList.remove('voice-recording-tile');
+      document.body.classList.remove('voice-recording');
+    }
+
+    async function startVoiceRecording(idx, id) {
+      const agent = agents[id];
+      if (!agent) return;
+      const targetName = labelTextFor(agent);
+
+      const ui = applyRecordingClasses(idx, id);
+      if (!ui) return;
+      voiceRec.activeId = id;
+      voiceRec.activeIdx = idx;
+      voiceRec.finalTranscript = '';
+      voiceRec.interimTranscript = '';
+      // Show the bubble immediately in permission-pending state so the user
+      // sees feedback even if getUserMedia takes a beat to resolve.
+      setTranscriptText({ targetName, permissionPending: true });
+      showTranscriptBubble(ui.tile);
+
+      // Get the mic stream first; the analyser hangs off it. Permission denied
+      // here aborts the recording but the recording-state UI still got a
+      // momentary flash, which is fine — the user gets a clear error toast.
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        // Denied or device missing. State change → permission_denied so future
+        // holds short-circuit (taps still work).
+        clearRecordingClasses();
+        hideTranscriptBubble();
+        voiceRec.state = 'permission_denied';
+        voiceRec.activeId = null;
+        showVoiceToast({
+          kind: 'error',
+          target: 'Mic access denied',
+          snippet: 'F-key voice disabled — grant in System Settings',
+          ms: 4500
+        });
+        return;
+      }
+      voiceRec.mediaStream = stream;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new Ctx();
+        const src = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;          // small bin count → fast loop
+        analyser.smoothingTimeConstant = 0.5;
+        src.connect(analyser);
+        voiceRec.audioCtx = ctx;
+        voiceRec.analyser = analyser;
+        voiceRec.analyserBuf = new Uint8Array(analyser.frequencyBinCount);
+      } catch (err) {
+        // AudioContext failure is rare on Electron but possible if the
+        // session has been suspended. The recording can still proceed via
+        // recog; the ring just won't react.
+        console.warn('[voice] AudioContext init failed:', err && err.message);
+      }
+
+      // Drop permission-pending flag and start the bubble in active mode.
+      setTranscriptText({ targetName, finalText: '', interimText: '' });
+
+      // Speech recognition. Each recording gets a fresh recognizer — reusing
+      // them is brittle on Chromium's webkitSpeechRecognition (the engine
+      // sometimes refuses a re-start after stop()).
+      if (isSpeechAvailable()) {
+        try {
+          const recog = new SpeechRecognitionCtor();
+          recog.continuous = true;
+          recog.interimResults = true;
+          recog.lang = 'en-US';
+          recog.onresult = (ev) => {
+            // Walk all results from this session. Final results stack onto
+            // finalTranscript; interim get re-rendered each tick.
+            let interim = '';
+            let finalAdded = '';
+            for (let i = ev.resultIndex; i < ev.results.length; i++) {
+              const r = ev.results[i];
+              const txt = r[0] && r[0].transcript ? r[0].transcript : '';
+              if (r.isFinal) finalAdded += txt;
+              else interim += txt;
+            }
+            if (finalAdded) {
+              voiceRec.finalTranscript = (voiceRec.finalTranscript + ' ' + finalAdded).replace(/\s+/g, ' ').trim();
+            }
+            voiceRec.interimTranscript = interim.trim();
+            if (voiceRec.state === 'recording') {
+              setTranscriptText({
+                targetName,
+                finalText: voiceRec.finalTranscript,
+                interimText: voiceRec.interimTranscript
+              });
+            }
+          };
+          recog.onerror = (ev) => {
+            const code = ev && ev.error;
+            // 'aborted' fires on every clean stop; benign.
+            if (code === 'aborted' || code === 'no-speech') return;
+            console.warn('[voice] recog error:', code);
+            if (voiceRec.state === 'recording' && code !== 'audio-capture') {
+              setTranscriptText({
+                targetName,
+                hint: `(speech engine: ${code})`
+              });
+            }
+          };
+          recog.onend = () => { /* no-op; we drive lifecycle from key events */ };
+          recog.start();
+          voiceRec.recog = recog;
+        } catch (err) {
+          // Chromium occasionally complains "already started" on rapid hold/release
+          // cycles. Surface as a hint but keep recording — the analyser ring
+          // still works, just no transcript.
+          console.warn('[voice] recog.start failed:', err && err.message);
+          setTranscriptText({ targetName, hint: '(speech engine unavailable)' });
+        }
+      } else {
+        setTranscriptText({ targetName, hint: '(speech recognition unavailable)' });
+      }
+
+      voiceRec.state = 'recording';
+      startAnalyserLoop();
+    }
+
+    // Stop everything: recog, audio context, analyser loop. Returns the final
+    // transcript (concatenation of finalTranscript + any pending interim that
+    // we'll choose to send). Caller decides whether to fire the IPC.
+    function stopRecordingResources() {
+      if (voiceRec.rafId) {
+        cancelAnimationFrame(voiceRec.rafId);
+        voiceRec.rafId = null;
+      }
+      if (voiceRec.recog) {
+        try { voiceRec.recog.stop(); } catch { /* ignore */ }
+        voiceRec.recog = null;
+      }
+      if (voiceRec.mediaStream) {
+        try { voiceRec.mediaStream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
+        voiceRec.mediaStream = null;
+      }
+      if (voiceRec.audioCtx) {
+        try { voiceRec.audioCtx.close(); } catch { /* ignore */ }
+        voiceRec.audioCtx = null;
+      }
+      voiceRec.analyser = null;
+      voiceRec.analyserBuf = null;
+    }
+
+    // Cancel without sending: discard transcript, collapse UI with a shake.
+    function cancelVoiceRecording({ shake = true } = {}) {
+      const id = voiceRec.activeId;
+      const tileEl = voiceRec.tileEl;
+      stopRecordingResources();
+      clearRecordingClasses();
+      hideTranscriptBubble();
+      if (shake && tileEl) {
+        tileEl.classList.add('voice-cancel-shake');
+        setTimeout(() => tileEl.classList.remove('voice-cancel-shake'), 320);
+      }
+      voiceRec.state = voiceRec.state === 'permission_denied' ? 'permission_denied' : 'idle';
+      voiceRec.activeId = null;
+      voiceRec.activeIdx = null;
+      voiceRec.btnEl = null;
+      voiceRec.tileEl = null;
+      voiceRec.finalTranscript = '';
+      voiceRec.interimTranscript = '';
+      // Don't show a toast — the shake is the entire feedback.
+      return id;
+    }
+
+    // Finish + send. Drains any in-flight interim into finalTranscript so
+    // partial speech still ships if the user releases mid-sentence (Web Speech
+    // usually finalizes on stop(), but the renderer hasn't necessarily seen
+    // the final-flag result by the time we call stop()).
+    function finishVoiceRecording() {
+      const id = voiceRec.activeId;
+      const agent = agents[id];
+      const targetName = agent ? labelTextFor(agent) : (id || '');
+
+      // Drain interim. We give recog 80ms to flush a final result before
+      // tearing down — short enough not to feel sluggish, long enough that
+      // a half-spoken word usually finalizes. If nothing arrives, we ship
+      // the interim as-is (still better than dropping the speech).
+      let composed = '';
+      const drain = () => {
+        composed = (voiceRec.finalTranscript + ' ' + voiceRec.interimTranscript).replace(/\s+/g, ' ').trim();
+      };
+
+      // Capture pre-teardown state we'll need post-stop.
+      const tileEl = voiceRec.tileEl;
+
+      // Try a short flush window for one last final result.
+      try {
+        if (voiceRec.recog) {
+          // recog.stop() requests a final result; the onresult handler should
+          // fire one more time with isFinal=true if there's pending audio.
+          voiceRec.recog.stop();
+        }
+      } catch { /* ignore */ }
+      setTimeout(() => {
+        drain();
+        const finalMsg = composed;
+        // Now actually tear down the rest of the resources.
+        stopRecordingResources();
+        clearRecordingClasses();
+        hideTranscriptBubble();
+
+        const wasId = id;
+        voiceRec.state = 'idle';
+        voiceRec.activeId = null;
+        voiceRec.activeIdx = null;
+        voiceRec.btnEl = null;
+        voiceRec.tileEl = null;
+        voiceRec.finalTranscript = '';
+        voiceRec.interimTranscript = '';
+
+        if (!finalMsg) {
+          // Nothing transcribed — silent no-op (no toast). User probably
+          // changed their mind and just released without speaking.
+          return;
+        }
+        // Dead-agent gate: if the agent isn't running, suppress the send and
+        // surface an error toast. The recording state already tore down, so
+        // the user just sees the toast.
+        if (!agents[wasId] || !agents[wasId].running) {
+          showVoiceToast({
+            kind: 'error',
+            target: `${targetName} is offline`,
+            snippet: 'message discarded',
+            ms: 3000
+          });
+          return;
+        }
+        // Send via the existing broadcast-message IPC. Single recipient.
+        const payload = [{ id: wasId, tmuxTarget: agents[wasId].tmuxTarget }];
+        ipcRenderer.send('broadcast-message', {
+          message: finalMsg,
+          selectedAgents: payload,
+          isAll: false
+        });
+        showVoiceToast({
+          kind: 'ok',
+          target: targetName,
+          snippet: finalMsg,
+          ms: 2500
+        });
+      }, 80);
+    }
+
+    // ---- Keydown / keyup handlers ----
+    window.addEventListener('keydown', (ev) => {
+      const code = ev.code || ev.key;
+      // Only trap F1..F5 with no modifier. Cmd / Ctrl / Alt / Shift + Fn passes through.
+      if (!FKEY_KEYCODES.includes(code)) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
+
+      // Don't hijack F-keys when text input has focus — input forms / chat box.
+      const t = ev.target;
+      const tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+
+      // Always preventDefault so Chromium's default F-key behaviors (open dev
+      // tools, fullscreen toggle, etc) don't fire when no modifier is held.
+      ev.preventDefault();
+      // Browsers fire keydown repeatedly while a key is held (autorepeat). We
+      // only care about the first transition.
+      if (ev.repeat) return;
+
+      const idx = FKEY_MAP[code];
+      const id = fkeyAgentId(idx);
+      if (!id) return;     // F4/F5 with fewer agents in dock — no-op.
+
+      // If permission was previously denied, fall back to a tap-only path:
+      // every keypress just toggles select.
+      if (voiceRec.state === 'permission_denied') {
+        if (document.body.classList.contains('editing')) return;
+        toggleAgent(id);
+        return;
+      }
+
+      // Concurrent F-key during a hold → cancel current, start a new pending
+      // for the new agent. The first hold is discarded (no send).
+      if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+        // Only displace if it's a DIFFERENT key. Same-key keydowns from
+        // weird OS / IME re-fires are filtered by ev.repeat above.
+        if (voiceRec.keyDown !== code) {
+          if (voiceRec.state === 'recording') {
+            cancelVoiceRecording({ shake: true });
+          } else if (voiceRec.holdTimer) {
+            clearTimeout(voiceRec.holdTimer);
+            voiceRec.holdTimer = null;
+            voiceRec.state = 'idle';
+          }
+        } else {
+          return;
+        }
+      }
+
+      // Fresh press: arm the threshold timer. The key-as-a-tap path runs in
+      // keyup if we never crossed the threshold.
+      voiceRec.state = 'pending';
+      voiceRec.activeId = id;
+      voiceRec.activeIdx = idx;
+      voiceRec.keyDown = code;
+      voiceRec.pressedAt = Date.now();
+      voiceRec.tapAlreadyToggled = false;
+      voiceRec.holdTimer = setTimeout(() => {
+        voiceRec.holdTimer = null;
+        if (voiceRec.state !== 'pending') return;     // pre-empted
+        if (voiceRec.keyDown !== code) return;        // displaced
+        // Edit-mode gate: still allow the tap path, but don't enter the
+        // recording state — matches the dblclick / Cmd+digit edit-mode gate.
+        if (document.body.classList.contains('editing')) {
+          voiceRec.state = 'idle';
+          voiceRec.activeId = null;
+          voiceRec.activeIdx = null;
+          return;
+        }
+        startVoiceRecording(idx, id);
+      }, FKEY_HOLD_THRESHOLD_MS);
+    });
+
+    window.addEventListener('keyup', (ev) => {
+      const code = ev.code || ev.key;
+      if (!FKEY_KEYCODES.includes(code)) return;
+
+      // Only respond to the release of the same key that started the hold.
+      if (voiceRec.keyDown && voiceRec.keyDown !== code) return;
+
+      // Pre-threshold release → tap. Run toggleAgent on the held tile.
+      if (voiceRec.state === 'pending' && voiceRec.holdTimer) {
+        clearTimeout(voiceRec.holdTimer);
+        voiceRec.holdTimer = null;
+        const id = voiceRec.activeId;
+        voiceRec.state = 'idle';
+        voiceRec.activeId = null;
+        voiceRec.activeIdx = null;
+        voiceRec.keyDown = null;
+        if (id && !document.body.classList.contains('editing')) {
+          toggleAgent(id);
+        }
+        return;
+      }
+
+      // Post-threshold release → finish + send.
+      if (voiceRec.state === 'recording') {
+        voiceRec.keyDown = null;
+        finishVoiceRecording();
+        return;
+      }
+
+      // Stray release (e.g. permission_denied path).
+      voiceRec.keyDown = null;
+    });
+
+    // Esc during a hold → cancel without sending. We listen alongside the
+    // existing radial-menu / chat-overlay Esc handlers; when neither of those
+    // is open, this branch wins. The radial / chat handlers add their own
+    // listeners with capture on document — our listener is on window, fires
+    // last in the bubble phase, so we don't preempt them.
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending') return;
+      // Don't compete with overlay / radial Esc handlers — they preventDefault
+      // already if active. We only act when our state machine is engaged.
+      if (voiceRec.holdTimer) {
+        clearTimeout(voiceRec.holdTimer);
+        voiceRec.holdTimer = null;
+      }
+      if (voiceRec.state === 'recording') {
+        cancelVoiceRecording({ shake: true });
+      } else {
+        voiceRec.state = 'idle';
+        voiceRec.activeId = null;
+        voiceRec.activeIdx = null;
+      }
+      voiceRec.keyDown = null;
+      // Don't preventDefault here — leaving it lets other Esc handlers
+      // (chat-overlay close, radial-menu close) still fire if THEY were the
+      // intended target.
+    });
+
+    // Window blur (Cmd+Tab away) mid-hold → cancel quietly. Without this, the
+    // recording stays armed but the keyup never lands, leaking the
+    // mediaStream / audioCtx and pinning the dock UI in recording state. No
+    // shake feedback — the window isn't visible to show it.
+    window.addEventListener('blur', () => {
+      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending') return;
+      if (voiceRec.holdTimer) {
+        clearTimeout(voiceRec.holdTimer);
+        voiceRec.holdTimer = null;
+      }
+      if (voiceRec.state === 'recording') {
+        cancelVoiceRecording({ shake: false });
+      } else {
+        voiceRec.state = 'idle';
+        voiceRec.activeId = null;
+        voiceRec.activeIdx = null;
+      }
+      voiceRec.keyDown = null;
     });
 
     // ---------------------------------------------------------------------

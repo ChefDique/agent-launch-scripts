@@ -119,6 +119,27 @@ function createWindow() {
     storages: ['localstorage', 'sessionstorage', 'indexdb', 'shadercache']
   }).catch(() => { /* no-op: cleanup is best-effort */ });
 
+  // Permission handler for the F-key voice feature (added 2026-05-03). The
+  // renderer calls navigator.mediaDevices.getUserMedia({audio:true}) on the
+  // first hold-to-record. Electron's default permission policy denies
+  // 'media' / 'microphone' / 'audioCapture' on file:// origins, which would
+  // pre-empt the macOS prompt and cause an immediate NotAllowedError. We
+  // explicitly allow these for our own renderer; macOS still gates with its
+  // own Mic permission prompt for the Electron binary on first request.
+  // 'speechRecognition' is the Chromium permission token for
+  // webkitSpeechRecognition in Electron 28+.
+  sess.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (['media', 'microphone', 'audioCapture', 'speechRecognition'].includes(permission)) {
+      return callback(true);
+    }
+    callback(false);
+  });
+  if (typeof sess.setPermissionCheckHandler === 'function') {
+    sess.setPermissionCheckHandler((_wc, permission) => {
+      return ['media', 'microphone', 'audioCapture', 'speechRecognition'].includes(permission);
+    });
+  }
+
   mainWindow = new BrowserWindow({
     width: 620,
     height: 240,
