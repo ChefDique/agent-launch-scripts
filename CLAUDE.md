@@ -37,10 +37,16 @@ Default disposition: lean, executive, decision-disciplined per `~/.claude/rules/
 ## Outstanding for AgentRemote (the local Electron HUD)
 
 Backlog after the recent overhaul:
+- **Polish pass — needs tmux-electron-master with new skill belt.** Multiple small bugs scattered through the UI: multiplane is glitchy (Z-stacked window/parallax issues), menu animation and styling don't match the rest of the app, SVG avatars look less pro than Claude.ai-tier, every popup window needs a (X) close affordance, animations across the board can be way tighter. The wow factor is the thing that sells — agent now has `icon-design` + `motion-design` + `interaction-design` + `frontend-design` + `premium-frontend-ui` + `excalidraw` skills loaded for this pass. Voice recording also doesn't currently send a message — `[voice] recog error: network` in out.log; Web SpeechRecognition is fundamentally broken in Electron (no Google API key). Fix is to swap to local whisper via getUserMedia + MediaRecorder + shell-out (mirror the VoiceType architecture in `~/ai_projects/voicetype/`).
+- **Cron monitor popup (read-only).** Aggregates entries from system crontab + each repo's cron files (trading dashboard's existing system, anywhere else they live) into one human-readable view, default 24-hour timetable with agent rows + next-fire highlighted. Source of truth stays where the crons live; AgentRemote is the monitor, never the registry. Zero new infrastructure.
 - **Cron-driven `tmux send-keys` schedules** (deferred from 2026-05-03 session). Richard wants a clean way to schedule recurring tmux send-keys broadcasts to specific agent panes (e.g., daily standups, "kick off review" prompts). Plain `crontab -e` works (`/opt/homebrew/bin/tmux send-keys -t chq:0 "msg" Enter`) but the `/cron` skill handles the PATH and tmux-socket gotchas. Pick this up next session — explore whether a small helper script (`scripts/cron-poke.sh agent-id "msg"`) wrapping the right `tmux` env makes the cron entries cleaner.
 - Tmux command palette popover (~14 curated commands: pane break/join/kill/split/swap/zoom/resize, layout presets, window/session ops). Use the same hardened `execFile`-with-argv pattern.
 - Layout-preset selector for Deploy flow (un-greenlit pending iso direction).
 - Bidirectional chat (read agent replies into the panel via tmux pipe-pane / xterm.js) — explicitly deferred per Phase 3 in DESIGN.md.
+
+## Sister project — VoiceType
+
+`~/ai_projects/voicetype/` — sellable WhisperFlow alternative spawned 2026-05-03. Local voice-to-text, no API key, one-time license positioning. v0.1 scaffold: menu bar Electron app, Option+Shift+Space toggle, getUserMedia → whisper CLI → pbcopy + osascript paste. Pitch: "Whisper, but you don't need to install anything." Independent of AgentRemote but shares the simplicity-as-the-product positioning.
 
 Already shipped recent: registry-driven launcher, Edit-mode-gated destructive ops, radial fan menu (cwd / kill / restart / attach), name labels, send-Enter fix, Ctrl+Shift+Space global shortcut, drag-region fix.
 
