@@ -230,7 +230,14 @@ cmd_start() {
           tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script" "$dept")" Enter
           ;;
         windows|ittab)
-          tmux new-window -t "$SESSION" -n "$wname" -c "$cwd"
+          # Trailing colon = session-target form. Without it, `-t "$SESSION"`
+          # is ambiguous when the existing first window happens to share the
+          # session name (which it does — line 213 hardcodes -n "chq" inside
+          # session "chq"); tmux resolves `-t chq` to the existing window
+          # and new-window fails with "create window failed: index 0 in use".
+          # Repro: tmux new-session -d -s chq -n chq; tmux new-window -t chq -n x
+          # → "create window failed: index 0 in use". With -t "chq:" it works.
+          tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd"
           tmux select-pane -t "${SESSION}:${wname}.0" -T "$wname"
           tmux send-keys -t "${SESSION}:${wname}.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
           ;;
@@ -370,8 +377,11 @@ cmd_add() {
         new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
         ;;
       windows|ittab)
-        # new-window -P -F prints the new window's pane id directly.
-        new_pane_id=$(tmux new-window -t "$SESSION" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
+        # new-window -P -F prints the new window's pane id directly. Trailing
+        # colon = session-target form (avoids the same -t-ambiguity bug
+        # documented in cmd_start above when the first window's name equals
+        # the session name).
+        new_pane_id=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
         ;;
     esac
     tmux select-pane -t "$new_pane_id" -T "$wname"
