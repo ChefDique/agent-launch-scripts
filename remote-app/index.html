@@ -1304,13 +1304,14 @@
        tmux-pane mirror. Richard chose this scope explicitly. */
     .chat-overlay {
       position: fixed;
-      left: 50%;
-      top: 50%;
-      transform: translate3d(-50%, -50%, 0) scale(0.96);
-      width: 540px;
-      height: 360px;
-      max-width: calc(100vw - 24px);
-      max-height: calc(100vh - 24px);
+      /* Fill the window with a thin glass margin instead of centering at a
+         fixed size — earlier impl centered a 540×360 box, which left ugly
+         AgentRemote panel voids above/below when the window grew. Now the
+         overlay grows with the window and the chat page gets every bit of
+         vertical space available. */
+      inset: 12px;
+      transform: scale(0.97);
+      transform-origin: 50% 50%;
 
       display: none;
       flex-direction: column;
@@ -1338,7 +1339,7 @@
     }
     .chat-overlay.shown { display: flex; }
     .chat-overlay.shown.visible {
-      transform: translate3d(-50%, -50%, 0) scale(1);
+      transform: scale(1);
       opacity: 1;
       pointer-events: auto;
     }
@@ -3464,8 +3465,12 @@
     // Min size needed to fit the 540×360 overlay + body padding (14px) +
     // 12px margin top/bottom for visual breathing room. Width includes the
     // body's 14px+14px padding.
-    const CHAT_OVERLAY_MIN_W = 540 + 28 + 24;     // 592
-    const CHAT_OVERLAY_MIN_H = 360 + 28 + 24;     // 412
+    // When chat opens, grow the AgentRemote window enough that the overlay
+    // (which now fills the window minus 12px inset) has comfortable room
+    // for the inner page's header / message log / composer / status footer.
+    // Width allows a long input line; height fits ~12 messages before scroll.
+    const CHAT_OVERLAY_MIN_W = 620;
+    const CHAT_OVERLAY_MIN_H = 540;
     let chatWebviewLoaded = false;                // src has been set at least once
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
     let chatOverlayShownState = false;            // gates syncWindowSize so the
@@ -3601,7 +3606,25 @@
     // Wire webview events: did-fail-load swaps in the fallback view (covers
     // the case where the server died AFTER the probe passed but BEFORE the
     // navigation finished). did-finish-load drops the fallback class so the
-    // webview becomes visible if a retry recovered.
+    // webview becomes visible if a retry recovered, AND injects CSS so the
+    // hosted chat page integrates visually with the AgentRemote glass —
+    // transparent body so the overlay's blur shows through, tightened
+    // padding so the message log gets more room. Keep this minimal so
+    // upstream chat.html iteration doesn't fight us.
+    const CHAT_WEBVIEW_CSS_OVERRIDES = `
+      html, body { background: transparent !important; }
+      body::before, body::after { display: none !important; }
+      header { padding: 8px 14px !important; }
+      header h1 { font-size: 11px !important; letter-spacing: .14em !important; }
+      header .meta { font-size: 10px !important; }
+      form { padding: 10px 14px !important; }
+      #log { padding: 12px 16px 4px !important; }
+      #status { padding: 3px 14px !important; font-size: 9.5px !important; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
+      ::-webkit-scrollbar-track { background: transparent; }
+    `;
     (() => {
       const wv = chatWebviewEl();
       if (!wv) return;
@@ -3613,6 +3636,7 @@
       });
       wv.addEventListener('did-finish-load', () => {
         chatOverlayEl().classList.remove('body-fallback');
+        try { wv.insertCSS(CHAT_WEBVIEW_CSS_OVERRIDES); } catch { /* webview detached */ }
       });
     })();
 
