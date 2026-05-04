@@ -74,6 +74,7 @@ function loadAgents() {
         || (a.rename_to ? a.rename_to.toLowerCase() : a.display_name.toLowerCase()),
       cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
       color: a.color || null,
+      themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
       // Auto-restart defaults to true when the field is omitted (matches the
       // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
       autoRestart: a.auto_restart !== false,
@@ -691,6 +692,9 @@ ipcMain.handle('add-agent', async (event, payload) => {
     const cwd = String(payload.cwd || '').trim();
     if (!cwd) throw new Error('cwd required');
     const color = String(payload.color || 'cyan').trim();
+    const themeColor = payload.themeColor && /^#[0-9a-fA-F]{3,8}$/.test(String(payload.themeColor))
+      ? String(payload.themeColor).trim()
+      : null;
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
       ? '/gogo'
       : String(payload.startupSlash).trim();
@@ -717,6 +721,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
         color,
         startup_slash: startupSlash
       };
+      if (themeColor) entry.theme_color = themeColor;
       if (avatarFilename) entry.avatar = avatarFilename;
       data.agents.push(entry);
     });
@@ -863,6 +868,7 @@ ipcMain.handle('restart-agent', async (event, id) => {
 const UPDATABLE_FIELDS = {
   auto_restart:  v => Boolean(v),
   color:         v => String(v || '').trim().toLowerCase(),
+  theme_color:   v => (/^#[0-9a-fA-F]{3,8}$/.test(String(v || '').trim()) ? String(v).trim() : null),
   rename_to:     v => String(v || '').trim(),
   startup_slash: v => String(v || '').trim()
 };

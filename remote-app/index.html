@@ -32,11 +32,11 @@
          --status-on's intensity. */
       --status-detached:      #f4c542;
       --status-detached-glow: rgba(244, 197, 66, 0.7);
-      --xavier:        #00f2ff;
-      --lucius:        #ffaa00;
-      --gekko:         #00ff88;
-      --swarmy:        #ff77cc;
-      --claude:        #e07c4c;
+      /* Per-agent theme colors are injected as --btn-theme-color /
+         --btn-theme-glow inline CSS custom properties on each .agent-btn
+         element in renderDock(), derived from agents.json theme_color fields.
+         No hardcoded per-agent tokens here — new agents get their colors
+         without any CSS edits. */
       --ease:          cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -225,12 +225,11 @@
       background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
     }
 
-    .agent-btn.active { border-color: var(--accent); box-shadow: 0 0 24px var(--accent-glow), inset 0 0 0 1px var(--accent); }
-    .agent-btn.active.xavier { border-color: var(--xavier); box-shadow: 0 0 24px rgba(0, 242, 255, 0.55); }
-    .agent-btn.active.lucius { border-color: var(--lucius); box-shadow: 0 0 24px rgba(255, 170, 0, 0.55); }
-    .agent-btn.active.gekko  { border-color: var(--gekko);  box-shadow: 0 0 24px rgba(0, 255, 136, 0.55); }
-    .agent-btn.active.swarmy { border-color: var(--swarmy); box-shadow: 0 0 24px rgba(255, 119, 204, 0.55); }
-    .agent-btn.active.claude { border-color: var(--claude); box-shadow: 0 0 24px rgba(224, 124, 76, 0.55); }
+    /* Per-agent active state uses --btn-theme-color / --btn-theme-glow, both
+       set as inline CSS custom properties on the button by renderDock().
+       Falls back to --accent / --accent-glow for any agent without a
+       theme_color in agents.json. */
+    .agent-btn.active { border-color: var(--btn-theme-color, var(--accent)); box-shadow: 0 0 24px var(--btn-theme-glow, var(--accent-glow)), inset 0 0 0 1px var(--btn-theme-color, var(--accent)); }
 
     /* Status dot (bottom-right, anchored outside the avatar). Border is
        hardcoded to a higher-alpha dark (NOT --bg-deep, which dropped to 5%
@@ -1068,6 +1067,13 @@
       transition: border-color 0.2s var(--ease);
     }
     .form-row input:focus, .form-row select:focus { border-color: var(--accent); }
+    /* Color picker — constrain dimensions and strip default browser chrome */
+    .form-row input[type="color"] {
+      flex: 0 0 44px;
+      height: 30px;
+      padding: 2px 4px;
+      cursor: pointer;
+    }
     .form-row .pick-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border-soft);
@@ -2794,16 +2800,7 @@
       </div>
       <div class="form-row">
         <label>color</label>
-        <select id="f-color">
-          <option value="cyan">cyan</option>
-          <option value="green">green</option>
-          <option value="yellow">yellow</option>
-          <option value="orange">orange</option>
-          <option value="red">red</option>
-          <option value="pink">pink</option>
-          <option value="purple">purple</option>
-          <option value="blue">blue</option>
-        </select>
+        <input type="color" id="f-color" value="#00f2ff" title="Pick a theme color for this agent's active-state glow" />
       </div>
       <div class="form-row">
         <label>startup</label>
@@ -3161,6 +3158,25 @@
       }[c]));
     }
 
+    // Convert a hex color like "#00f2ff" to an rgba glow string at 55% alpha.
+    // Used by renderDock to set --btn-theme-glow on each agent button inline style.
+    // Supports 3-digit (#rgb) and 6-digit (#rrggbb) hex.
+    function hexToGlow(hex) {
+      const h = hex.replace('#', '');
+      let r, g, b;
+      if (h.length === 3) {
+        r = parseInt(h[0] + h[0], 16);
+        g = parseInt(h[1] + h[1], 16);
+        b = parseInt(h[2] + h[2], 16);
+      } else {
+        r = parseInt(h.slice(0, 2), 16);
+        g = parseInt(h.slice(2, 4), 16);
+        b = parseInt(h.slice(4, 6), 16);
+      }
+      if (isNaN(r) || isNaN(g) || isNaN(b)) return 'rgba(224, 124, 76, 0.55)';
+      return `rgba(${r}, ${g}, ${b}, 0.55)`;
+    }
+
     function renderDock() {
       const dock = document.getElementById('dock');
       dock.innerHTML = '';
@@ -3169,6 +3185,12 @@
         const btn = document.createElement('button');
         btn.className = `agent-btn ${id}` + (a.selected ? ' active' : '');
         btn.id = `btn-${id}`;
+        // Inject per-agent theme color as CSS custom props on the element so the
+        // generic .agent-btn.active rule picks them up without per-id CSS blocks.
+        if (a.themeColor) {
+          btn.style.setProperty('--btn-theme-color', a.themeColor);
+          btn.style.setProperty('--btn-theme-glow', hexToGlow(a.themeColor));
+        }
         // v2.7: spec — every clickable element carries a native title so a
         // hover surfaces what it does. The avatar's primary action is
         // toggle-select; the secondary action is the right-click radial
@@ -3572,25 +3594,39 @@
     const RADIAL_TRANSITION_MS = 550;          // matches CSS .radial-orb left/top duration (informational)
     const RADIAL_SETTLE_DELAY_MS = 480;        // when to mark orbs as settled (gates hover labels)
 
-    // Per-agent palette → orb gradient stops. Pulled from the active-tile
-    // glow tokens at lines ~173–178: orb mid-tone matches the agent's brand
-    // color, light/deep stops are derived for the radial gradient, and the
-    // box-shadow halo uses the same color at ~55% alpha. Falls back to the
-    // anthropic-orange token (--accent) for unknown agents.
+    // Per-agent palette → orb gradient stops. Derived at runtime from the
+    // agent's theme_color field in agents.json (via agents[id].themeColor).
+    // light/deep are lightened/darkened from the mid hex; glow is mid at 55%
+    // alpha. Falls back to the anthropic-orange token (--accent) for any
+    // agent without a theme_color set.
     //
     // light / mid / deep / glow are CSS color strings, applied to the orb
     // via inline style.setProperty() at openRadialMenu time.
-    const AGENT_ORB_PALETTE = {
-      xavier: { light: '#7df9ff', mid: '#00f2ff', deep: '#0a8a96', glow: 'rgba(0, 242, 255, 0.55)' },
-      lucius: { light: '#ffd070', mid: '#ffaa00', deep: '#a86b00', glow: 'rgba(255, 170, 0, 0.55)' },
-      gekko:  { light: '#7dffc1', mid: '#00ff88', deep: '#0a8a4a', glow: 'rgba(0, 255, 136, 0.55)' },
-      swarmy: { light: '#ffb8e0', mid: '#ff77cc', deep: '#a8467f', glow: 'rgba(255, 119, 204, 0.55)' },
-      claude: { light: '#ff9a6a', mid: '#e07c4c', deep: '#b85a30', glow: 'rgba(224, 124, 76, 0.55)' }
-    };
     function paletteForAgent(id) {
-      return AGENT_ORB_PALETTE[id] || {
-        light: '#ff9a6a', mid: 'var(--accent)', deep: '#b85a30', glow: 'var(--accent-glow)'
-      };
+      const agent = agents[id];
+      const hex = agent && agent.themeColor;
+      if (!hex || !/^#[0-9a-fA-F]{3,8}$/.test(hex)) {
+        return { light: '#ff9a6a', mid: 'var(--accent)', deep: '#b85a30', glow: 'var(--accent-glow)' };
+      }
+      // Parse hex → r,g,b
+      const h = hex.replace('#', '');
+      let r, g, b;
+      if (h.length === 3) {
+        r = parseInt(h[0] + h[0], 16);
+        g = parseInt(h[1] + h[1], 16);
+        b = parseInt(h[2] + h[2], 16);
+      } else {
+        r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+      }
+      if (isNaN(r) || isNaN(g) || isNaN(b)) {
+        return { light: '#ff9a6a', mid: 'var(--accent)', deep: '#b85a30', glow: 'var(--accent-glow)' };
+      }
+      // light: blend 50% toward white; deep: blend 40% toward black
+      const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+      const light = `#${[r,g,b].map(c => clamp(c + (255 - c) * 0.5).toString(16).padStart(2,'0')).join('')}`;
+      const deep  = `#${[r,g,b].map(c => clamp(c * 0.6).toString(16).padStart(2,'0')).join('')}`;
+      const glow  = `rgba(${r}, ${g}, ${b}, 0.55)`;
+      return { light, mid: hex, deep, glow };
     }
 
     let radialOpenForId = null;
@@ -4950,11 +4986,13 @@
     async function submitAdd() {
       const errEl = document.getElementById('f-error');
       errEl.textContent = '';
+      const themeColor = document.getElementById('f-color').value;  // hex from <input type="color">
       const payload = {
         id: document.getElementById('f-id').value.trim(),
         displayName: document.getElementById('f-name').value.trim(),
         cwd: document.getElementById('f-cwd').value.trim(),
-        color: document.getElementById('f-color').value,
+        color: 'cyan',           // /color slash-command default for new agents
+        themeColor,              // hex string persisted to agents.json theme_color
         startupSlash: document.getElementById('f-slash').value.trim(),
         avatarSrc: pickedAvatarPath
       };
@@ -4963,6 +5001,7 @@
       // Reset form, close, reload.
       ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('f-slash').value = '/gogo';
+      document.getElementById('f-color').value = '#00f2ff';
       pickedAvatarPath = null;
       document.body.classList.remove('adding');
       await loadAndRender();
