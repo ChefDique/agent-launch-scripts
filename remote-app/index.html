@@ -2666,10 +2666,37 @@
       display: none;
     }
     .chat-overlay .chat-error.visible { display: block; }
-  </style>
+  
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+    @keyframes conic-spin {
+      from { --angle: 0deg; }
+      to { --angle: 360deg; }
+    }
+    .rainbow-rim {
+      position: absolute;
+      top: 8px; left: 8px;
+      width: 604px; height: 224px;
+      border-radius: 18px;
+      background: conic-gradient(from var(--angle), #4285f4, #ea4335, #fbbc05, #34a853, #4285f4);
+      animation: conic-spin 6s linear infinite;
+      filter: blur(3px) brightness(1.2);
+      z-index: 5;
+      opacity: 0.75;
+      pointer-events: none;
+    }
+    .panel {
+      z-index: 10 !important;
+      border: none !important;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
+    }
+\n  </style>
 </head>
 <body>
-  <div class="panel" id="panel">
+  <div class="rainbow-rim"></div>\n  <div class="panel" id="panel">
     <!-- Row 1: agent dock -->
     <div class="dock" id="dock"></div>
 
