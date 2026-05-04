@@ -910,12 +910,204 @@
     height: 1px; margin: 3px 6px;
     background: rgba(255,255,255,0.06);
   }
+
+  /* ============================================================
+     Add-agent overlay — modal form mirroring the settings drawer's
+     glassmorphic language. Sits centered above the panel content,
+     below the action toast (z:70 < toast z:100).
+     ============================================================ */
+  .add-overlay-backdrop {
+    position: fixed; inset: 0; z-index: 65;
+    background: rgba(4, 4, 8, 0.42);
+    pointer-events: none; opacity: 0;
+    transition: opacity 160ms ease;
+    -webkit-app-region: no-drag;
+  }
+  .add-overlay-backdrop.open {
+    opacity: 1; pointer-events: auto;
+  }
+  .add-overlay {
+    position: fixed; z-index: 70;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.96);
+    width: 360px;
+    background: rgba(10, 10, 16, 0.94);
+    backdrop-filter: blur(40px) saturate(150%);
+    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.4);
+    font-family: 'Inter', system-ui, sans-serif;
+    opacity: 0; pointer-events: none;
+    transition: opacity 160ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    -webkit-app-region: no-drag;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .add-overlay.open {
+    opacity: 1; pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .add-overlay-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .add-overlay-title {
+    font: 600 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.16em;
+    color: var(--accent, #e07c4c);
+    text-transform: uppercase;
+  }
+  .add-overlay-close {
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.02);
+    color: rgba(255,255,255,0.55);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    -webkit-app-region: no-drag;
+    padding: 0;
+  }
+  .add-overlay-close:hover {
+    background: rgba(227, 93, 106, 0.18);
+    border-color: #e35d6a;
+    color: #fff;
+  }
+  .add-overlay-body {
+    padding: 12px 16px 14px;
+    display: flex; flex-direction: column; gap: 9px;
+  }
+  .add-row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+  .add-row.has-pick {
+    grid-template-columns: 60px 1fr auto;
+  }
+  .add-label {
+    font: 500 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.10em;
+    color: rgba(255,255,255,0.55);
+    text-transform: lowercase;
+  }
+  .add-input,
+  .add-select {
+    height: 28px;
+    padding: 0 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 8px;
+    color: var(--text-primary, #e8e8f0);
+    font: 500 11px/1 'Inter', system-ui, sans-serif;
+    letter-spacing: 0.02em;
+    outline: 0;
+    transition: border-color 120ms ease, background 120ms ease;
+    -webkit-app-region: no-drag;
+  }
+  .add-input:focus,
+  .add-select:focus {
+    border-color: var(--accent, #e07c4c);
+    background: rgba(255,255,255,0.06);
+  }
+  .add-input.invalid {
+    border-color: #e35d6a;
+    background: rgba(227, 93, 106, 0.08);
+  }
+  .add-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'><path d='M1 1l3 3 3-3' fill='none' stroke='%23999' stroke-width='1.4' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 26px;
+  }
+  .add-pick {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    color: var(--accent, #e07c4c);
+    font: 600 9px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    -webkit-app-region: no-drag;
+  }
+  .add-pick:hover {
+    background: var(--accent-soft, rgba(224,124,76,0.18));
+    border-color: var(--accent, #e07c4c);
+    color: #fff;
+  }
+  .add-field-error {
+    grid-column: 2 / -1;
+    font: 500 9px/1.2 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.06em;
+    color: #ff7090;
+    margin-top: -3px;
+    min-height: 0;
+  }
+  .add-overlay-foot {
+    padding: 10px 16px 14px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .add-form-error {
+    font: 500 10px/1.3 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.04em;
+    color: #ff7090;
+    min-height: 0;
+  }
+  .add-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .add-btn {
+    height: 30px;
+    padding: 0 14px;
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.75);
+    font: 600 10px/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    -webkit-app-region: no-drag;
+  }
+  .add-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+  }
+  .add-btn.submit {
+    background: var(--accent-soft, rgba(224,124,76,0.18));
+    border-color: var(--accent, #e07c4c);
+    color: var(--accent, #e07c4c);
+  }
+  .add-btn.submit:hover {
+    background: var(--accent, #e07c4c);
+    color: #08080e;
+    border-color: var(--accent, #e07c4c);
+  }
+  .add-btn:disabled {
+    opacity: 0.45; cursor: default;
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.45);
+    border-color: rgba(255,255,255,0.10);
+  }
 </style>
 </head>
 <body>
   <div id="root"></div>
   <div class="action-toast" id="action-toast" aria-live="polite" aria-atomic="true"></div>
   <div class="settings-backdrop" id="settings-backdrop" aria-hidden="true"></div>
+  <div class="add-overlay-backdrop" id="add-overlay-backdrop" aria-hidden="true"></div>
 
   <script>
     const { ipcRenderer } = require('electron');
@@ -1326,10 +1518,317 @@
     function buildAddTile() {
       return el('button', {
         class: 'add-tile', type: 'button',
-        'aria-label': 'Add agent (coming soon)',
-        title: 'Add agent — registry editing deferred for this build',
-        onClick: () => showToast('ADD AGENT — SOON'),
+        'aria-label': 'Add agent',
+        title: 'Add a new agent to the registry',
+        onClick: openAddOverlay,
       }, svgPath('M7 1.5v11M1.5 7h11', { viewBox: '0 0 14 14', width: 14, height: 14 }));
+    }
+
+    // ----- Add-agent overlay --------------------------------------------------
+    // Modal form. Opens centered above the panel; backdrop dims the rest. Esc
+    // closes (with confirm if dirty); explicit X / Cancel always close. Backdrop
+    // click closes only if the form is pristine — protects against accidental
+    // mid-typing dismissal. Submits via ipcRenderer.invoke('add-agent', payload)
+    // with the exact shape main.js's handler expects:
+    //   { id, displayName, cwd, color, startupSlash, avatarSrc }
+    const ADD_COLORS = ['cyan', 'green', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue'];
+    const addOverlayBackdropEl = document.getElementById('add-overlay-backdrop');
+    let addOverlayEl = null;
+    let addOverlayOpen = false;
+    let addPickedAvatarPath = null;
+
+    function buildAddOverlay() {
+      const fields = {};
+
+      // Header with title + close (X).
+      const closeBtn = el('button', {
+        class: 'add-overlay-close', type: 'button',
+        'aria-label': 'Close', title: 'Close (Esc)',
+        onClick: requestCloseAddOverlay,
+      }, svgPath('M1 1l8 8M9 1l-8 8', { viewBox: '0 0 10 10', width: 10, height: 10, strokeWidth: 1.4 }));
+      const head = el('div', { class: 'add-overlay-head' },
+        el('div', { class: 'add-overlay-title' }, 'NEW AGENT'),
+        closeBtn,
+      );
+
+      // Body — six rows.
+      fields.id = el('input', {
+        class: 'add-input', id: 'add-f-id', type: 'text',
+        placeholder: 'lowercase, no spaces',
+        autocomplete: 'off', spellcheck: 'false',
+        onInput: (e) => {
+          // Live-validate. Clear inline error once the value passes the regex.
+          const v = e.target.value.trim();
+          const ok = v.length === 0 || /^[a-z0-9_-]+$/.test(v);
+          e.target.classList.toggle('invalid', !ok && v.length > 0);
+          fields.idErr.textContent = (!ok && v.length > 0)
+            ? 'lowercase a-z 0-9 _ - only'
+            : '';
+        },
+      });
+      fields.idErr = el('div', { class: 'add-field-error' });
+      const idRow = el('div', { class: 'add-row' },
+        el('div', { class: 'add-label' }, 'id'),
+        fields.id,
+        fields.idErr,
+      );
+
+      fields.name = el('input', {
+        class: 'add-input', type: 'text',
+        placeholder: 'display name (claude -n flag)',
+        autocomplete: 'off',
+      });
+      const nameRow = el('div', { class: 'add-row' },
+        el('div', { class: 'add-label' }, 'name'),
+        fields.name,
+      );
+
+      fields.cwd = el('input', {
+        class: 'add-input', type: 'text',
+        placeholder: '~/path/to/project',
+        autocomplete: 'off', spellcheck: 'false',
+      });
+      const cwdPick = el('button', {
+        class: 'add-pick', type: 'button', title: 'Pick a directory',
+        onClick: async () => {
+          const dir = await ipcRenderer.invoke('pick-cwd');
+          if (dir) fields.cwd.value = dir;
+        },
+      }, 'PICK');
+      const cwdRow = el('div', { class: 'add-row has-pick' },
+        el('div', { class: 'add-label' }, 'cwd'),
+        fields.cwd,
+        cwdPick,
+      );
+
+      fields.color = el('select', { class: 'add-select' },
+        ...ADD_COLORS.map(c => el('option', { value: c }, c)),
+      );
+      const colorRow = el('div', { class: 'add-row' },
+        el('div', { class: 'add-label' }, 'color'),
+        fields.color,
+      );
+
+      fields.slash = el('input', {
+        class: 'add-input', type: 'text',
+        value: '/gogo',
+        autocomplete: 'off', spellcheck: 'false',
+      });
+      const slashRow = el('div', { class: 'add-row' },
+        el('div', { class: 'add-label' }, 'startup'),
+        fields.slash,
+      );
+
+      fields.avatar = el('input', {
+        class: 'add-input', type: 'text',
+        placeholder: 'optional .svg path',
+        readonly: 'true',
+      });
+      const avatarPick = el('button', {
+        class: 'add-pick', type: 'button', title: 'Pick an .svg file',
+        onClick: async () => {
+          const file = await ipcRenderer.invoke('pick-svg');
+          if (file) {
+            addPickedAvatarPath = file;
+            const parts = file.split('/');
+            fields.avatar.value = parts[parts.length - 1];
+          }
+        },
+      }, 'PICK');
+      const avatarRow = el('div', { class: 'add-row has-pick' },
+        el('div', { class: 'add-label' }, 'avatar'),
+        fields.avatar,
+        avatarPick,
+      );
+
+      const body = el('div', { class: 'add-overlay-body' },
+        idRow, nameRow, cwdRow, colorRow, slashRow, avatarRow);
+
+      // Footer — error slot + actions. Cancel always closes (no dirty check);
+      // Submit fires the IPC handler, surfaces errors inline near submit.
+      fields.formErr = el('div', { class: 'add-form-error' });
+      const cancelBtn = el('button', {
+        class: 'add-btn', type: 'button',
+        onClick: () => closeAddOverlay(),
+      }, 'CANCEL');
+      const submitBtn = el('button', {
+        class: 'add-btn submit', type: 'button',
+        onClick: () => doAddAgentSubmit(fields, submitBtn),
+      }, 'CREATE');
+      const actions = el('div', { class: 'add-actions' }, cancelBtn, submitBtn);
+      const foot = el('div', { class: 'add-overlay-foot' }, fields.formErr, actions);
+
+      const overlay = el('div', {
+        class: 'add-overlay', role: 'dialog',
+        'aria-label': 'Add new agent', 'aria-hidden': 'true',
+      }, head, body, foot);
+      // Allow Enter to submit (except in the slash field where the user might
+      // be typing a command with spaces — Enter still submits, no surprises).
+      overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          doAddAgentSubmit(fields, submitBtn);
+        }
+      });
+      // Stash the field refs so close can reset them.
+      overlay._fields = fields;
+      overlay._submitBtn = submitBtn;
+      return overlay;
+    }
+
+    function isAddFormDirty() {
+      if (!addOverlayEl) return false;
+      const f = addOverlayEl._fields;
+      return Boolean(
+        (f.id.value || '').trim() ||
+        (f.name.value || '').trim() ||
+        (f.cwd.value || '').trim() ||
+        (f.avatar.value || '').trim() ||
+        addPickedAvatarPath
+      );
+    }
+
+    function resetAddForm() {
+      if (!addOverlayEl) return;
+      const f = addOverlayEl._fields;
+      f.id.value = '';
+      f.id.classList.remove('invalid');
+      f.idErr.textContent = '';
+      f.name.value = '';
+      f.cwd.value = '';
+      f.color.value = 'cyan';
+      f.slash.value = '/gogo';
+      f.avatar.value = '';
+      f.formErr.textContent = '';
+      addPickedAvatarPath = null;
+    }
+
+    function openAddOverlay() {
+      if (!addOverlayEl) {
+        addOverlayEl = buildAddOverlay();
+        document.body.appendChild(addOverlayEl);
+      }
+      resetAddForm();
+      // Grow the window first so the centered overlay renders fully — same
+      // pattern the settings drawer uses (ensureWindowSizeFor 'drawer').
+      ensureWindowSizeFor('add-form');
+      addOverlayBackdropEl.classList.add('open');
+      addOverlayBackdropEl.setAttribute('aria-hidden', 'false');
+      addOverlayEl.classList.add('open');
+      addOverlayEl.setAttribute('aria-hidden', 'false');
+      addOverlayOpen = true;
+      // Focus the first field after the open transition starts so the cursor
+      // lands inside the input — matches the legacy build's UX.
+      setTimeout(() => {
+        try { addOverlayEl._fields.id.focus(); } catch (_) {}
+      }, 60);
+    }
+
+    function closeAddOverlay() {
+      if (!addOverlayOpen) return;
+      addOverlayBackdropEl.classList.remove('open');
+      addOverlayBackdropEl.setAttribute('aria-hidden', 'true');
+      if (addOverlayEl) {
+        addOverlayEl.classList.remove('open');
+        addOverlayEl.setAttribute('aria-hidden', 'true');
+      }
+      addOverlayOpen = false;
+      // Shrink window back to panel-only height.
+      ensureWindowSizeFor('panel');
+    }
+
+    // Esc / X / Cancel route here. If the form has user input, prompt for a
+    // confirm rather than nuking it; pristine form closes silently.
+    function requestCloseAddOverlay() {
+      if (isAddFormDirty()) {
+        const ok = window.confirm('Discard the agent you started? Esc again to discard.');
+        if (!ok) return;
+      }
+      closeAddOverlay();
+    }
+
+    async function doAddAgentSubmit(fields, submitBtn) {
+      // Renderer-side validation mirrors main.js's add-agent guards so the user
+      // gets a fast inline error rather than a round-trip rejection.
+      fields.formErr.textContent = '';
+      const id = (fields.id.value || '').trim().toLowerCase();
+      if (!id) {
+        fields.id.classList.add('invalid');
+        fields.idErr.textContent = 'required';
+        fields.id.focus();
+        return;
+      }
+      if (!/^[a-z0-9_-]+$/.test(id)) {
+        fields.id.classList.add('invalid');
+        fields.idErr.textContent = 'lowercase a-z 0-9 _ - only';
+        fields.id.focus();
+        return;
+      }
+      const displayName = (fields.name.value || '').trim();
+      if (!displayName) {
+        fields.formErr.textContent = 'name required';
+        fields.name.focus();
+        return;
+      }
+      const cwd = (fields.cwd.value || '').trim();
+      if (!cwd) {
+        fields.formErr.textContent = 'cwd required';
+        fields.cwd.focus();
+        return;
+      }
+      const payload = {
+        id,
+        displayName,
+        cwd,
+        color: fields.color.value,
+        startupSlash: (fields.slash.value || '').trim(),
+        avatarSrc: addPickedAvatarPath,
+      };
+
+      submitBtn.disabled = true;
+      try {
+        const result = await ipcRenderer.invoke('add-agent', payload);
+        if (!result || !result.ok) {
+          fields.formErr.textContent = (result && result.error) || 'add failed';
+          submitBtn.disabled = false;
+          return;
+        }
+        // Success — append a tile to the dock for the new agent and close.
+        // We keep the renderer's hardcoded labels for the original 5 untouched;
+        // the new tile derives its label from displayName uppercased.
+        appendNewAgentTile({ id, displayName });
+        closeAddOverlay();
+        showToast('AGENT ADDED');
+      } catch (err) {
+        fields.formErr.textContent = String((err && err.message) || err || 'add failed');
+        submitBtn.disabled = false;
+      }
+    }
+
+    // Append-only dock refresh after a successful add. The original 5 tiles
+    // keep their hand-tuned labels; the new tile's label is derived from
+    // displayName. The avatar src points to remote-app/assets/<id>.svg, which
+    // main.js's add-agent handler just copied into place (or, if no SVG was
+    // chosen, the img.onerror fallback in buildAgentTile hides the broken
+    // image — a future follow-up could render a letter-disc fallback there).
+    function appendNewAgentTile({ id, displayName }) {
+      const nextKey = String(AGENTS.length + 1);
+      const upperName = displayName.toUpperCase();
+      // main.js's add-agent handler copies the picked SVG to assets/<id>.svg;
+      // when no avatar was picked, the file doesn't exist and the img.onerror
+      // in buildAgentTile silently hides the broken icon (existing behavior).
+      const newAgent = {
+        key: nextKey,
+        id,
+        name: upperName,
+        label: upperName,
+        src: `assets/${id}.svg`,
+      };
+      AGENTS.push(newAgent);
+      // Insert before the add-tile (which is the last child).
+      const addTile = dockEl.lastElementChild;
+      const tile = buildAgentTile(newAgent);
+      dockEl.insertBefore(tile, addTile);
     }
 
     function toggleAgent(key) {
@@ -1787,6 +2286,11 @@
       const PAD = 24;
       if (mode === 'drawer') {
         ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD + 520 });
+      } else if (mode === 'add-form') {
+        // Form is ~360x420 centered; grow the window so it can render fully
+        // with breathing room top + bottom. Same width as panel (the form is
+        // narrower so width is fine), taller height.
+        ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD + 220 });
       } else {
         ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD });
       }
@@ -1816,12 +2320,17 @@
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (addOverlayOpen) { requestCloseAddOverlay(); return; }
         if (tilePopoverEl && tilePopoverEl.classList.contains('open')) {
           closeTilePopover();
           return;
         }
         if (state.gearOpen) { closeGear(); return; }
       }
+      // Suppress digit-shortcut hijacking while the add-agent form is open —
+      // otherwise typing "1" into the id field would also toggle agent #1.
+      // The form has its own focused input, but defense in depth.
+      if (addOverlayOpen) return;
       if (document.activeElement === chatInputEl) return;
       if (/^[1-5]$/.test(e.key)) toggleAgent(e.key);
     });
@@ -1842,6 +2351,14 @@
     window.addEventListener('blur', () => closeTilePopover());
     window.addEventListener('resize', () => closeTilePopover());
     backdropEl.addEventListener('click', closeGear);
+
+    // Add-overlay backdrop — close ONLY if pristine. Dirty forms stay open;
+    // the user has to use Esc / X / Cancel explicitly. Avoids accidental loss.
+    addOverlayBackdropEl.addEventListener('click', () => {
+      if (!addOverlayOpen) return;
+      if (isAddFormDirty()) return;
+      closeAddOverlay();
+    });
 
     ipcRenderer.on('focus-chat-input', () => {
       setTimeout(() => chatInputEl?.focus(), 0);
