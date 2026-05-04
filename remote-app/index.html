@@ -656,6 +656,83 @@
     .add-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(224, 124, 76, 0.08); transform: translateY(-2px); }
     .add-btn:active { transform: translateY(0); transition-duration: 0.08s; }
 
+    /* Empty-state CTA shown when no agents are visible in the dock. */
+    .dock-empty-cta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 0 4px;
+      -webkit-app-region: no-drag;
+    }
+    .dock-empty-cta .cta-link {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      -webkit-app-region: no-drag;
+    }
+    .dock-empty-cta .cta-link:hover { opacity: 0.8; }
+
+    /* "··· N" show-hidden button — sits at the trailing edge of the dock. */
+    .show-hidden-btn {
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+    .show-hidden-btn:hover { opacity: 1; color: var(--text-primary); }
+
+    /* Hidden-agent popover — small floating panel listing hidden agents. */
+    .hidden-panel {
+      position: fixed;
+      background: rgba(20, 20, 32, 0.97);
+      border: 1px solid var(--border-medium);
+      border-radius: 10px;
+      padding: 8px 10px;
+      min-width: 160px;
+      z-index: 9000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .hidden-panel-title {
+      font-size: 9px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .hidden-panel-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+    }
+    .hidden-panel-name {
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+    .hidden-panel-unhide {
+      background: none;
+      border: 1px solid var(--border-medium);
+      border-radius: 5px;
+      color: var(--accent);
+      font-size: 9px;
+      padding: 2px 6px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .hidden-panel-unhide:hover { background: rgba(224, 124, 76, 0.12); border-color: var(--accent); }
+
     /* ---------------------------------------------------------------------
        Middle: chat input
        --------------------------------------------------------------------- */
@@ -2932,8 +3009,9 @@
     // ---------------------------------------------------------------------
     // State
     // ---------------------------------------------------------------------
-    let agents = {};        // id -> { id, displayName, tmuxTarget, color, avatar, selected, running }
-    let agentOrder = [];    // preserve registry order
+    let agents = {};             // id -> { id, displayName, tmuxTarget, color, avatar, selected, running, hidden }
+    let agentOrder = [];         // visible agent ids in registry order
+    let hiddenAgentOrder = [];   // ids with hidden:true (kept in registry, not in dock)
     let statusTimer = null;
 
     // Spawn-layout mode — affects the Deploy button. One of:
@@ -3013,23 +3091,21 @@
       try { registry = await ipcRenderer.invoke('get-agents'); }
       catch (err) { console.error('failed to load registry:', err); }
 
-      if (!registry || registry.length === 0) {
-        registry = [
-          { id: 'xavier', displayName: 'Xavier', tmuxTarget: 'xavier', avatar: 'xavier.svg' },
-          { id: 'lucius', displayName: 'Lucius', tmuxTarget: 'lucius', avatar: 'lucius.svg' },
-          { id: 'gekko',  displayName: 'Gekko',  tmuxTarget: 'gekko',  avatar: 'gekko.svg' },
-          { id: 'swarmy', displayName: 'overlordswarmy', tmuxTarget: 'overlordswarmy', avatar: 'swarmy.svg' },
-          { id: 'claude', displayName: 'Claude', tmuxTarget: 'claude', avatar: 'claude.svg' }
-        ];
-      }
+      // No fallback — agents.json is the sole source of truth. If empty, the
+      // dock renders an empty state with a prominent "Add agent" CTA.
 
       // Preserve selection state across reloads.
       const prevSelected = new Set(Object.values(agents).filter(a => a.selected).map(a => a.id));
       agents = {};
       agentOrder = [];
+      hiddenAgentOrder = [];
       registry.forEach(a => {
         agents[a.id] = { ...a, selected: prevSelected.has(a.id), running: false };
-        agentOrder.push(a.id);
+        if (a.hidden) {
+          hiddenAgentOrder.push(a.id);
+        } else {
+          agentOrder.push(a.id);
+        }
       });
 
       renderDock();
@@ -3216,6 +3292,16 @@
         dock.appendChild(tile);
       });
 
+      // If all agents are hidden or the registry is empty, show a prominent
+      // "Add agent" CTA instead of a bare empty bar.
+      if (agentOrder.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dock-empty-cta';
+        empty.innerHTML = `<span>No agents in bar — </span><button class="cta-link" title="Add agent to registry">+ Add agent</button>`;
+        empty.querySelector('.cta-link').addEventListener('click', toggleAddForm);
+        dock.appendChild(empty);
+      }
+
       // Add (+) button at the end of the dock.
       const add = document.createElement('button');
       add.className = 'add-btn';
@@ -3223,6 +3309,17 @@
       add.textContent = '+';
       add.addEventListener('click', toggleAddForm);
       dock.appendChild(add);
+
+      // "Show hidden" button — only rendered when at least one agent has hidden:true.
+      // Opens the hidden-agent popover where each entry has an "Unhide" button.
+      if (hiddenAgentOrder.length > 0) {
+        const showHiddenBtn = document.createElement('button');
+        showHiddenBtn.className = 'show-hidden-btn util-btn';
+        showHiddenBtn.title = `${hiddenAgentOrder.length} hidden agent${hiddenAgentOrder.length > 1 ? 's' : ''} — click to restore`;
+        showHiddenBtn.textContent = `··· ${hiddenAgentOrder.length}`;
+        showHiddenBtn.addEventListener('click', () => openHiddenPanel(showHiddenBtn));
+        dock.appendChild(showHiddenBtn);
+      }
 
       // Tag F-key badges by current dock position. Called here so it runs
       // every render — drag-reorder triggers a re-render via loadAndRender,
@@ -3343,7 +3440,9 @@
         // adjacent in the right direction).
         if (next.every((v, i) => v === agentOrder[i])) return;
 
-        const result = await ipcRenderer.invoke('reorder-agents', next);
+        // reorder-agents requires ALL registry ids (including hidden). Append
+        // hidden agents at the tail so the permutation check passes.
+        const result = await ipcRenderer.invoke('reorder-agents', [...next, ...hiddenAgentOrder]);
         if (!result.ok) {
           flashTileError(document.getElementById(`btn-${sourceId}`), result.error || 'reorder failed');
           return;
@@ -3415,6 +3514,8 @@
     //   3. Restart  — SIGINT, pane_loop respawns
     //   4. Attach   — osascript opens iTerm tab focused on the agent's pane
     //   5. Settings — toggles the inline panel for auto-restart + startup cmds
+    //   6. Hide     — sets hidden:true in agents.json; tile leaves dock
+    //   7. Delete   — removes entry from agents.json entirely (DANGER, confirm)
 
     // Arc geometry — DOWNWARD fan, BEBBER-TIGHT spacing, TILE-ANCHORED. The
     // cluster blooms JUST BELOW the right-clicked tile, into the transparent
@@ -3429,15 +3530,14 @@
     // 44px orbs at 50px pitch (~6px gap, well within stdDeviation=10's
     // bridging range). Y-offsets are POSITIVE (downward) — the arc is a
     // mercury puddle hugging the tile bottom. Magnitudes mirror v2.3 but
-    // inverted: outer orbs at +46, center orb at +72. Range 26px (flat
-    // enough to keep the goo chain continuous across all 5 orbs).
+    // inverted: outer orbs at +46, center orb at +72. Range 34px (flat
+    // enough to keep the goo chain continuous across all 7 orbs).
     //
-    // Five orbs: CWD / Close / Restart / Attach / Settings. Settings is the
-    // rightmost one (inverted from the spec "5th orb" wording so it doesn't
-    // push the danger orb off-balance — Close stays in slot 2 so the
-    // confirm-morph still has its existing geometry).
-    const RADIAL_X_OFFSETS = [-100, -50, 0, 50, 100];
-    const RADIAL_Y_OFFSETS = [46, 64, 72, 64, 46];   // positive = downward, flat arc for continuous goo bridge
+    // Seven orbs: CWD / Close / Restart / Attach / Settings / Hide / Delete.
+    // Expanded from 5 to 7 to add "Remove from bar" (hide) and "Delete agent"
+    // (destructive registry delete). Pitch stays 50px; arc widens symmetrically.
+    const RADIAL_X_OFFSETS = [-150, -100, -50, 0, 50, 100, 150];
+    const RADIAL_Y_OFFSETS = [36, 52, 64, 70, 64, 52, 36];   // positive = downward, flat arc for continuous goo bridge
     // Animation timing. Stagger short so orbs emerge as a connected blob
     // (the gooey filter merges them mid-flight). Settle delay is when
     // we add .settled to the orbs container — gates hover-label reveal
@@ -3601,6 +3701,27 @@
           settings: true,
           keepOpenOnClick: true,
           title: 'Auto-restart toggle + startup commands'
+        },
+        {
+          icon: '◌',
+          verb: 'Hide',
+          detail: 'from bar',
+          // Hides tile from dock bar; keeps agents.json entry intact.
+          action: () => doHideFromBar(id, tileBtn),
+          danger: false,
+          requiresRunning: false,
+          title: 'Remove from bar (keep in registry — restore via "··· N" button)'
+        },
+        {
+          icon: '🗑',
+          verb: 'Delete',
+          detail: 'agent',
+          // Destructive: removes entry from agents.json entirely. Inline confirm gates it.
+          action: (orbEl, labelEl) => requestRadialConfirm(orbEl, labelEl, 'delete?', () => doRemove(id, tileBtn)),
+          danger: true,
+          keepOpenOnClick: true,
+          requiresRunning: false,
+          title: 'Delete agent from registry (permanent)'
         }
       ];
 
@@ -4329,7 +4450,8 @@
 
     function updateRecipientSummary() {
       const selected = Object.values(agents).filter(a => a.selected);
-      const total = Object.keys(agents).length;
+      // Count only visible (non-hidden) agents for broadcast threshold.
+      const total = agentOrder.length;
       const summary = document.getElementById('recipient-summary');
       summary.classList.remove('broadcast');
 
@@ -4825,6 +4947,93 @@
       const result = await ipcRenderer.invoke('remove-agent', id);
       if (!result.ok) { flashTileError(tileEl, result.error); return; }
       await loadAndRender();
+    }
+
+    // Hide-from-bar: sets hidden:true in agents.json, removes tile from dock.
+    // Agent stays in registry and can still be launched by scripts.
+    async function doHideFromBar(id, tileEl) {
+      const result = await ipcRenderer.invoke('hide-agent', id);
+      if (!result.ok) { flashTileError(tileEl, result.error); return; }
+      await loadAndRender();
+    }
+
+    // Unhide: removes hidden:true from agents.json, tile reappears in dock.
+    async function doUnhide(id) {
+      const result = await ipcRenderer.invoke('unhide-agent', id);
+      if (!result.ok) { console.error('unhide failed:', result.error); return; }
+      await loadAndRender();
+    }
+
+    // Hidden-agent popover — a simple inline list anchored to the "... N"
+    // button in the dock. Each row shows the agent's display name + an Unhide
+    // button. Clicking outside or pressing Escape closes it.
+    let _hiddenPanelEl = null;
+    function openHiddenPanel(anchorBtn) {
+      // Toggle: if already open, close it.
+      if (_hiddenPanelEl) {
+        _hiddenPanelEl.remove();
+        _hiddenPanelEl = null;
+        return;
+      }
+      const panel = document.createElement('div');
+      panel.className = 'hidden-panel';
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-label', 'Hidden agents');
+
+      const title = document.createElement('div');
+      title.className = 'hidden-panel-title';
+      title.textContent = 'Hidden from bar';
+      panel.appendChild(title);
+
+      hiddenAgentOrder.forEach(id => {
+        const a = agents[id];
+        if (!a) return;
+        const row = document.createElement('div');
+        row.className = 'hidden-panel-row';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'hidden-panel-name';
+        nameEl.textContent = displayLabelFor(a);
+        const unhideBtn = document.createElement('button');
+        unhideBtn.className = 'hidden-panel-unhide';
+        unhideBtn.textContent = 'Show';
+        unhideBtn.title = `Restore ${a.displayName} to bar`;
+        unhideBtn.addEventListener('click', async () => {
+          panel.remove();
+          _hiddenPanelEl = null;
+          await doUnhide(id);
+        });
+        row.appendChild(nameEl);
+        row.appendChild(unhideBtn);
+        panel.appendChild(row);
+      });
+
+      // Position below the anchor button.
+      document.body.appendChild(panel);
+      _hiddenPanelEl = panel;
+      const r = anchorBtn.getBoundingClientRect();
+      panel.style.position = 'fixed';
+      panel.style.top = `${r.bottom + 6}px`;
+      panel.style.left = `${r.left}px`;
+
+      // Dismiss on outside click or Escape.
+      const onOutside = (ev) => {
+        if (!panel.contains(ev.target) && ev.target !== anchorBtn) {
+          panel.remove();
+          _hiddenPanelEl = null;
+          document.removeEventListener('mousedown', onOutside, true);
+          document.removeEventListener('keydown', onEsc);
+        }
+      };
+      const onEsc = (ev) => {
+        if (ev.key === 'Escape') {
+          panel.remove();
+          _hiddenPanelEl = null;
+          document.removeEventListener('mousedown', onOutside, true);
+          document.removeEventListener('keydown', onEsc);
+        }
+      };
+      document.addEventListener('mousedown', onOutside, true);
+      document.addEventListener('keydown', onEsc);
     }
 
     async function doRestart(id, tileEl) {
