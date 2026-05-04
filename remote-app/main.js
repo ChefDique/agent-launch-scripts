@@ -20,6 +20,13 @@ const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 
+// Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
+// pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
+// rather than fragile pane-title grep. pane_id survives agent auto-restart
+// (pane_loop relaunches claude in the SAME pane), so no re-write is needed on
+// relaunch — the sidecar entry for a given agent is valid until the session ends.
+const SIDECAR_PATH = '/tmp/agent-remote-panes.json';
+
 // Tiny buffer above display.workArea bottom so the window doesn't sit flush
 // against the dock / screen bottom when the radial menu grows downward.
 // Used by resize-window's bottom-cap logic.
@@ -100,6 +107,24 @@ function writeRegistry(mutator) {
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n', 'utf8');
   fs.renameSync(tmp, REGISTRY_PATH);
 }
+
+// ---------------------------------------------------------------------------
+// Pane sidecar helpers
+// ---------------------------------------------------------------------------
+// readPaneSidecar() — parse /tmp/agent-remote-panes.json written by chq-tmux.sh.
+// Returns an object keyed by agent id, or {} if the file is missing / unreadable.
+// Shape: { "xavier": { pane_id: "%5", session: "chq", window: 0, pane: 2, updated_at: "..." }, ... }
+function readPaneSidecar() {
+  try {
+    const raw = fs.readFileSync(SIDECAR_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+// IPC: renderer can request the sidecar directly (e.g. for diagnostic display).
+ipcMain.handle('get-pane-sidecar', () => readPaneSidecar());
 
 function createWindow() {
   // Nuke every flavor of stale state on launch so renderer edits show up
@@ -427,18 +452,38 @@ ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }
     return;
   }
 
+  // Build a pane_id → coord lookup from the live list-panes output.
+  // Used to resolve a sidecar pane_id to a current send-keys coord.
+  const paneIdToCoord = {};
+  for (const t of targets) {
+    if (t.paneId) paneIdToCoord[t.paneId] = t.coord;
+  }
+
+  // Read the sidecar written by chq-tmux.sh at pane creation time.
+  // Keys are agents.json ids; values carry the stable pane_id (%N).
+  const sidecar = readPaneSidecar();
+
   let sendTo = [];
   if (isAll) {
     sendTo = targets.map(t => t.coord);
   } else {
     for (const agent of selectedAgents) {
+      // Strategy 1: resolve via sidecar pane_id — stable across renames.
+      const sidecarEntry = sidecar[agent.id];
+      if (sidecarEntry && sidecarEntry.pane_id && paneIdToCoord[sidecarEntry.pane_id]) {
+        sendTo.push(paneIdToCoord[sidecarEntry.pane_id]);
+        continue;
+      }
+      // Strategy 2: fall back to pane-title substring match (covers panes not
+      // yet in the sidecar — e.g. static agent-factory entries that chq-tmux.sh
+      // doesn't register, or sessions started before this version was deployed).
       const needle = (agent.tmuxTarget || '').toLowerCase();
       if (!needle) continue;
       const match = targets.find(t => t.title.toLowerCase().includes(needle));
       if (match) {
         sendTo.push(match.coord);
       } else {
-        console.warn(`[broadcast] no pane matches tmuxTarget=${needle}`);
+        console.warn(`[broadcast] no pane matches agent=${agent.id} (sidecar miss + tmuxTarget=${needle} miss)`);
       }
     }
   }
@@ -507,8 +552,23 @@ ipcMain.handle('pane-status', async () => {
     return agents.map(a => ({ id: a.id, running: false, attached: false }));
   }
 
+  // Build pane_id → pane lookup for sidecar resolution.
+  const paneById = {};
+  for (const p of panes) {
+    if (p.paneId) paneById[p.paneId] = p;
+  }
+  const sidecar = readPaneSidecar();
+
   // Match each agent → its pane (if any), then derive the session.
+  // Strategy 1: stable pane_id via sidecar. Strategy 2: pane-title fallback.
   const matches = agents.map(a => {
+    // Sidecar path — preferred (stable across renames).
+    const sc = sidecar[a.id];
+    if (sc && sc.pane_id && paneById[sc.pane_id]) {
+      const session = paneById[sc.pane_id].coord.split(':')[0];
+      return { id: a.id, running: true, session };
+    }
+    // Title-grep fallback — covers non-sidecar panes.
     const needle = (a.tmuxTarget || '').toLowerCase();
     if (!needle) return { id: a.id, running: false, session: null };
     const pane = panes.find(p => p.title.toLowerCase().includes(needle));
