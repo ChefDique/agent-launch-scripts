@@ -1018,13 +1018,23 @@ ipcMain.handle('kill-pane', async (event, id) => {
   }
 });
 
-// attach-pane — focus the user's cursor onto the agent's tmux pane in iTerm.
-// Layout-aware behavior:
+// attach-pane — focus the user's cursor onto the agent's tmux pane in iTerm,
+// guaranteeing the agent fills its OWN iTerm window. ALS-010 collapsed the
+// previous three controls (Attach orb + Detach-to-window + Detach-to-split)
+// into this single layout-aware action. Behaviour:
 //
-//   1. ALWAYS run `tmux select-pane -t <coord>` first on the host so server-
-//      side state reflects the desired active pane. select-pane with a fully-
-//      qualified coord (session:window.pane) switches the active window AND
-//      pane in one call — works for `panes`, `windows`, and `ittab` layouts.
+//   0. NEW (ALS-010): if the agent's pane is sharing its tmux window with
+//      other panes, silently `tmux break-pane -d -s <paneId>` it into a new
+//      window first. Solo-windowed panes pass through untouched (regression
+//      check #4 in the AC). break-pane preserves the entire pane process
+//      tree — the bash auto-restart loop (and whatever it spawned) survives
+//      with a stable pane_id; only the coord (session:window.pane) updates.
+//
+//   1. Run `tmux select-pane -t <coord>` on the (possibly new) coord so
+//      server-side state reflects the desired active pane. select-pane with
+//      a fully-qualified coord (session:window.pane) switches the active
+//      window AND pane in one call — works across `panes`, `windows`, and
+//      `ittab` layouts.
 //
 //   2. Try to focus an EXISTING iTerm session whose name contains the agent's
 //      tmuxTarget (iTerm session names mirror the tmux pane title). This is
@@ -1056,7 +1066,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
 
     const panes = await listPanes();
     const needle = (agent.tmuxTarget || '').toLowerCase();
-    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    let match = panes.find(p => p.title.toLowerCase().includes(needle));
     if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Defense in depth: ensure the coord came back in the expected shape
@@ -1070,6 +1080,47 @@ ipcMain.handle('attach-pane', async (event, id) => {
     const sessionName = match.coord.split(':')[0];
     if (!/^[a-z0-9_-]+$/i.test(sessionName)) {
       throw new Error(`refusing to attach to suspicious session: ${sessionName}`);
+    }
+
+    // Step 0 (ALS-010) — if the agent shares its tmux window with sibling
+    // panes, break it out so the iTerm window we render fills with just this
+    // agent. We count siblings by filtering listPanes output to the same
+    // session:window prefix as match.coord. paneId (e.g. "%5") is stable
+    // across the break and is what we re-resolve the new coord by.
+    const sourceWindowPrefix = match.coord.split('.')[0];      // "chq:0"
+    const sameWindowPanes = panes.filter(p => p.coord.startsWith(`${sourceWindowPrefix}.`));
+    const isMultiPaneWindow = sameWindowPanes.length > 1;
+    let breakPaneResult = null;
+    if (isMultiPaneWindow) {
+      if (!match.paneId || !/^%[0-9]+$/.test(match.paneId)) {
+        throw new Error(`refusing to break-pane on suspicious pane_id: ${match.paneId}`);
+      }
+      // -d keeps focus on the original window; we'll select the new pane
+      // explicitly in step 1. -t '<session>:' pins the new window into the
+      // source session — without this, break-pane defaults to the attached
+      // client's session, which can dump the agent into the wrong session
+      // if the user is currently attached elsewhere. sessionName is already
+      // alphabet-validated above. Server-side, no AppleScript involved.
+      await new Promise((resolve, reject) => {
+        execFile('tmux', ['break-pane', '-d', '-s', match.paneId, '-t', `${sessionName}:`], (err, _o, ser) => {
+          if (err) return reject(new Error(ser || err.message));
+          resolve();
+        });
+      });
+      // Re-resolve coord — break-pane moved the pane to a new window, so the
+      // session:window.pane id changed. paneId is stable, so re-list and find
+      // by paneId rather than re-grepping by title (avoids needle-collision
+      // edge cases if two agents share a substring).
+      const refreshed = await listPanes();
+      const updated = refreshed.find(p => p.paneId === match.paneId);
+      if (!updated) {
+        throw new Error(`break-pane succeeded but pane ${match.paneId} not found in refreshed list`);
+      }
+      if (!/^[a-z0-9_:.-]+$/i.test(updated.coord)) {
+        throw new Error(`refusing post-break coord: ${updated.coord}`);
+      }
+      breakPaneResult = { fromCoord: match.coord, toCoord: updated.coord };
+      match = updated;                                          // continue with new coord
     }
 
     // Step 1 — set active pane server-side. Works across panes/windows/ittab.
@@ -1114,7 +1165,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
     });
 
     if (focusResult === 'found') {
-      return { ok: true, coord: match.coord, mode: 'focused-existing' };
+      return { ok: true, coord: match.coord, mode: 'focused-existing', brokeOut: !!breakPaneResult };
     }
 
     // Step 3 — no existing iTerm session matched. Open a new one and attach.
@@ -1147,7 +1198,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
         resolve();
       });
     });
-    return { ok: true, coord: match.coord, mode: 'spawned-new' };
+    return { ok: true, coord: match.coord, mode: 'spawned-new', brokeOut: !!breakPaneResult };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -1221,83 +1272,13 @@ ipcMain.handle('get-session-layout', async () => {
   });
 });
 
-// detach-pane-to-window — break the agent's pane out of its current window
-// into its own new window in the same session. Useful when the panel of
-// agents is too cramped (5-6 horizontal slivers in one window) and you want
-// the agent on its own screen. Equivalent of tmux's `Ctrl-b !`.
-ipcMain.handle('detach-pane-to-window', async (event, id) => {
-  try {
-    const safeId = String(id || '').trim().toLowerCase();
-    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
-
-    const agentList = loadAgents();
-    const agent = agentList.find(a => a.id === safeId);
-    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
-
-    const panes = await listPanes();
-    const needle = (agent.tmuxTarget || '').toLowerCase();
-    const match = panes.find(p => p.title.toLowerCase().includes(needle));
-    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
-
-    // -P prints the new window's target id (session:window). -d keeps focus
-    // on the original window — user can switch with Ctrl-b N.
-    const newWin = await new Promise((resolve, reject) => {
-      execFile('tmux', ['break-pane', '-d', '-s', match.coord, '-P', '-F', '#{session_name}:#{window_index}'], (err, stdout, ser) => {
-        if (err) return reject(new Error(ser || err.message));
-        resolve(stdout.trim());
-      });
-    });
-    return { ok: true, newWindow: newWin, fromCoord: match.coord };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-
-// detach-pane-to-split — move the agent's pane into another window in the
-// session as a horizontal split. If `targetWindow` (e.g. "chq:1") is omitted,
-// picks the lowest-indexed window in the session that isn't the source.
-// Useful for "I want this agent next to that other agent in a fresh layout"
-// without touching tmux directly.
-ipcMain.handle('detach-pane-to-split', async (event, { id, targetWindow } = {}) => {
-  try {
-    const safeId = String(id || '').trim().toLowerCase();
-    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
-
-    const agentList = loadAgents();
-    const agent = agentList.find(a => a.id === safeId);
-    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
-
-    const panes = await listPanes();
-    const needle = (agent.tmuxTarget || '').toLowerCase();
-    const match = panes.find(p => p.title.toLowerCase().includes(needle));
-    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
-
-    const sessionName = match.coord.split(':')[0];
-    const sourceWindow = match.coord.split('.')[0];   // session:window
-
-    let dest = targetWindow;
-    if (!dest) {
-      const sessionWindows = [...new Set(panes.map(p => p.coord.split('.')[0]))]
-        .filter(w => w.startsWith(`${sessionName}:`) && w !== sourceWindow)
-        .sort();
-      dest = sessionWindows[0];
-    }
-    if (!dest) throw new Error('no other window in session to split into; use detach-to-window first');
-    if (!/^[a-z0-9_:.-]+$/i.test(dest)) throw new Error(`refusing suspicious target window: ${dest}`);
-
-    // join-pane handles break+join atomically when -s refers to a pane in
-    // another window. -h splits horizontally.
-    await new Promise((resolve, reject) => {
-      execFile('tmux', ['join-pane', '-h', '-s', match.coord, '-t', dest], (err, _o, ser) => {
-        if (err) return reject(new Error(ser || err.message));
-        resolve();
-      });
-    });
-    return { ok: true, fromCoord: match.coord, joinedTo: dest };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
+// ALS-010 (2026-05-03): the standalone `detach-pane-to-window` and
+// `detach-pane-to-split` IPC handlers were retired. Their behaviour is now
+// subsumed into `attach-pane` above, which auto-runs `tmux break-pane -d`
+// when the agent shares a window with siblings. The two settings-popover
+// buttons that drove them were removed at the same time. If you need
+// power-user split layouts, reach for `tmux` directly — AgentRemote's
+// surface intentionally exposes one Attach action and stops there.
 
 // ---------------------------------------------------------------------------
 // Team-chat overlay — native JSONL chat substrate

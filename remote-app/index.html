@@ -2054,81 +2054,9 @@
       letter-spacing: 0.3px;
     }
 
-    /* Detach-actions section inside the settings popover. Two glass buttons
-       stacked vertically. Each button shows a verb + a one-liner hint. The
-       intent is "advanced layout management" — break this pane out into a
-       new window, or join it as a horizontal split into another window.
-       Sits below the auto-restart toggle and above the three text fields. */
-    .radial-settings .detach-section {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 6px 0;
-      border-bottom: 1px solid var(--border-soft);
-      margin-bottom: 4px;
-    }
-    .radial-settings .detach-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-soft);
-      border-radius: 8px;
-      padding: 7px 9px;
-      cursor: pointer;
-      color: var(--text-primary);
-      font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-      text-align: left;
-      /* Polish: scoped + tightened. */
-      transition:
-        background 0.14s var(--ease),
-        border-color 0.14s var(--ease),
-        transform 0.12s var(--ease);
-      -webkit-app-region: no-drag;
-    }
-    .radial-settings .detach-btn:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: var(--border-medium);
-    }
-    .radial-settings .detach-btn:active { transform: translateY(1px); transition-duration: 0.06s; }
-    .radial-settings .detach-btn .glyph {
-      font-size: 14px;
-      line-height: 1;
-      width: 16px;
-      text-align: center;
-      color: var(--accent);
-    }
-    .radial-settings .detach-btn .text {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      flex: 1;
-    }
-    .radial-settings .detach-btn .text .verb {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    .radial-settings .detach-btn .text .hint {
-      font-size: 9px;
-      color: var(--text-muted);
-      letter-spacing: 0.2px;
-    }
-    .radial-settings .detach-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    .radial-settings .detach-btn.flash-ok {
-      border-color: var(--status-on);
-      background: rgba(52, 208, 88, 0.10);
-      transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
-    }
-    .radial-settings .detach-btn.flash-err {
-      border-color: #ff7090;
-      background: rgba(255, 112, 144, 0.10);
-      transition: border-color 0.5s var(--ease), background 0.5s var(--ease);
-    }
+    /* (ALS-010, 2026-05-03) The .detach-section block + its two .detach-btn
+       buttons used to live here. Removed when Attach absorbed both behaviours
+       — see comment block above the attach-pane handler in main.js. */
 
     /* Disabled orb — the agent isn't running in any chq pane, so the action
        can't operate. Dim the orb, suppress hover transforms, kill the cursor
@@ -4151,8 +4079,12 @@
     // the agent in a separate terminal while the menu is up). For each orb
     // tagged with requiresRunning: flip .disabled based on agents[id].running,
     // rewrite the hover label's detail line, and update the title attribute.
-    // Also runs on the settings popover's detach buttons since they share the
-    // same constraint. v2.6.
+    //
+    // ALS-010 (2026-05-03): the trailing block that re-disabled the settings
+    // popover's detach-window / detach-split buttons was removed when those
+    // buttons themselves were retired. The settings popover's remaining
+    // controls (auto-restart toggle + 3 startup-command inputs) don't need
+    // a "running?" gate — they all act on registry data, not live panes.
     function refreshOpenRadialDisabledState() {
       if (!radialOpenForId) return;
       const orbsLayer = document.getElementById('radial-orbs');
@@ -4185,23 +4117,6 @@
           }
         }
       });
-      // Settings popover's detach buttons — same gate, same source.
-      const settingsLayer = document.getElementById('radial-settings');
-      if (settingsLayer && settingsLayer.classList.contains('visible')) {
-        const id = settingsLayer.dataset.agentId;
-        const agent = agents[id];
-        if (agent) {
-          const shouldDisable = !agent.running;
-          ['detach-window', 'detach-split'].forEach(btnId => {
-            const btn = settingsLayer.querySelector(`#${btnId}`);
-            if (!btn) return;
-            btn.disabled = shouldDisable;
-            btn.title = shouldDisable
-              ? `${agent.displayName || id} isn't running in chq — Deploy it first`
-              : btn.dataset.origTitle || btn.title;
-          });
-        }
-      }
     }
 
     function closeRadialMenu() {
@@ -4290,22 +4205,6 @@
             <span class="knob"></span>
           </label>
         </div>
-        <div class="detach-section">
-          <button class="detach-btn" id="detach-window" title="Move pane into its own tmux window (Ctrl-b !)">
-            <span class="glyph">↗</span>
-            <span class="text">
-              <span class="verb">Detach to new window</span>
-              <span class="hint">Break pane out of current window</span>
-            </span>
-          </button>
-          <button class="detach-btn" id="detach-split" title="Move pane into another window as a horizontal split">
-            <span class="glyph">↔</span>
-            <span class="text">
-              <span class="verb">Detach to split</span>
-              <span class="hint">Move pane into another window as split</span>
-            </span>
-          </button>
-        </div>
         <div class="settings-row">
           <label for="set-color">Color</label>
           <input type="text" id="set-color" value="${escapeHtml(agent.color || '')}"
@@ -4342,9 +4241,9 @@
       const sx = tryLeftX >= 12 ? tryLeftX : Math.min(flipRightX, window.innerWidth - PANEL_W - 12);
       // Vertically clamp so the panel doesn't poke off the top/bottom of the
       // viewport. The popover's height varies with content (auto-restart row +
-      // detach section + 3 text inputs + gaps + padding) — the v2.5 hardcoded
-      // PANEL_HALF_H = 145 undersized once the detach-section landed and the
-      // STARTUP row clipped at the bottom on Richard's display.
+      // 3 text inputs + gaps + padding) — the v2.5 hardcoded PANEL_HALF_H = 145
+      // undersized once the detach-section landed (since retired in ALS-010)
+      // and the STARTUP row clipped at the bottom on Richard's display.
       //
       // Fix: measure the actual rendered height BEFORE applying transforms,
       // derive PANEL_HALF_H from that, then ask main to grow the window
@@ -4428,45 +4327,12 @@
         }
       });
 
-      // ---- Wire up the detach action buttons (v2.5) ----
-      // Both invoke main IPCs and flash success/error feedback on the button
-      // itself rather than yanking attention to the agent tile. The radial
-      // menu stays open so Richard can chain follow-up actions.
-      // v2.6: detach actions need a live chq pane to operate on. When the
-      // agent isn't running, render the buttons disabled with a tooltip
-      // explaining why. Click handlers also gate on .disabled so a poll-tick
-      // refresh that re-enables works without rebinding.
-      const detachWindowBtn = layer.querySelector('#detach-window');
-      const detachSplitBtn = layer.querySelector('#detach-split');
-      // Stash original tooltips so refreshOpenRadialDisabledState can restore
-      // them when the agent comes back up.
-      detachWindowBtn.dataset.origTitle = detachWindowBtn.title;
-      detachSplitBtn.dataset.origTitle  = detachSplitBtn.title;
-      const initiallyDisabled = !agent.running;
-      detachWindowBtn.disabled = initiallyDisabled;
-      detachSplitBtn.disabled  = initiallyDisabled;
-      if (initiallyDisabled) {
-        const msg = `${agent.displayName || id} isn't running in chq — Deploy it first`;
-        detachWindowBtn.title = msg;
-        detachSplitBtn.title  = msg;
-      }
-      detachWindowBtn.addEventListener('click', async () => {
-        if (detachWindowBtn.disabled) return;
-        detachWindowBtn.disabled = true;
-        const r = await ipcRenderer.invoke('detach-pane-to-window', id);
-        // Re-evaluate against current running state — the IPC may have failed
-        // because the agent died between poll and click; respect that, not
-        // the optimistic re-enable.
-        detachWindowBtn.disabled = !agent.running;
-        flashDetachResult(detachWindowBtn, r, id);
-      });
-      detachSplitBtn.addEventListener('click', async () => {
-        if (detachSplitBtn.disabled) return;
-        detachSplitBtn.disabled = true;
-        const r = await ipcRenderer.invoke('detach-pane-to-split', { id });
-        detachSplitBtn.disabled = !agent.running;
-        flashDetachResult(detachSplitBtn, r, id);
-      });
+      // (ALS-010, 2026-05-03) The detach-window / detach-split button
+      // wiring used to live here. Both behaviours were collapsed into the
+      // Attach orb's `attach-pane` handler in main.js — when an agent
+      // shares a tmux window with siblings, Attach now silently runs
+      // `tmux break-pane -d` before opening iTerm so the agent fills its
+      // own iTerm window. The flashDetachResult helper was removed too.
 
       // ---- Wire up the three text inputs ----
       // Map renderer-input-id → registry-field name + agent local field name.
@@ -5215,38 +5081,9 @@
       // flicker grey then come back green on the next poll cycle.
     }
 
-    // Flash success/error feedback on a detach button inside the settings
-    // popover. Success: brief green border + console log of what happened.
-    // Error: red border + flash the error string in the button's hint slot
-    // for 2s before reverting. Keeps the popover open either way so Richard
-    // can see the result without losing context.
-    function flashDetachResult(btnEl, result, agentId) {
-      const hintEl = btnEl.querySelector('.text .hint');
-      const originalHint = hintEl ? hintEl.textContent : '';
-      if (result && result.ok) {
-        btnEl.classList.add('flash-ok');
-        if (hintEl) {
-          if (result.newWindow)      hintEl.textContent = `→ ${result.newWindow}`;
-          else if (result.joinedTo)  hintEl.textContent = `→ ${result.joinedTo}`;
-          else                       hintEl.textContent = 'done';
-        }
-        setTimeout(() => {
-          btnEl.classList.remove('flash-ok');
-          if (hintEl) hintEl.textContent = originalHint;
-        }, 1800);
-      } else {
-        btnEl.classList.add('flash-err');
-        if (hintEl) hintEl.textContent = String((result && result.error) || 'failed').slice(0, 36);
-        // Also flash the agent tile so the failure registers even if the user's
-        // eyes were on the dock rather than the popover.
-        const tileBtn = document.getElementById(`btn-${agentId}`);
-        if (tileBtn) flashTileError(tileBtn, (result && result.error) || 'failed');
-        setTimeout(() => {
-          btnEl.classList.remove('flash-err');
-          if (hintEl) hintEl.textContent = originalHint;
-        }, 2200);
-      }
-    }
+    // (ALS-010, 2026-05-03) flashDetachResult was retired alongside the
+    // detach-window / detach-split buttons. Attach failures still surface
+    // via flashTileError on the agent tile (see doAttach).
 
     // Briefly flash an error tooltip beneath the tile when an action fails
     // (e.g. trying to restart an agent that isn't running). Avoids alert().
