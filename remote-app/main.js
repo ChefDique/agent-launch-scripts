@@ -89,7 +89,10 @@ function loadAgents() {
       // "user set nothing and main filled in XAVIER".
       renameTo: a.rename_to || '',
       startupSlash: a.startup_slash || '',
-      avatar: a.avatar || `${a.id}.svg`
+      avatar: a.avatar || `${a.id}.svg`,
+      // hidden: true means "kept in registry but hidden from the dock bar".
+      // Set via the "Remove from bar" radial action; cleared via "Show hidden".
+      hidden: !!a.hidden
     }));
   } catch (err) {
     console.error(`[remote] failed to read registry ${REGISTRY_PATH}: ${err.message}`);
@@ -775,6 +778,41 @@ ipcMain.handle('remove-agent', async (event, id) => {
       const before = data.agents.length;
       data.agents = data.agents.filter(a => a.id !== safeId);
       if (data.agents.length === before) throw new Error(`agent id "${safeId}" not found`);
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Hide-agent IPC — sets hidden:true on the registry entry. The agent stays in
+// agents.json (so launch scripts can still find it) but vanishes from the dock
+// bar. Reversible via unhide-agent. This is the "Remove from bar" radial action.
+ipcMain.handle('hide-agent', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+    writeRegistry(data => {
+      const entry = (data.agents || []).find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent id "${safeId}" not found`);
+      entry.hidden = true;
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Unhide-agent IPC — removes the hidden flag from a registry entry, making the
+// tile reappear in the dock bar. Invoked from the "Show hidden" affordance.
+ipcMain.handle('unhide-agent', async (event, id) => {
+  try {
+    const safeId = String(id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+    writeRegistry(data => {
+      const entry = (data.agents || []).find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent id "${safeId}" not found`);
+      delete entry.hidden;
     });
     return { ok: true };
   } catch (err) {
