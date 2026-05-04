@@ -6,6 +6,7 @@
     "tmux_target": "Pane title used for broadcast + status targeting. Defaults to lowercased rename_to when present, otherwise lowercased display_name. Only set explicitly to override that derivation.",
     "cwd": "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
     "color": "Argument to claude's /color slash command. Set during the auto-inject sequence.",
+    "theme_color": "Hex color string (e.g. '#00f2ff') used by AgentRemote to generate per-agent CSS variables at runtime. Controls the active-border glow and radial-orb palette. Picked in the Add Agent modal. Falls back to --accent if omitted.",
     "rename_to": "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
     "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
     "auto_restart": "If false, chq-tmux.sh's pane_loop exits after the agent quits instead of relooping after RESTART_DELAY. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
@@ -19,6 +20,7 @@
       "display_name": "Xavier",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
+      "theme_color": "#00f2ff",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
       "rename_to": "XAVIER"
@@ -28,6 +30,7 @@
       "display_name": "Lucius",
       "cwd": "~/ai_projects/research-and-development",
       "color": "purple",
+      "theme_color": "#ffaa00",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
       "env": {
@@ -40,6 +43,7 @@
       "display_name": "Gekko",
       "cwd": "~/ai_projects/trading",
       "color": "green",
+      "theme_color": "#00ff88",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
       "rename_to": "GEKKO"
@@ -49,6 +53,7 @@
       "display_name": "overlordswarmy",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
+      "theme_color": "#ff77cc",
       "rename_to": "OVERLORDSWARMY",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
@@ -58,6 +63,7 @@
       "display_name": "Claude",
       "cwd": "~/agent-launch-scripts",
       "color": "orange",
+      "theme_color": "#e07c4c",
       "rename_to": "TMUX-MASTA",
       "startup_slash": "/gogo",
       "avatar": "claude.svg"
