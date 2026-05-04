@@ -1515,4 +1515,189 @@ function startChatWatcher() {
 app.on('before-quit', () => {
   if (chatWatchDebounce) { clearTimeout(chatWatchDebounce); chatWatchDebounce = null; }
   if (chatWatcher) { try { chatWatcher.close(); } catch { /* already closed */ } chatWatcher = null; }
+  // Tear down all live pipe-pane registrations so we don't leave zombie
+  // tmux pipe-pane entries if the user closes AgentRemote without collapsing.
+  teardownAllPipePanes();
 });
+
+// ---------------------------------------------------------------------------
+// xterm.js per-agent terminal viewer (ALS-005)
+// ---------------------------------------------------------------------------
+// Architecture:
+//   expand: mkfifo /tmp/agent-remote-pipe-<id>  →  tmux pipe-pane -t <pane_id>
+//           to that FIFO  →  fs.createReadStream opens the FIFO in non-blocking
+//           mode  →  bytes forwarded to renderer via 'pane-output:<id>' IPC
+//   collapse: unlink FIFO + tmux pipe-pane -t <pane_id> (no second arg = stop)
+//   stdin: renderer sends 'pane-input' {id, data}  →  tmux send-keys -t <pane_id> <data>
+//
+// One entry in activePipeReaders per expanded agent. Keyed by agent id.
+// Value: { fifoPath, readStream, paneId }
+
+const activePipeReaders = {};
+
+// Build the FIFO path for an agent id.
+function pipeFifoPath(agentId) {
+  return path.join('/tmp', `agent-remote-pipe-${agentId}`);
+}
+
+// Resolve pane_id for an agent from the sidecar.
+// Returns the stable pane_id string (%N) or null if not found.
+function resolvePaneId(agentId) {
+  const sidecar = readPaneSidecar();
+  const entry = sidecar[agentId];
+  return (entry && entry.pane_id) ? entry.pane_id : null;
+}
+
+// start-pane-pipe — called by renderer when a tile is expanded.
+// 1. Cleans up any prior entry for this agent.
+// 2. Creates a FIFO at /tmp/agent-remote-pipe-<id>.
+// 3. Registers tmux pipe-pane -t <pane_id> to write to that FIFO.
+// 4. Opens a read-stream on the FIFO and forwards bytes via IPC.
+ipcMain.handle('start-pane-pipe', async (_event, agentId) => {
+  try {
+    const safeId = String(agentId || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agent id');
+
+    // Clean up any prior pipe for this agent first.
+    await teardownPipePaneForAgent(safeId);
+
+    const paneId = resolvePaneId(safeId);
+    if (!paneId) throw new Error(`no sidecar entry for agent "${safeId}" — Deploy it first`);
+
+    const fifoPath = pipeFifoPath(safeId);
+
+    // Remove any leftover FIFO from a prior run.
+    try { fs.unlinkSync(fifoPath); } catch { /* no-op */ }
+
+    // Create the FIFO.
+    await new Promise((resolve, reject) => {
+      execFile('mkfifo', [fifoPath], (err, _o, ser) => {
+        if (err) return reject(new Error(`mkfifo failed: ${ser || err.message}`));
+        resolve();
+      });
+    });
+
+    // Open the FIFO for reading BEFORE registering pipe-pane. On macOS,
+    // opening a FIFO for reading blocks until a writer appears. Since
+    // createReadStream is async (uses the libuv thread pool), it queues the
+    // open() in the background — the event loop stays free. When pipe-pane's
+    // "cat" subprocess opens the FIFO for writing, both ends unblock and data
+    // starts flowing.
+    //
+    // Opening in the wrong order (pipe-pane first, then createReadStream) would
+    // deadlock: pipe-pane's "cat" blocks waiting for a reader that hasn't
+    // arrived yet, and the pipe-pane execFile callback never fires.
+    const readStream = fs.createReadStream(fifoPath, { flags: 'r', autoClose: true });
+
+    readStream.on('data', (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          mainWindow.webContents.send(`pane-output:${safeId}`, chunk.toString('base64'));
+        } catch { /* renderer gone — stream still drains */ }
+      }
+    });
+    readStream.on('error', (err) => {
+      // FIFO was unlinked (collapse) or tmux pipe closed — this is expected on teardown.
+      logToOutLog(`[pipe:${safeId}] read stream error: ${err.message}`);
+    });
+
+    // Now register pipe-pane. tmux runs "cat > <fifo>" in a subshell, which
+    // opens the FIFO for writing (unblocking the reader above) and forwards
+    // all pane output bytes. "cat >" (not ">>") is correct for FIFOs — they
+    // don't accumulate data, so append vs replace is irrelevant. The fifoPath
+    // is safe: it's /tmp/agent-remote-pipe-<id> where id is [a-z0-9_-]+.
+    await new Promise((resolve, reject) => {
+      execFile('tmux', ['pipe-pane', '-t', paneId, `cat > ${fifoPath}`], (err, _o, ser) => {
+        if (err) {
+          // Clean up the stream + FIFO before throwing.
+          try { readStream.destroy(); } catch { /* already closed */ }
+          try { fs.unlinkSync(fifoPath); } catch { /* no-op */ }
+          return reject(new Error(`pipe-pane failed: ${ser || err.message}`));
+        }
+        resolve();
+      });
+    });
+
+    activePipeReaders[safeId] = { fifoPath, readStream, paneId };
+    logToOutLog(`[pipe:${safeId}] started on ${paneId} → ${fifoPath}`);
+    return { ok: true };
+  } catch (err) {
+    logToOutLog(`[pipe] start-pane-pipe failed for "${agentId}": ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+});
+
+// stop-pane-pipe — called by renderer when a tile is collapsed.
+ipcMain.handle('stop-pane-pipe', async (_event, agentId) => {
+  const safeId = String(agentId || '').trim().toLowerCase();
+  await teardownPipePaneForAgent(safeId);
+  return { ok: true };
+});
+
+// pane-input — renderer sends keystrokes typed into the xterm.
+// Forwards raw text via tmux send-keys -l (literal, no special-key expansion)
+// so the agent's TUI sees the characters as-is.
+ipcMain.on('pane-input', (_event, { id, data }) => {
+  const safeId = String(id || '').trim().toLowerCase();
+  if (!/^[a-z0-9_-]+$/.test(safeId)) return;
+  const entry = activePipeReaders[safeId];
+  if (!entry || !entry.paneId) return;
+  if (typeof data !== 'string' || data.length === 0) return;
+
+  // Handle special sequences: Enter key (\r or \n) → send as Enter keystroke
+  // so the agent's readline/TUI sees a real Return. All other bytes via -l (literal).
+  // xterm.js sends \r for Enter, \x7f for backspace, etc.
+  const parts = data.split(/(\r|\n)/);
+  let pending = '';
+  for (const part of parts) {
+    if (part === '\r' || part === '\n') {
+      if (pending.length > 0) {
+        execFile('tmux', ['send-keys', '-t', entry.paneId, '-l', pending], () => {});
+        pending = '';
+      }
+      execFile('tmux', ['send-keys', '-t', entry.paneId, 'Enter'], () => {});
+    } else {
+      pending += part;
+    }
+  }
+  if (pending.length > 0) {
+    execFile('tmux', ['send-keys', '-t', entry.paneId, '-l', pending], () => {});
+  }
+});
+
+// Tear down pipe for one agent: stop read stream, unlink FIFO, stop tmux pipe-pane.
+async function teardownPipePaneForAgent(agentId) {
+  const entry = activePipeReaders[agentId];
+  if (!entry) return;
+  delete activePipeReaders[agentId];
+
+  // Close the read stream first so the FIFO unlink doesn't block.
+  try { entry.readStream.destroy(); } catch { /* already closed */ }
+
+  // Stop tmux pipe-pane (no second arg = stop piping).
+  if (entry.paneId) {
+    await new Promise(resolve => {
+      execFile('tmux', ['pipe-pane', '-t', entry.paneId], () => resolve());
+    });
+  }
+
+  // Remove the FIFO.
+  try { fs.unlinkSync(entry.fifoPath); } catch { /* already gone */ }
+
+  logToOutLog(`[pipe:${agentId}] torn down`);
+}
+
+// Tear down all active pipe readers (called on before-quit).
+function teardownAllPipePanes() {
+  const ids = Object.keys(activePipeReaders);
+  for (const id of ids) {
+    const entry = activePipeReaders[id];
+    if (!entry) continue;
+    delete activePipeReaders[id];
+    try { entry.readStream.destroy(); } catch { /* already closed */ }
+    if (entry.paneId) {
+      execFile('tmux', ['pipe-pane', '-t', entry.paneId], () => {});
+    }
+    try { fs.unlinkSync(entry.fifoPath); } catch { /* already gone */ }
+  }
+}

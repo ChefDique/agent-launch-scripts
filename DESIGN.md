@@ -183,6 +183,8 @@ Three phases, each independently shippable:
 
 **Phase 3 — Diverge.** AgentRemote grows in its new home: tmux command palette, layout presets, xterm.js inline expand, anything else. The old `remote-app/` is git-mv'd to `deprecated/` once Phase 2 has soaked for ~1 week.
 
+**Phase 3 lite (ALS-005, shipped 2026-05-03 in remote-app/).** xterm.js inline terminal viewer delivered in the current `remote-app/` ahead of the migration. One xterm.js instance per agent, exposed via a "Terminal" radial menu orb. Collapsed by default; expand fires a FIFO + `tmux pipe-pane` backend for live stdout; typing sends keys to the agent's tmux pane via `tmux send-keys`. Collapse tears down FIFO + pipe-pane cleanly. No scroll history, no themed prompts — raw bidirectional bytes. Full Phase 3 (command palette, layout presets, scroll history, polish) deferred to the Atlas migration track.
+
 **Non-goals during migration:** no aesthetic changes, no new features, no rewrites. Phase 2 is a pure port.
 
 ---

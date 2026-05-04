@@ -2,6 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <!-- xterm.js CSS (ALS-005) — required for proper terminal rendering.
+       Loaded from node_modules via a relative path; nodeIntegration=true
+       allows file:// access to node_modules from the renderer. -->
+  <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
   <style>
     /*
       Personal Chat Central — cinematic glassmorphism, always-visible chat
@@ -2770,6 +2774,70 @@
       border: none !important;
       box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
     }
+
+    /* -------------------------------------------------------------------------
+       xterm.js per-agent terminal panel (ALS-005)
+       -------------------------------------------------------------------------
+       Collapsed by default — zero layout impact when not in use. On tile-click
+       (handled in JS) the panel slides open below the dock. One panel per agent
+       rendered in the DOM; only one is visible at a time (collapsing the current
+       one before opening a new one is enforced in JS).
+
+       The panel sits inside the main .panel glass slab, after the dock row. It
+       is gated behind the `body.term-open` class so it doesn't affect the dock
+       layout when collapsed. -webkit-app-region: no-drag covers the entire
+       terminal area so clicks/type don't accidentally drag the window.
+    */
+    .term-panel {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      -webkit-app-region: no-drag;
+    }
+    body.term-open .term-panel { display: flex; }
+
+    .term-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px 4px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .term-agent-name {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .term-close-btn {
+      background: transparent;
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1;
+      padding: 2px 7px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: color 0.14s var(--ease), border-color 0.14s var(--ease);
+    }
+    .term-close-btn:hover { color: var(--text-primary); border-color: var(--border-medium); }
+
+    /* xterm host — fixed height terminal viewport. xterm.js sets the internal
+       cell grid dimensions via FitAddon; we give it a stable bounding box. The
+       height here trades off between "enough screen estate" and "panel stays
+       compact". 220px ≈ 8 rows at 14px cell height which fits a typical
+       agent status output without being overwhelming. */
+    #xterm-host {
+      height: 220px;
+      background: #0a0a12;
+      overflow: hidden;
+      border-radius: 0 0 4px 4px;
+    }
+    /* xterm.js injects its own .xterm root; we need to make it fill the host. */
+    #xterm-host .xterm { height: 100%; }
+    #xterm-host .xterm-viewport { overflow-y: hidden !important; }
 \n  </style>
 </head>
 <body>
@@ -2866,6 +2934,17 @@
         <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
         <button class="util-btn" id="deploy-btn" title="Spawn selected agents in tmux">Deploy</button>
       </div>
+    </div>
+
+    <!-- xterm.js per-agent terminal viewer (ALS-005).
+         Hidden (body.term-open gates display). The xterm-host div is the
+         mounting point for xterm.js Terminal. Populated by openTermPanel(). -->
+    <div class="term-panel" id="term-panel">
+      <div class="term-topbar">
+        <span class="term-agent-name" id="term-agent-name"></span>
+        <button class="term-close-btn" id="term-close-btn" title="Close terminal (Esc)">Close ✕</button>
+      </div>
+      <div id="xterm-host"></div>
     </div>
   </div>
 
@@ -3559,10 +3638,10 @@
     // enough to keep the goo chain continuous across all 7 orbs).
     //
     // Seven orbs: CWD / Close / Restart / Attach / Settings / Hide / Delete.
-    // Expanded from 5 to 7 to add "Remove from bar" (hide) and "Delete agent"
-    // (destructive registry delete). Pitch stays 50px; arc widens symmetrically.
-    const RADIAL_X_OFFSETS = [-150, -100, -50, 0, 50, 100, 150];
-    const RADIAL_Y_OFFSETS = [36, 52, 64, 70, 64, 52, 36];   // positive = downward, flat arc for continuous goo bridge
+    // Expanded from 7 to 8 to add "Terminal" xterm viewer (ALS-005).
+    // Pitch stays 50px; arc widens symmetrically by one slot (+25px each side).
+    const RADIAL_X_OFFSETS = [-175, -125, -75, -25, 25, 75, 125, 175];
+    const RADIAL_Y_OFFSETS = [30, 46, 58, 66, 66, 58, 46, 30];   // positive = downward, flat arc for continuous goo bridge
     // Animation timing. Stagger short so orbs emerge as a connected blob
     // (the gooey filter merges them mid-flight). Settle delay is when
     // we add .settled to the orbs container — gates hover-label reveal
@@ -3715,6 +3794,21 @@
           danger: false,
           requiresRunning: true,
           title: 'Open iTerm tab attached to this pane'
+        },
+        {
+          icon: '⬛',
+          verb: 'Terminal',
+          detail: 'inline',
+          // Open/close the xterm.js inline terminal viewer. Close the radial
+          // menu first so the panel has room to grow downward unobstructed.
+          action: () => {
+            closeRadialMenu();
+            if (typeof window._openTermPanel === 'function') window._openTermPanel(id);
+          },
+          danger: false,
+          requiresRunning: true,
+          keepOpenOnClick: false,
+          title: 'Open inline terminal viewer for this agent'
         },
         {
           icon: '⚙',
@@ -6571,6 +6665,202 @@
       ev.preventDefault();
       toggleChatOverlay();
     });
+
+    // -------------------------------------------------------------------------
+    // xterm.js per-agent terminal viewer (ALS-005)
+    // -------------------------------------------------------------------------
+    // Dependencies loaded from node_modules via require() (nodeIntegration=true).
+    // xterm is @xterm/xterm (v5+); FitAddon from @xterm/addon-fit.
+    //
+    // State: one Terminal instance, one FitAddon. Mounted into #xterm-host.
+    // Lifecycle:
+    //   openTermPanel(agentId)  → dispose prior term if any, create new Terminal,
+    //                             fire start-pane-pipe IPC, render body.term-open,
+    //                             syncWindowSize
+    //   closeTermPanel()        → fire stop-pane-pipe IPC, term.dispose(),
+    //                             remove body.term-open, syncWindowSize
+    //
+    // pane-input IPC fires on xterm's onData (every keypress), forwarding to
+    // the agent's tmux pane via main.js pane-input handler.
+    //
+    // pane-output:<id> IPC delivers base64-encoded chunks from the tmux FIFO.
+    // We write them to term.write() after decoding.
+    //
+    // The "Terminal" radial orb is added to the items array in openRadialMenu().
+    // Expanding via tile click is handled at the end of this block.
+
+    let termState = {
+      agentId: null,      // id of the currently-open agent
+      term: null,         // xterm Terminal instance
+      fitAddon: null,     // FitAddon instance
+      outputListener: null // ipcRenderer listener tag for the output channel
+    };
+
+    function loadXterm() {
+      // Lazy-load so startup is not blocked.
+      try {
+        const { Terminal } = require('@xterm/xterm');
+        const { FitAddon } = require('@xterm/addon-fit');
+        return { Terminal, FitAddon };
+      } catch (err) {
+        console.error('[xterm] failed to require @xterm/xterm:', err.message);
+        return null;
+      }
+    }
+
+    function isTermOpen() {
+      return document.body.classList.contains('term-open');
+    }
+
+    async function openTermPanel(agentId) {
+      // If already open for this agent, close it (toggle behavior).
+      if (isTermOpen() && termState.agentId === agentId) {
+        closeTermPanel();
+        return;
+      }
+      // If open for a different agent, close the old one first.
+      if (isTermOpen()) {
+        await closeTermPanel();
+      }
+
+      const libs = loadXterm();
+      if (!libs) {
+        console.error('[xterm] cannot open terminal: xterm module unavailable');
+        return;
+      }
+      const { Terminal, FitAddon } = libs;
+
+      // Set the topbar label.
+      const nameEl = document.getElementById('term-agent-name');
+      const agent = agents[agentId];
+      if (nameEl) nameEl.textContent = (agent && agent.displayName) ? agent.displayName : agentId;
+
+      // Create Terminal instance.
+      const term = new Terminal({
+        fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
+        fontSize: 12,
+        lineHeight: 1.2,
+        cursorBlink: true,
+        cursorStyle: 'block',
+        theme: {
+          background: '#0a0a12',
+          foreground: '#f4f4f8',
+          cursor: '#e07c4c',
+          cursorAccent: '#0a0a12',
+          selectionBackground: 'rgba(224,124,76,0.25)',
+          black:   '#1a1a2e', red:    '#ff5c7a', green:  '#34d058', yellow: '#f4c542',
+          blue:    '#00a8ff', magenta:'#ff77cc', cyan:   '#00f2ff', white:  '#c8c8d4',
+          brightBlack:   '#3a3a54', brightRed:    '#ff7d95', brightGreen: '#4de068',
+          brightYellow:  '#f8d36a', brightBlue:   '#33bbff', brightMagenta:'#ff99dd',
+          brightCyan:    '#33f5ff', brightWhite:  '#f4f4f8'
+        },
+        scrollback: 0,           // Phase 3 lite — no scroll history
+        convertEol: true
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+
+      const host = document.getElementById('xterm-host');
+      if (!host) { term.dispose(); return; }
+
+      term.open(host);
+      fitAddon.fit();
+
+      // Forward keypresses to the agent's tmux pane.
+      term.onData((data) => {
+        ipcRenderer.send('pane-input', { id: agentId, data });
+      });
+
+      // Register pane-output IPC listener. The channel is per-agent so
+      // switching agents doesn't cross-contaminate output streams.
+      const outputChannel = `pane-output:${agentId}`;
+      const outputListener = (_event, b64) => {
+        try {
+          const text = atob(b64);
+          term.write(text);
+        } catch (err) {
+          console.warn(`[xterm] base64 decode error: ${err.message}`);
+        }
+      };
+      ipcRenderer.on(outputChannel, outputListener);
+
+      termState = { agentId, term, fitAddon, outputListener, outputChannel };
+
+      // Open the panel in the DOM.
+      document.body.classList.add('term-open');
+      // Resize window to fit the expanded panel.
+      syncWindowSize();
+      // Re-fit xterm after layout settles. Without this, xterm measures its
+      // container before the window resize lands and computes wrong column counts.
+      requestAnimationFrame(() => {
+        if (termState.fitAddon) {
+          try { termState.fitAddon.fit(); } catch { /* ignore */ }
+        }
+      });
+
+      // Start the FIFO / pipe-pane backend. Fire async — don't await so the
+      // panel opens immediately; output will start flowing once main.js has
+      // the FIFO up (typically < 100ms).
+      ipcRenderer.invoke('start-pane-pipe', agentId).then(result => {
+        if (!result || !result.ok) {
+          term.write(`\r\n[AgentRemote] terminal pipe failed: ${result && result.error || 'unknown'}\r\n`);
+        }
+      });
+    }
+
+    async function closeTermPanel() {
+      if (!isTermOpen() && !termState.agentId) return;
+
+      const { agentId, term, outputChannel, outputListener } = termState;
+
+      // Remove IPC listener first so no more output lands after close.
+      if (outputChannel && outputListener) {
+        ipcRenderer.removeListener(outputChannel, outputListener);
+      }
+
+      // Dispose the terminal.
+      if (term) {
+        try { term.dispose(); } catch { /* already disposed */ }
+      }
+
+      // Stop the FIFO / pipe-pane backend. Fire IPC and await — we want the
+      // teardown to complete (unlink FIFO + stop tmux pipe-pane) before we
+      // clear the DOM.
+      if (agentId) {
+        await ipcRenderer.invoke('stop-pane-pipe', agentId).catch(() => {});
+      }
+
+      // Reset state.
+      termState = { agentId: null, term: null, fitAddon: null, outputListener: null };
+
+      // Remove the panel from the DOM.
+      const host = document.getElementById('xterm-host');
+      if (host) host.innerHTML = '';
+      document.body.classList.remove('term-open');
+
+      // Shrink window back.
+      syncWindowSize();
+    }
+
+    // Wire the Close button.
+    (() => {
+      const closeBtn = document.getElementById('term-close-btn');
+      if (closeBtn) closeBtn.addEventListener('click', () => closeTermPanel());
+    })();
+
+    // Esc closes the terminal panel (lower priority than voice/radial/chat Esc).
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (!isTermOpen()) return;
+      // Let higher-priority handlers fire first (they use capture or preventDefault).
+      // If the event hasn't been prevented by the time we see it, close the panel.
+      setTimeout(() => { if (!ev.defaultPrevented) closeTermPanel(); }, 0);
+    });
+
+    // Expose openTermPanel for the radial menu (added to the orb list in
+    // openRadialMenu via the items array patch below this block).
+    window._openTermPanel = openTermPanel;
   </script>
 </body>
 </html>
