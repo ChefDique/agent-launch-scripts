@@ -20,11 +20,6 @@ const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 
-// Tiny buffer above display.workArea bottom so the window doesn't sit flush
-// against the dock / screen bottom when the radial menu grows downward.
-// Used by resize-window's bottom-cap logic.
-const WORKAREA_BOTTOM_SAFETY = 4;
-
 // Global accelerator for the show/hide toggle. Richard switched from literal
 // Control to Cmd 2026-05-02 — Mac muscle memory reaches for Cmd+Shift+Space,
 // not Ctrl+Shift+Space. macOS Ctrl is rarely used for app shortcuts; Cmd is
@@ -139,16 +134,38 @@ function createWindow() {
   // The request handler above is sufficient to gate the user-prompt-eligible
   // mic permission.
 
+  // Window-overlap (block #4): we used to size the BrowserWindow to fit the
+  // panel, then resize on every drawer/add-form open via the resize-window
+  // IPC. That clipped popovers that wanted to extend past the panel because
+  // BrowserWindow bounds are a hard ceiling — anything painted past them just
+  // gets cut.
+  //
+  // New approach: size the window large enough to host the panel + drawer +
+  // add-form simultaneously (~860×900). CSS positions painted content at
+  // fixed offsets near the top; everything else is empty / transparent.
+  // We pair this with setIgnoreMouseEvents(true, {forward:true}) defaulted
+  // ON; the renderer flips ignore=false while the cursor is over a painted
+  // region so clicks land. Outside painted regions, clicks fall through
+  // to the app below.
+  //
+  // Why not full workArea: macOS transparent windows at workArea-size hit
+  // a Cocoa quirk on Tahoe where the window contents fail to composite
+  // (window present in process list, no pixels rendered). 860×900 is well
+  // under the threshold and gives plenty of room for popovers + the drawer
+  // (drawer is 360 wide × ~520 tall; sits right of panel via JS positioning).
+  const CANVAS_W = 860;
+  const CANVAS_H = 900;
   mainWindow = new BrowserWindow({
-    width: 820,
-    height: 280,
-    minWidth: 380,
-    minHeight: 180,
+    width: CANVAS_W,
+    height: CANVAS_H,
+    minWidth: 600,
+    minHeight: 400,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
     hasShadow: false,
+    show: false,                 // wait until ready-to-show so no white flash
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -156,8 +173,16 @@ function createWindow() {
     }
   });
 
+  // Ignore mouse events by default; forward mousemove so the renderer can
+  // detect cursor entry into painted regions and flip ignore=false. Outside
+  // painted regions, clicks fall through to underlying apps.
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
+
   mainWindow.loadFile('index.html');
   mainWindow.center();
+  mainWindow.once('ready-to-show', () => {
+    showAtCursorDisplay();
+  });
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   // Electron ≥35 changed the console-message signature: single Event object
   // (level/message/lineNumber/sourceId properties) instead of positional args.
@@ -306,17 +331,19 @@ function watchToggleFile() {
 }
 
 // Re-position the window so it surfaces on the display the cursor is on,
-// then show + focus. Center horizontally; place the panel at ~30% of the
-// display height so it sits comfortably above center on a typical screen
-// (Richard's been using it as a floating HUD).
+// then show + focus. The canvas is ~860×900 transparent; the painted panel
+// inside lives in the top portion of it (CSS top:60px). Center horizontally,
+// place the canvas so the panel lands at ~30% of the workArea height.
 function showAtCursorDisplay() {
   try {
     const cursor = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursor);
     const work = display.workArea;
     const [winW, winH] = mainWindow.getSize();
-    const x = Math.round(work.x + (work.width  - winW) / 2);
-    const y = Math.round(work.y + work.height * 0.3);
+    const x = Math.round(work.x + Math.max(0, (work.width - winW) / 2));
+    // Panel paints at ~y=60 inside the canvas; we want the panel ~30% down
+    // the workArea, so canvas top = work.y + 30%*work.height - 60.
+    const y = Math.round(work.y + Math.max(0, work.height * 0.30 - 60));
     mainWindow.setBounds({ x, y, width: winW, height: winH });
   } catch (err) {
     // If anything goes sideways with multi-display geometry, just show in place.
@@ -331,49 +358,26 @@ function showAtCursorDisplay() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-agents', () => loadAgents());
 
-// Resize the BrowserWindow to fit the rendered DOM. Renderer measures itself
-// then sends {width, height}. Cap to a sensible max so the window can't
-// accidentally explode if a CSS bug returns an absurd height; ALSO cap
-// downward so the radial menu (which grows the window into the dead space
-// below the panel) can't push the bottom edge off-screen behind the dock.
-//
-// Cap-and-overflow (drag-to-bottom scenario): when the window is already
-// flush with the dock, the renderer's requested height exceeds available
-// downward room, and we clamp to the workArea bottom — orbs at the bottom
-// of the cluster might clip but the panel and the upper orbs stay visible.
-// This is the v2.4 mirror of the v2.3 upward cap (which was needed because
-// the menu opened above the panel). Multi-monitor: getDisplayNearestPoint
-// with the window's top-CENTER picks the right screen even if the window
-// straddles a monitor boundary.
-//
-// v2.4 simplification: removed the resize-window-anchored handler and the
-// get-window-headroom query that supported the upward-grow / panel-slide
-// ladder. Window now grows downward only (top-left fixed); a single
-// cap-to-bottom is all the geometry we need. Removed state:
-//   - WORKAREA_TOP_SAFETY (renamed to BOTTOM_SAFETY at top of file)
-//   - anchorOriginalBounds, appliedDownExtTotal (anchor-restore state)
-ipcMain.on('resize-window', (event, { width, height }) => {
+// resize-window — DEPRECATED as of block #4 (window-overlap). The window is
+// now sized once at launch to a transparent ~workArea canvas; popovers paint
+// past the panel without resizing the window. Calls are silently ignored so
+// the renderer doesn't have to special-case its callsites; the IPC contract
+// is unchanged.
+ipcMain.on('resize-window', () => {
+  // no-op — see createWindow for the static-canvas comment
+});
+
+// set-ignore-mouse-events — toggles macOS-level click-through. Renderer flips
+// this on as the cursor enters / leaves painted regions. {forward:true}
+// keeps mousemove events flowing even while ignored, so the renderer can
+// detect when to flip back to interactive.
+ipcMain.on('set-ignore-mouse-events', (_event, ignore, options) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-
-  const wRaw = Math.max(380, Math.min(1200, Math.round(width || 620)));
-  const hRaw = Math.max(180, Math.min(900, Math.round(height || 240)));
-
-  // Cap height so cur.y + height stays within display.workArea.bottom. If
-  // the display lookup fails (rare multi-monitor edge case), skip the cap
-  // and let macOS handle clamping.
-  let h = hRaw;
   try {
-    const cur = mainWindow.getBounds();
-    const refPoint = { x: cur.x + Math.round(cur.width / 2), y: cur.y };
-    const display = screen.getDisplayNearestPoint(refPoint);
-    const maxBottom = display.workArea.y + display.workArea.height - WORKAREA_BOTTOM_SAFETY;
-    const maxHeight = Math.max(180, maxBottom - cur.y);
-    h = Math.min(hRaw, maxHeight);
+    mainWindow.setIgnoreMouseEvents(!!ignore, options || { forward: true });
   } catch (err) {
-    logToOutLog(`resize-window: bottom-cap lookup failed (${err.message}); using uncapped height`);
+    logToOutLog(`set-ignore-mouse-events failed: ${err.message}`);
   }
-
-  mainWindow.setContentSize(wRaw, h, true);
 });
 
 // ---------------------------------------------------------------------------

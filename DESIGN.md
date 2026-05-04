@@ -211,3 +211,71 @@ These are real picks, not menu-padding. Each one has a default I'd pick if Richa
 - The aesthetic direction in §4 is the ceiling — AgentRemote doesn't go iso, ACRM does.
 
 What this doc *doesn't* commit to: anything in the iso command center / ACRM-RoomGrid spike track. That's a separate proposal under separate validation.
+
+---
+
+## 9. Post-port architecture (2026-05-04, ALS-001 close-out)
+
+The Stitch design port (commits aabca22 → 38738d2) replaced the legacy 6342-line renderer with a vanilla DOM build at ~2400 lines. ALS-001 closed the post-port gaps. Reference for any future Atlas-led work:
+
+### 9.1 Window canvas & click-through
+
+- BrowserWindow is a fixed 860×900 transparent canvas — large enough to host the panel, the appearance drawer, the add-agent form, the tile-popover, and the voice transcript bubble simultaneously without resizing.
+- Window starts with `setIgnoreMouseEvents(true, { forward: true })`. The renderer flips `ignore=false` via `set-ignore-mouse-events` IPC when the cursor enters a painted region (`document.elementFromPoint` returns anything other than html/body), and back to `ignore=true` when it leaves. Mousemove is forwarded throughout so the toggle keeps firing.
+- CSS contract: `body { pointer-events: none }`, every painted container reactivates with `pointer-events: auto`. Drag region is scoped to `.panel-shell` — body would let drag-anywhere drag the whole canvas including the click-through zones.
+- Position: panel pinned at `top: 60px; left: 50%; translateX(-50%)`. Drawer + add-form positioned dynamically by JS using `getBoundingClientRect()` (canvas-relative coords).
+
+### 9.2 Panel layering
+
+- `bgBase` (z:0) — background treatment (mesh / aurora / iridescent / plasma / chrome / particles / bands / noir / topo / flat).
+- `rim-layer` (z:0, sibling of bgBase) — only present when iridescent + bordered. Two stacked conic-gradient layers (`tex-iri-rim` static + `tex-iri-light` traveling highlight).
+- `glass-fx` (z:1) — backdrop-filter blur + dark veil. When `.has-iri-rim`, alpha is bumped to 0.985 so the rainbow is hidden in the center, leaving only the soft outset glow on the perimeter.
+- `texture-overlay` (z:3) — overlay textures (particles, topo SVG, noir grid).
+- `panel-shell::after` (z:4) — outer hairline border.
+- `panel-shell::before` (z:5) — inner highlight gradient.
+- `panel-content` (z:6) — dock, chat-row, util-row.
+- `gear-btn` (z:8) — appearance settings trigger.
+
+### 9.3 Settings drawer (gear button)
+
+- Slides out from the gear button (top-right of the panel). Fixed position relative to the canvas; `getBoundingClientRect()` of the gear button drives placement.
+- Backdrop is invisible (pointer-events only) and closes on outside click. Esc also closes (priority below voice + add-form).
+- Sections: Accent color, Background, per-background controls (iridescent / plasma / chrome), Motion & atmosphere, App opacity. Settings persist to `localStorage` under `agentremote.theme.v3`. Reset button preserves layout/multi (those are operational, not aesthetic).
+
+### 9.4 Add-agent overlay
+
+- Modal over the panel. Backdrop dims at 0.42 alpha. Closes via X button, Cancel, or Esc. Backdrop click closes only when the form is pristine (avoids accidental dismissal mid-typing).
+- Submits via `ipcRenderer.invoke('add-agent', payload)` to main.js's add-agent handler. Re-validates renderer-side before round-tripping.
+- Avatar picker uses the existing `pick-svg` IPC handler.
+
+### 9.5 Keybindings
+
+- `1-5` short press (≤250ms) → toggle tile selection. Long press (>250ms) → start voice recording for that single agent.
+- `Cmd+Shift+Space` → global summon (registered in main.js). Forwards `focus-chat-input` IPC; renderer focuses the chat input.
+- `Esc` priority stack: voice recording > add-form > tile-popover > drawer. Each consumer pops one level only.
+- `Enter` (chat input) → broadcast to selected agents. `Shift+Enter` ignored — single-line input.
+- `Cmd+R` / `Cmd+Shift+R` → Electron defaults (reload). Not blocked.
+
+The renderer documents the full map in a comment block at the top of the script (search for "AgentRemote — keybinding map").
+
+### 9.6 Voice flow
+
+- Hold-key-1-5 → after 250ms threshold, enter recording state. Apply `voice-rec` class to the tile (rose-pink ring + key cap depress + aurora bloom), dim other tiles via `body.voice-recording`. Show transcript bubble above the tile in `permission-pending` state until `getUserMedia` resolves.
+- Audio capture: `MediaRecorder` with `audio/webm`. Analyser drives `--audio-level` CSS var on the avatar for the reactive ring (256 fft bins, leaky integrator 0.7/0.3).
+- Release: stop MediaRecorder, await final dataavailable, build base64 blob, `ipcRenderer.invoke('transcribe-voice', b64)` → main.js shells out to `~/Library/Python/3.9/bin/whisper` with the `base` model. Returns text or empty. Empty → silent no-op (no toast). Non-empty → `broadcast-message` IPC with `{selectedAgents: [{id, tmuxTarget}], isAll: false}`.
+- Esc during hold → `cancelVoiceRecording({shake: true})`. Window blur during hold → quiet cancel (no shake).
+- macOS mic permission: granted on first use via the standard prompt. `setPermissionRequestHandler` in main.js's createWindow allows `media` / `microphone` / `audioCapture` / `speechRecognition` for our renderer.
+
+### 9.7 IPC contract
+
+- `spawn-agents` — deploy selected agents in tmux via `chq-tmux.sh add`. Hardened against shell injection (id-validated).
+- `broadcast-message` — send a message to selected agents' tmux panes via `tmux send-keys`. Same id-validation; pane title resolved by substring of `tmuxTarget`.
+- `transcribe-voice` — base64 audio → local whisper CLI → transcript text.
+- `add-agent` / `remove-agent` / `reorder-agents` / `update-agent` / `update-agent-cwd` — registry CRUD.
+- `attach-pane` / `restart-agent` / `kill-pane` / `kill-session` / `detach-pane-to-window` / `detach-pane-to-split` — tmux ops.
+- `pick-svg` / `pick-cwd` — file pickers via Electron `dialog`.
+- `pane-status` / `get-session-layout` — polled state for the renderer's 3s status loop.
+- `chat-tail-init` / `chat-tail-read` / `chat-post` — team-chat JSONL substrate (Cmd+T overlay lives elsewhere now per Atlas migration; IPC retained for future).
+- `set-ignore-mouse-events` — click-through toggle (block #4).
+- `resize-window` — DEPRECATED. Now no-op since the canvas is fixed-large.
+- `focus-chat-input` (renderer-bound) — fires after global-summon to drop the cursor in the chat box.

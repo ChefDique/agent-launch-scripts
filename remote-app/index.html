@@ -23,10 +23,39 @@
   body {
     font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
     color: #e8eaf2;
-    display: grid;
-    place-items: center;
-    -webkit-app-region: drag;
+    /* Block #4: window is now ~workArea-sized and transparent. CSS positions
+       painted children (panel, drawer, add-form, popovers) at fixed offsets;
+       the rest of the canvas is empty and click-throughs to underlying apps
+       (we toggle setIgnoreMouseEvents from JS based on cursor location).
+       Body itself doesn't paint anything; it just hosts the children. */
+    pointer-events: none;
     -webkit-font-smoothing: antialiased;
+  }
+  /* Drag-region: ONLY the panel-shell glass (and its no-drag children opt out).
+     Previously the whole body was drag — fine when window == panel, broken
+     now that body is a giant transparent canvas (would let drag-anywhere even
+     in the click-through zone). */
+  body { -webkit-app-region: no-drag; }
+  .panel-shell { -webkit-app-region: drag; }
+  .panel-shell button,
+  .panel-shell input,
+  .panel-shell .chat-row,
+  .panel-shell .util-row,
+  .panel-shell .dock,
+  .panel-shell .gear-btn { -webkit-app-region: no-drag; }
+  /* All overlays / popovers are no-drag and re-enable pointer events. */
+  .panel-shell, .settings-panel, .settings-backdrop.open,
+  .add-overlay, .add-overlay-backdrop.open,
+  .tile-popover, .action-toast, .voice-transcript {
+    pointer-events: auto;
+  }
+  /* Block #4 layout: panel pinned near top-center of the canvas, drawer +
+     add-form positioned from the panel offsets (set in JS), free to extend
+     past the panel since the canvas covers the whole work area. */
+  .panel-shell {
+    position: fixed;
+    top: 60px; left: 50%;
+    transform: translateX(-50%);
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -74,7 +103,14 @@
     -webkit-backdrop-filter: blur(var(--glass-blur, 28px)) saturate(160%);
     background: rgba(10, 10, 16, var(--glass-alpha, 0.42));
   }
-  .panel-shell.has-iri-rim .glass-fx { background: rgba(14, 14, 22, 0.96); }
+  /* Block #3: bump bordered iridescent glass to near-opaque so the rainbow
+     rim only peeks at the perimeter (1-2px), never tints the chat row.
+     Drop the alpha via CSS var to be sure inner backdrops compose against
+     a dark base regardless of theme/background. */
+  .panel-shell.has-iri-rim .glass-fx {
+    background: rgba(8, 8, 14, 0.985);
+    --glass-alpha: 0.985;
+  }
   .panel-shell:has(.bg-iridescent) { --glass-alpha: 0.28; }
 
   .panel-content {
@@ -190,18 +226,24 @@
 
   /* ============================================================
      Chat row
+     Block #3 fix: solid dark fill on the chat-wrap so the iridescent
+     rim doesn't bleed through. The rim sits at z:0 behind the glass
+     veil at z:1; the chat input sits at z:6 (panel-content). When the
+     panel is bordered (.has-iri-rim), the glass is near-opaque, but
+     the chat-wrap was using rgba(255,255,255,0.04) which let the
+     warm rim color tint through. Solid fill = clean reading.
      ============================================================ */
-  .chat-row { display: flex; gap: 10px; align-items: stretch; -webkit-app-region: no-drag; }
+  .chat-row { display: flex; gap: 10px; align-items: stretch; }
   .chat-wrap {
     flex: 1; height: 38px; border-radius: 10px;
-    background: var(--bg-input);
+    background: rgba(14, 14, 22, 0.92);
     border: 1px solid var(--border-soft);
     display: flex; align-items: center; padding: 0 14px;
     transition: border-color 140ms ease, background 140ms ease;
   }
   .chat-wrap:focus-within {
     border-color: var(--accent);
-    background: rgba(255,255,255,0.06);
+    background: rgba(20, 20, 30, 0.95);
   }
   .chat-input {
     flex: 1; min-width: 0;
@@ -583,6 +625,123 @@
   .panel-shell.motion-off .bg-base::after,
   .panel-shell.motion-off .rim-layer * {
     animation-play-state: paused !important;
+  }
+
+  /* ============================================================
+     Voice recording (block #1)
+     Hold-key-1-5 to record → release to transcribe + broadcast.
+     Visual contract:
+       - tile gets rose-pink ring on the avatar (.voice-rec class)
+       - keycap badge depresses + glows rose
+       - body.voice-recording dims every other tile
+       - cancel-shake on Esc / window blur
+       - transcript bubble anchored above the recording tile
+     Reuses the legacy palette tokens (--voice-rec / -glow / -soft / -aurora)
+     and animation patterns from commit 78fcd75.
+     ============================================================ */
+  .panel-shell {
+    --voice-rec:        #ff5274;
+    --voice-rec-glow:   rgba(255, 82, 116, 0.6);
+    --voice-rec-soft:   rgba(255, 82, 116, 0.22);
+    --voice-rec-aurora: rgba(255, 82, 116, 0.28);
+  }
+  .agent-tile.voice-rec .agent-avatar {
+    border-color: var(--voice-rec);
+    box-shadow:
+      0 0 0 1px var(--voice-rec),
+      0 0 calc(12px + var(--audio-level, 0) * 24px) var(--voice-rec-glow),
+      inset 0 0 calc(6px + var(--audio-level, 0) * 14px) var(--voice-rec-soft);
+    transition: box-shadow 60ms linear, border-color 140ms ease;
+  }
+  .agent-tile.voice-rec .agent-name { color: var(--voice-rec); }
+  .agent-tile.voice-rec .agent-key {
+    color: var(--voice-rec);
+    border-color: var(--voice-rec);
+    background: rgba(255, 82, 116, 0.18);
+    transform: translateY(1px);
+    box-shadow: 0 0 8px var(--voice-rec-glow);
+  }
+  /* Aurora bloom directly behind the recording tile */
+  .agent-tile.voice-rec::before {
+    content: ''; position: absolute;
+    inset: -8px -10px;
+    z-index: 0;
+    background: radial-gradient(ellipse at center, var(--voice-rec-aurora), transparent 65%);
+    border-radius: 16px;
+    animation: voiceAurora 2.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes voiceAurora {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%      { opacity: 1.0; transform: scale(1.04); }
+  }
+  /* Dim every other tile so the active one owns attention */
+  body.voice-recording .agent-tile:not(.voice-rec) {
+    opacity: 0.32;
+    filter: saturate(0.6);
+    transition: opacity 220ms ease, filter 220ms ease;
+  }
+  body.voice-recording .agent-tile.voice-rec {
+    transform: translateY(-1px);
+    transition: transform 180ms ease;
+  }
+  /* Cancel shake — fires on Esc / window blur during recording */
+  .agent-tile.voice-cancel-shake {
+    animation: voiceCancelShake 0.28s ease-out;
+  }
+  @keyframes voiceCancelShake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-3px) rotate(-0.5deg); }
+    50%      { transform: translateX(3px) rotate(0.5deg); }
+    75%      { transform: translateX(-2px); }
+  }
+  /* Transcript bubble — minimal inline state above the recording tile */
+  .voice-transcript {
+    position: fixed; z-index: 80;
+    min-width: 160px; max-width: 320px;
+    padding: 8px 12px;
+    background: rgba(10, 10, 16, 0.94);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid var(--voice-rec);
+    border-radius: 10px;
+    color: #e8eaf2;
+    font: 500 11px/1.3 'Inter', system-ui, sans-serif;
+    box-shadow:
+      0 12px 30px -8px rgba(0,0,0,0.6),
+      0 0 18px var(--voice-rec-glow);
+    opacity: 0; pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity 160ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .voice-transcript.visible {
+    opacity: 1; transform: translateY(0);
+  }
+  .voice-transcript .vt-target {
+    display: block;
+    font: 600 9px/1.2 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    letter-spacing: 0.14em;
+    color: var(--voice-rec);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .voice-transcript .vt-text { color: #d8dae3; }
+  .voice-transcript .vt-text.empty { color: #8a8d9e; font-style: italic; }
+  .voice-transcript .vt-cursor {
+    display: inline-block;
+    width: 5px; height: 11px;
+    margin-left: 4px;
+    vertical-align: -1px;
+    background: var(--voice-rec);
+    animation: voiceTypingBlink 1s steps(1) infinite;
+  }
+  @keyframes voiceTypingBlink {
+    0%, 50%   { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .agent-tile.voice-rec::before,
+    .voice-transcript .vt-cursor { animation: none !important; }
   }
 
   /* ============================================================
@@ -1110,14 +1269,33 @@
   <div class="add-overlay-backdrop" id="add-overlay-backdrop" aria-hidden="true"></div>
 
   <script>
+    /* ============================================================
+       AgentRemote — keybinding map (ALS-001 #2 audit)
+       ----------------------------------------------------------------
+       1-5     short press   → toggle tile selection (chat-input not focused)
+       1-5     long press    → start voice recording for that agent
+                               (>250ms; release transcribes + sends just to
+                               that agent, Esc / window-blur cancels)
+       Cmd+Shift+Space       → global summon (system-wide, registered in
+                               main.js registerGlobalShortcut). Forwards
+                               'focus-chat-input' to the renderer.
+       Esc                   → priority-stack: voice > add-form > drawer >
+                               tile-popover. Each consumer pops one level.
+       Enter (in chat input) → broadcast to selected agents
+       Cmd+R / Cmd+Shift+R   → reload (Electron defaults — not blocked here)
+       Block #4 (window-overlap): the BrowserWindow is now a workArea-sized
+       transparent canvas. Renderer pings main.js via IPC ('set-ignore-mouse-
+       events') based on whether the cursor is over a painted region, so
+       transparent zones click through to underlying apps.
+       ============================================================ */
     const { ipcRenderer } = require('electron');
 
     const AGENTS = [
-      { key: '1', id: 'xavier',  name: 'XAVIER',         label: 'XAVIER',          src: 'assets/xavier.svg' },
-      { key: '2', id: 'lucius',  name: 'LUCIUS',         label: 'LUCIUS',          src: 'assets/lucius.svg' },
-      { key: '3', id: 'gekko',   name: 'GEKKO',          label: 'GEKKO',           src: 'assets/gekko.svg' },
-      { key: '4', id: 'swarmy',  name: 'OVERLORDSWARMY', label: 'OVERLORD SWARMY', src: 'assets/swarmy.svg' },
-      { key: '5', id: 'claude',  name: 'TMUX-MASTA',     label: 'TMUX-MASTA',      src: 'assets/claude.svg' },
+      { key: '1', id: 'xavier',  name: 'XAVIER',         label: 'XAVIER',          src: 'assets/xavier.svg', tmuxTarget: 'xavier' },
+      { key: '2', id: 'lucius',  name: 'LUCIUS',         label: 'LUCIUS',          src: 'assets/lucius.svg', tmuxTarget: 'lucius' },
+      { key: '3', id: 'gekko',   name: 'GEKKO',          label: 'GEKKO',           src: 'assets/gekko.svg',  tmuxTarget: 'gekko' },
+      { key: '4', id: 'swarmy',  name: 'OVERLORDSWARMY', label: 'OVERLORD SWARMY', src: 'assets/swarmy.svg', tmuxTarget: 'overlordswarmy' },
+      { key: '5', id: 'claude',  name: 'TMUX-MASTA',     label: 'TMUX-MASTA',      src: 'assets/claude.svg', tmuxTarget: 'tmux-masta' },
     ];
     const THEMES = {
       orange: { hex: '#e07c4c', name: 'Orange' },
@@ -2281,19 +2459,11 @@
       ensureWindowSizeFor('panel');
     }
 
-    function ensureWindowSizeFor(mode) {
-      const PANEL_W = 780, PANEL_H = 246;
-      const PAD = 24;
-      if (mode === 'drawer') {
-        ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD + 520 });
-      } else if (mode === 'add-form') {
-        // Form is ~360x420 centered; grow the window so it can render fully
-        // with breathing room top + bottom. Same width as panel (the form is
-        // narrower so width is fine), taller height.
-        ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD + 220 });
-      } else {
-        ipcRenderer.send('resize-window', { width: PANEL_W + PAD, height: PANEL_H + PAD });
-      }
+    function ensureWindowSizeFor(_mode) {
+      // Block #4 (window-overlap): no-op. The BrowserWindow is now sized once
+      // at launch to a transparent workArea-sized canvas; popovers paint past
+      // the panel without resizing the window. Kept as a stub so existing
+      // callsites don't error; remove once all callers are stripped.
     }
 
     function bgPreviewCss(id) {
@@ -2318,8 +2488,301 @@
       }
     }
 
+    /* ============================================================
+       Voice recording (ALS-001 #1) — port-forward of the legacy
+       implementation from commit 78fcd75. Hold-key-1-5 → record →
+       release → transcribe via main.js whisper → broadcast to that
+       single agent. Esc / window blur cancel without sending.
+       ----------------------------------------------------------------
+       State machine:
+         idle      — no key held
+         pending   — key down, threshold timer (250ms) running
+         recording — threshold crossed; mic + analyser live
+         denied    — getUserMedia rejected; only tap path remains
+       Key release before threshold → tap (toggleAgent).
+       Key release after threshold → finishVoiceRecording().
+       Esc / blur during recording → cancelVoiceRecording (no send).
+       ============================================================ */
+    const VOICE_HOLD_THRESHOLD_MS = 250;
+    const voiceRec = {
+      state: 'idle',          // 'idle' | 'pending' | 'recording' | 'denied'
+      keyDown: null,          // currently-held key ('1'..'5')
+      activeAgent: null,      // AGENTS entry being targeted
+      activeTile: null,       // DOM tile element (for class toggles)
+      holdTimer: null,
+      mediaStream: null,
+      audioCtx: null,
+      analyser: null,
+      analyserBuf: null,
+      rafId: null,
+      mediaRecorder: null,
+      audioChunks: [],
+      transcriptEl: null,
+    };
+
+    function getTileForKey(key) {
+      // Tiles render in the same order as AGENTS; data-key attribute matches.
+      return dockEl.querySelector(`.agent-tile[data-key="${key}"]`);
+    }
+    function ensureVoiceTranscriptEl() {
+      if (voiceRec.transcriptEl) return voiceRec.transcriptEl;
+      const target = el('span', { class: 'vt-target' }, '');
+      const text = el('span', { class: 'vt-text empty' }, 'listening…');
+      const cursor = el('span', { class: 'vt-cursor' }, ' ');
+      text.appendChild(cursor);
+      const bubble = el('div', { class: 'voice-transcript' }, target, text);
+      document.body.appendChild(bubble);
+      voiceRec.transcriptEl = bubble;
+      return bubble;
+    }
+    function positionVoiceTranscript(tileEl) {
+      const bubble = ensureVoiceTranscriptEl();
+      const tr = tileEl.getBoundingClientRect();
+      const winW = window.innerWidth;
+      const desiredW = Math.min(280, Math.max(160, tr.width * 4));
+      let left = tr.left + tr.width / 2 - desiredW / 2;
+      left = Math.max(12, Math.min(left, winW - desiredW - 12));
+      bubble.style.left = `${Math.round(left)}px`;
+      bubble.style.maxWidth = `${desiredW}px`;
+      const bubbleH = bubble.offsetHeight || 56;
+      let top = tr.top - bubbleH - 8;
+      if (top < 8) top = tr.bottom + 8;
+      bubble.style.top = `${Math.round(top)}px`;
+      return bubble;
+    }
+    function setVoiceTranscript({ targetName, text, hint, pending }) {
+      const bubble = ensureVoiceTranscriptEl();
+      const tgt = bubble.querySelector('.vt-target');
+      const txt = bubble.querySelector('.vt-text');
+      tgt.textContent = pending
+        ? 'requesting mic'
+        : `→ ${targetName || ''}`;
+      if (hint) {
+        txt.classList.add('empty');
+        txt.textContent = hint;
+        return;
+      }
+      if (!text) {
+        txt.classList.add('empty');
+        txt.innerHTML = 'listening…<span class="vt-cursor">&nbsp;</span>';
+      } else {
+        txt.classList.remove('empty');
+        txt.innerHTML = '<span></span><span class="vt-cursor">&nbsp;</span>';
+        txt.firstChild.textContent = text;
+      }
+    }
+    function showVoiceTranscript(tileEl) {
+      const bubble = positionVoiceTranscript(tileEl);
+      requestAnimationFrame(() => bubble.classList.add('visible'));
+    }
+    function hideVoiceTranscript() {
+      if (!voiceRec.transcriptEl) return;
+      voiceRec.transcriptEl.classList.remove('visible');
+    }
+    function startAnalyserLoop() {
+      const buf = voiceRec.analyserBuf;
+      const an = voiceRec.analyser;
+      const tile = voiceRec.activeTile;
+      if (!buf || !an || !tile) return;
+      const avatar = tile.querySelector('.agent-avatar');
+      let smoothed = 0;
+      const tick = () => {
+        if (!voiceRec.analyser || voiceRec.state !== 'recording') {
+          voiceRec.rafId = null;
+          return;
+        }
+        an.getByteFrequencyData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i];
+        const avg = sum / (buf.length * 255);
+        smoothed = smoothed * 0.7 + avg * 0.3;
+        const level = Math.min(1, Math.max(0.04, smoothed * 2.0));
+        if (avatar) avatar.style.setProperty('--audio-level', level.toFixed(3));
+        voiceRec.rafId = requestAnimationFrame(tick);
+      };
+      voiceRec.rafId = requestAnimationFrame(tick);
+    }
+    function applyRecordingClasses(tile) {
+      // Strip prior recording state defensively.
+      document.querySelectorAll('.agent-tile.voice-rec').forEach(t => t.classList.remove('voice-rec'));
+      tile.classList.add('voice-rec');
+      document.body.classList.add('voice-recording');
+      const avatar = tile.querySelector('.agent-avatar');
+      if (avatar) avatar.style.setProperty('--audio-level', '0.04');
+    }
+    function clearRecordingClasses() {
+      if (voiceRec.activeTile) {
+        voiceRec.activeTile.classList.remove('voice-rec');
+        const avatar = voiceRec.activeTile.querySelector('.agent-avatar');
+        if (avatar) avatar.style.removeProperty('--audio-level');
+      }
+      document.body.classList.remove('voice-recording');
+    }
+    async function startVoiceRecording(agent, tile) {
+      applyRecordingClasses(tile);
+      voiceRec.activeAgent = agent;
+      voiceRec.activeTile = tile;
+      setVoiceTranscript({ targetName: agent.label, pending: true });
+      showVoiceTranscript(tile);
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        clearRecordingClasses();
+        hideVoiceTranscript();
+        voiceRec.state = 'denied';
+        voiceRec.activeAgent = null;
+        voiceRec.activeTile = null;
+        showToast('MIC ACCESS DENIED');
+        console.warn('[voice] getUserMedia denied:', err && err.message);
+        return;
+      }
+      voiceRec.mediaStream = stream;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new Ctx();
+        const src = ctx.createMediaStreamSource(stream);
+        const an = ctx.createAnalyser();
+        an.fftSize = 256;
+        an.smoothingTimeConstant = 0.5;
+        src.connect(an);
+        voiceRec.audioCtx = ctx;
+        voiceRec.analyser = an;
+        voiceRec.analyserBuf = new Uint8Array(an.frequencyBinCount);
+      } catch (err) {
+        console.warn('[voice] AudioContext init failed:', err && err.message);
+      }
+      setVoiceTranscript({ targetName: agent.label, text: '' });
+
+      voiceRec.audioChunks = [];
+      try {
+        const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mr.ondataavailable = (e) => {
+          if (e.data && e.data.size) voiceRec.audioChunks.push(e.data);
+        };
+        mr.start();
+        voiceRec.mediaRecorder = mr;
+      } catch (err) {
+        console.warn('[voice] MediaRecorder init failed:', err && err.message);
+        setVoiceTranscript({ targetName: agent.label, hint: '(audio capture unavailable)' });
+      }
+      voiceRec.state = 'recording';
+      startAnalyserLoop();
+    }
+    function stopVoiceResources() {
+      if (voiceRec.rafId) {
+        cancelAnimationFrame(voiceRec.rafId);
+        voiceRec.rafId = null;
+      }
+      if (voiceRec.mediaRecorder) {
+        try {
+          if (voiceRec.mediaRecorder.state === 'recording') voiceRec.mediaRecorder.stop();
+        } catch { /* ignore */ }
+        voiceRec.mediaRecorder = null;
+      }
+      if (voiceRec.mediaStream) {
+        try { voiceRec.mediaStream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
+        voiceRec.mediaStream = null;
+      }
+      if (voiceRec.audioCtx) {
+        try { voiceRec.audioCtx.close(); } catch { /* ignore */ }
+        voiceRec.audioCtx = null;
+      }
+      voiceRec.analyser = null;
+      voiceRec.analyserBuf = null;
+      voiceRec.audioChunks = [];
+    }
+    function cancelVoiceRecording({ shake = true } = {}) {
+      const tile = voiceRec.activeTile;
+      stopVoiceResources();
+      clearRecordingClasses();
+      hideVoiceTranscript();
+      if (shake && tile) {
+        tile.classList.add('voice-cancel-shake');
+        setTimeout(() => tile.classList.remove('voice-cancel-shake'), 320);
+      }
+      voiceRec.state = voiceRec.state === 'denied' ? 'denied' : 'idle';
+      voiceRec.activeAgent = null;
+      voiceRec.activeTile = null;
+    }
+    async function finishVoiceRecording() {
+      const agent = voiceRec.activeAgent;
+      const tile = voiceRec.activeTile;
+      const mr = voiceRec.mediaRecorder;
+      const chunks = voiceRec.audioChunks || [];
+      setVoiceTranscript({ targetName: agent ? agent.label : '', hint: '(transcribing…)' });
+
+      let audioBlob = null;
+      if (mr && mr.state === 'recording') {
+        audioBlob = await new Promise((resolve) => {
+          mr.onstop = () => {
+            try { resolve(new Blob(chunks, { type: 'audio/webm' })); }
+            catch { resolve(null); }
+          };
+          try { mr.stop(); } catch { resolve(null); }
+        });
+      }
+      stopVoiceResources();
+
+      let transcript = '';
+      if (audioBlob && audioBlob.size > 256) {
+        try {
+          const buf = await audioBlob.arrayBuffer();
+          const view = new Uint8Array(buf);
+          let bin = '';
+          for (let i = 0; i < view.length; i++) bin += String.fromCharCode(view[i]);
+          const b64 = btoa(bin);
+          transcript = await ipcRenderer.invoke('transcribe-voice', b64);
+          transcript = (transcript || '').trim();
+        } catch (err) {
+          console.warn('[voice] transcribe failed:', err && err.message);
+        }
+      }
+      clearRecordingClasses();
+      hideVoiceTranscript();
+      voiceRec.state = 'idle';
+      voiceRec.activeAgent = null;
+      voiceRec.activeTile = null;
+
+      if (!transcript) return;            // silent / failed → no toast
+      if (!agent) return;
+      const payload = [{ id: agent.id, tmuxTarget: agent.tmuxTarget || agent.id }];
+      ipcRenderer.send('broadcast-message', {
+        message: transcript,
+        selectedAgents: payload,
+        isAll: false,
+      });
+      // Truncate the toast snippet so a 60-char rant doesn't push the toast
+      // off-screen.
+      const snippet = transcript.length > 36 ? transcript.slice(0, 33) + '…' : transcript;
+      showToast(`${agent.label} ← ${snippet}`);
+    }
+
+    /* ============================================================
+       Keybindings — single-source-of-truth keydown / keyup
+       ============================================================ */
+    const VOICE_KEYS = ['1', '2', '3', '4', '5'];
+
     window.addEventListener('keydown', (e) => {
+      // Esc — priority stack: voice > add-form > tile-popover > drawer
       if (e.key === 'Escape') {
+        if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+          if (voiceRec.holdTimer) {
+            clearTimeout(voiceRec.holdTimer);
+            voiceRec.holdTimer = null;
+          }
+          if (voiceRec.state === 'recording') {
+            cancelVoiceRecording({ shake: true });
+          } else {
+            voiceRec.state = 'idle';
+            voiceRec.activeAgent = null;
+            voiceRec.activeTile = null;
+          }
+          voiceRec.keyDown = null;
+          e.preventDefault();
+          return;
+        }
         if (addOverlayOpen) { requestCloseAddOverlay(); return; }
         if (tilePopoverEl && tilePopoverEl.classList.contains('open')) {
           closeTilePopover();
@@ -2327,12 +2790,102 @@
         }
         if (state.gearOpen) { closeGear(); return; }
       }
-      // Suppress digit-shortcut hijacking while the add-agent form is open —
-      // otherwise typing "1" into the id field would also toggle agent #1.
-      // The form has its own focused input, but defense in depth.
+
+      // 1-5 — short press = toggle, long press (>250ms) = voice record.
+      // Skip if any text input is focused (chat input, add-form fields, etc).
+      if (!VOICE_KEYS.includes(e.key)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const ae = document.activeElement;
+      if (ae) {
+        const tag = ae.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable) return;
+      }
       if (addOverlayOpen) return;
-      if (document.activeElement === chatInputEl) return;
-      if (/^[1-5]$/.test(e.key)) toggleAgent(e.key);
+      if (e.repeat) {
+        // Autorepeat keydowns — suppress the OS repeat path entirely. We track
+        // the press transition manually below via voiceRec.keyDown.
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+
+      const agent = AGENTS.find(a => a.key === e.key);
+      if (!agent) return;
+      const tile = getTileForKey(e.key);
+      if (!tile) return;
+
+      if (voiceRec.state === 'denied') {
+        // Mic permanently denied this session — fall back to tap-toggle.
+        toggleAgent(e.key);
+        return;
+      }
+
+      // Concurrent key during a hold → cancel the in-flight one + arm new.
+      if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+        if (voiceRec.keyDown !== e.key) {
+          if (voiceRec.state === 'recording') {
+            cancelVoiceRecording({ shake: true });
+          } else if (voiceRec.holdTimer) {
+            clearTimeout(voiceRec.holdTimer);
+            voiceRec.holdTimer = null;
+            voiceRec.state = 'idle';
+          }
+        } else {
+          return;
+        }
+      }
+      voiceRec.state = 'pending';
+      voiceRec.keyDown = e.key;
+      voiceRec.activeAgent = agent;
+      voiceRec.activeTile = tile;
+      voiceRec.holdTimer = setTimeout(() => {
+        voiceRec.holdTimer = null;
+        if (voiceRec.state !== 'pending') return;
+        if (voiceRec.keyDown !== e.key) return;
+        startVoiceRecording(agent, tile);
+      }, VOICE_HOLD_THRESHOLD_MS);
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (!VOICE_KEYS.includes(e.key)) return;
+      if (voiceRec.keyDown && voiceRec.keyDown !== e.key) return;
+
+      // Pre-threshold release → tap-toggle.
+      if (voiceRec.state === 'pending' && voiceRec.holdTimer) {
+        clearTimeout(voiceRec.holdTimer);
+        voiceRec.holdTimer = null;
+        const releasedKey = voiceRec.keyDown;
+        voiceRec.state = 'idle';
+        voiceRec.activeAgent = null;
+        voiceRec.activeTile = null;
+        voiceRec.keyDown = null;
+        if (releasedKey) toggleAgent(releasedKey);
+        return;
+      }
+      // Post-threshold release → finish + send.
+      if (voiceRec.state === 'recording') {
+        voiceRec.keyDown = null;
+        finishVoiceRecording();
+        return;
+      }
+      voiceRec.keyDown = null;
+    });
+
+    // Window blur mid-hold → quietly cancel (no shake — window not visible).
+    window.addEventListener('blur', () => {
+      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending') return;
+      if (voiceRec.holdTimer) {
+        clearTimeout(voiceRec.holdTimer);
+        voiceRec.holdTimer = null;
+      }
+      if (voiceRec.state === 'recording') {
+        cancelVoiceRecording({ shake: false });
+      } else {
+        voiceRec.state = 'idle';
+        voiceRec.activeAgent = null;
+        voiceRec.activeTile = null;
+      }
+      voiceRec.keyDown = null;
     });
     document.addEventListener('mousedown', (e) => {
       // Tile popover — close on any mousedown outside the popover itself
@@ -2364,9 +2917,44 @@
       setTimeout(() => chatInputEl?.focus(), 0);
     });
 
+    /* ============================================================
+       Click-through (block #4) — toggle setIgnoreMouseEvents based
+       on whether the cursor is over a painted region. The window is
+       a transparent ~workArea-sized canvas; everything outside the
+       painted regions should pass clicks through to the app below.
+       ----------------------------------------------------------------
+       Pattern: track every "interactive" container's bounding rects
+       on each mousemove (via document.elementFromPoint) and flip
+       ignore-mouse-events accordingly. We always start with
+       {forward:true} so mousemove keeps streaming when ignored.
+       ============================================================ */
+    let lastIgnore = true;     // current "ignore" state
+    function isOverPainted(x, y) {
+      // elementFromPoint respects pointer-events. Everything inside our
+      // painted containers (panel, drawer, add-form, popovers, toasts)
+      // has pointer-events:auto courtesy of the CSS rule near the top of
+      // the stylesheet; the body itself is pointer-events:none. Anything
+      // we hit that is NOT html/body must therefore be a painted region.
+      const elAt = document.elementFromPoint(x, y);
+      if (!elAt) return false;
+      if (elAt === document.documentElement || elAt === document.body) return false;
+      return true;
+    }
+    function setIgnoreMouse(ignore) {
+      if (ignore === lastIgnore) return;
+      lastIgnore = ignore;
+      ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
+    }
+    document.addEventListener('mousemove', (e) => {
+      const over = isOverPainted(e.clientX, e.clientY);
+      setIgnoreMouse(!over);
+    });
+    // When the window loses focus, flip back to ignore so a click on the
+    // surrounding desktop hits the underlying app, not us.
+    window.addEventListener('blur', () => { setIgnoreMouse(true); });
+
     buildPanel();
     buildDrawer();
-    ensureWindowSizeFor('panel');
   </script>
 </body>
 </html>
