@@ -69,6 +69,13 @@ DEPARTMENTS+=(
   "operations|${AGENT_FACTORY}/Operations|maury|${AGENT_FACTORY}/Operations/scripts/maury.sh"
 )
 
+# Sidecar file written by chq-tmux.sh at pane creation time. Maps agent id
+# (from agents.json) → stable pane_id (%N notation) so remote-app/main.js can
+# target broadcasts via pane_id rather than the brittle pane-title grep.
+# pane_id is stable across agent auto-restart: pane_loop relaunches claude
+# in the SAME pane, so no re-write is needed on relaunch.
+SIDECAR_PATH="/tmp/agent-remote-panes.json"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -89,6 +96,53 @@ auto_attach_if_requested() {
 
 session_exists() {
   tmux has-session -t "$SESSION" 2>/dev/null
+}
+
+# Write/update the pane sidecar at SIDECAR_PATH. Called once per pane at
+# creation time — pane_id is stable across agent auto-restart, so this only
+# runs when the pane is first created, NOT on every loop iteration.
+#
+# Args: <agent-id> <pane_target>
+#   agent-id    — agents.json id field (e.g. "xavier")
+#   pane_target — tmux target used to query the pane_id (e.g. "chq:chq.0"
+#                 or the %N-style id returned by split-window -P -F '#{pane_id}')
+#
+# The sidecar is a flat JSON object: { "xavier": { "pane_id": "%5",
+# "session": "chq", "window": 0, "pane": 2, "updated_at": "..." }, ... }
+# python3 is used for atomic JSON read-modify-write without external deps.
+write_pane_sidecar() {
+  local agent_id="$1"
+  local pane_target="$2"
+  # Capture stable pane_id (e.g. "%23") from tmux.
+  local pane_id
+  pane_id=$(tmux display-message -t "$pane_target" -p '#{pane_id}' 2>/dev/null) || return 0
+  [[ -z "$pane_id" ]] && return 0
+  # Capture session/window/pane indexes for the coord triple.
+  local session_name window_index pane_index
+  session_name=$(tmux display-message -t "$pane_target" -p '#{session_name}' 2>/dev/null) || return 0
+  window_index=$(tmux display-message -t "$pane_target"  -p '#{window_index}' 2>/dev/null) || return 0
+  pane_index=$(tmux display-message -t "$pane_target"    -p '#{pane_index}'   2>/dev/null) || return 0
+  # Atomic read-modify-write via python3 (available on macOS without extra deps).
+  # `|| true` ensures a python3 failure (e.g. /tmp permission) never aborts
+  # the caller under set -euo pipefail — sidecar is best-effort metadata.
+  python3 - <<PYEOF || true
+import json, os, sys, datetime
+path = "${SIDECAR_PATH}"
+try:
+    data = json.loads(open(path).read()) if os.path.exists(path) else {}
+except Exception:
+    data = {}
+data["${agent_id}"] = {
+    "pane_id":     "${pane_id}",
+    "session":     "${session_name}",
+    "window":      int("${window_index}") if "${window_index}".isdigit() else "${window_index}",
+    "pane":        int("${pane_index}")   if "${pane_index}".isdigit()   else "${pane_index}",
+    "updated_at":  datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
+}
+tmp = path + ".tmp"
+open(tmp, "w").write(json.dumps(data, indent=2) + "\n")
+os.replace(tmp, path)
+PYEOF
 }
 
 # Build the restart loop command for a department pane.
@@ -217,23 +271,30 @@ cmd_start() {
   tmux new-session -d -s "$SESSION" -n "chq" -c "$cwd" -x 220 -y 50
   tmux select-pane -t "${SESSION}:chq.0" -T "$wname"
   tmux send-keys -t "${SESSION}:chq.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+  # Capture stable pane_id for the sidecar (registry agents only — static
+  # agent-factory entries don't have an agents.json id to key on, so skip them).
+  # The dept field IS the agents.json id for registry entries (see DEPARTMENTS
+  # construction above). Static entries use plain names (ceo/engineering/etc).
+  write_pane_sidecar "$dept" "${SESSION}:chq.0" || true
 
   # Stash the layout choice on the session so cmd_attach can read it back.
   # tmux @user-options survive for the session's lifetime and are zero-cost.
   tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
 
   if [[ ${#selected_entries[@]} -gt 1 ]]; then
-    local pane_idx=0
     for entry in "${selected_entries[@]:1}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
       case "$layout" in
         panes|tiled)
           # Both layouts spawn as horizontal splits inside chq:0; tiled gets
           # an extra `select-layout tiled` after all panes exist (below).
-          tmux split-window -h -t "${SESSION}:chq" -c "$cwd"
-          pane_idx=$((pane_idx + 1))
-          tmux select-pane -t "${SESSION}:chq.${pane_idx}" -T "$wname"
-          tmux send-keys -t "${SESSION}:chq.${pane_idx}" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          # -P -F '#{pane_id}' prints the new pane's stable id (%N notation)
+          # so we target by id rather than positional index from here on.
+          local new_pid
+          new_pid=$(tmux split-window -h -t "${SESSION}:chq" -c "$cwd" -P -F '#{pane_id}')
+          tmux select-pane -t "$new_pid" -T "$wname"
+          tmux send-keys -t "$new_pid" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          write_pane_sidecar "$dept" "$new_pid" || true
           ;;
         windows|ittab)
           # Trailing colon = session-target form. Without it, `-t "$SESSION"`
@@ -243,9 +304,11 @@ cmd_start() {
           # and new-window fails with "create window failed: index 0 in use".
           # Repro: tmux new-session -d -s chq -n chq; tmux new-window -t chq -n x
           # → "create window failed: index 0 in use". With -t "chq:" it works.
-          tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd"
-          tmux select-pane -t "${SESSION}:${wname}.0" -T "$wname"
-          tmux send-keys -t "${SESSION}:${wname}.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          local new_pid
+          new_pid=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
+          tmux select-pane -t "$new_pid" -T "$wname"
+          tmux send-keys -t "$new_pid" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+          write_pane_sidecar "$dept" "$new_pid" || true
           ;;
       esac
     done
@@ -400,6 +463,8 @@ cmd_add() {
     esac
     tmux select-pane -t "$new_pane_id" -T "$wname"
     tmux send-keys -t "$new_pane_id" "$(pane_loop "$cwd" "$script" "$dept")" Enter
+    # Write pane_id sidecar so AgentRemote can target by stable id, not title.
+    write_pane_sidecar "$dept" "$new_pane_id" || true
     echo "  ${wname} added -> ${cwd} (layout=${layout})"
     added=$((added + 1))
   done

@@ -3038,17 +3038,15 @@
       pollStatusOnce();
     }
 
-    // Cosmetic-only alias map for tile labels. The registry's display_name
-    // for swarmy is "overlordswarmy" (load-bearing — it's the claude -n flag
-    // value used by ps-grep detection and pane title resolution), but at
-    // 10px / 60px max it gets visually clipped. Show a friendlier label.
-    // Add other aliases here if future agents have similarly long names.
-    const LABEL_ALIASES = {
-      overlordswarmy: 'Swarmy'
-    };
+    // Registry-driven label for tile display. Uses the agent's id (the stable
+    // agents.json lookup key) rather than display_name, since display_name is
+    // load-bearing for pane targeting (e.g. "overlordswarmy" for the swarmy
+    // agent) and may not be suitable for a compact dock label. The id is always
+    // short, lowercase, and user-chosen — a reliable display key.
     function displayLabelFor(agent) {
-      const dn = agent.displayName || agent.id || '';
-      return LABEL_ALIASES[dn.toLowerCase()] || dn;
+      const label = agent.id || agent.displayName || '';
+      // Titlecase: "xavier" → "Xavier", "swarmy" → "Swarmy"
+      return label.charAt(0).toUpperCase() + label.slice(1);
     }
 
     // HTML-escape helper for user/registry-supplied strings going into
