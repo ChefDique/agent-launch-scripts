@@ -23,39 +23,17 @@
   body {
     font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
     color: #e8eaf2;
-    /* Block #4: window is now ~workArea-sized and transparent. CSS positions
-       painted children (panel, drawer, add-form, popovers) at fixed offsets;
-       the rest of the canvas is empty and click-throughs to underlying apps
-       (we toggle setIgnoreMouseEvents from JS based on cursor location).
-       Body itself doesn't paint anything; it just hosts the children. */
-    pointer-events: none;
     -webkit-font-smoothing: antialiased;
+    /* Body IS the drag region; interactive children opt out below. */
+    -webkit-app-region: drag;
   }
-  /* Drag-region: ONLY the panel-shell glass (and its no-drag children opt out).
-     Previously the whole body was drag — fine when window == panel, broken
-     now that body is a giant transparent canvas (would let drag-anywhere even
-     in the click-through zone). */
-  body { -webkit-app-region: no-drag; }
-  .panel-shell { -webkit-app-region: drag; }
-  .panel-shell button,
-  .panel-shell input,
-  .panel-shell .chat-row,
-  .panel-shell .util-row,
-  .panel-shell .dock,
-  .panel-shell .gear-btn { -webkit-app-region: no-drag; }
-  /* All overlays / popovers are no-drag and re-enable pointer events. */
-  .panel-shell, .settings-panel, .settings-backdrop.open,
+  /* Interactive children opt out of drag so clicks/typing work. */
+  button, input, select, textarea,
+  .chat-row, .util-row, .dock, .gear-btn,
+  .settings-panel, .settings-backdrop.open,
   .add-overlay, .add-overlay-backdrop.open,
   .tile-popover, .action-toast, .voice-transcript {
-    pointer-events: auto;
-  }
-  /* Block #4 layout: panel pinned near top-center of the canvas, drawer +
-     add-form positioned from the panel offsets (set in JS), free to extend
-     past the panel since the canvas covers the whole work area. */
-  .panel-shell {
-    position: fixed;
-    top: 60px; left: 50%;
-    transform: translateX(-50%);
+    -webkit-app-region: no-drag;
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -72,6 +50,7 @@
     position: relative;
     width: 780px;
     height: 246px;
+    margin: 10px auto 0;
     border-radius: 18px;
     overflow: visible;
     background: rgba(8, 8, 14, 0.95);
@@ -2459,11 +2438,16 @@
       ensureWindowSizeFor('panel');
     }
 
-    function ensureWindowSizeFor(_mode) {
-      // Block #4 (window-overlap): no-op. The BrowserWindow is now sized once
-      // at launch to a transparent workArea-sized canvas; popovers paint past
-      // the panel without resizing the window. Kept as a stub so existing
-      // callsites don't error; remove once all callers are stripped.
+    function ensureWindowSizeFor(mode) {
+      // Resize the BrowserWindow via IPC so overlays have room to render.
+      // Panel-only = compact; drawer/add-form = taller to accommodate.
+      const sizes = {
+        panel:    { width: 820, height: 280 },
+        drawer:   { width: 820, height: 680 },
+        'add-form': { width: 820, height: 560 },
+      };
+      const s = sizes[mode] || sizes.panel;
+      ipcRenderer.send('resize-window', s);
     }
 
     function bgPreviewCss(id) {
@@ -2917,44 +2901,9 @@
       setTimeout(() => chatInputEl?.focus(), 0);
     });
 
-    /* ============================================================
-       Click-through (block #4) — toggle setIgnoreMouseEvents based
-       on whether the cursor is over a painted region. The window is
-       a transparent ~workArea-sized canvas; everything outside the
-       painted regions should pass clicks through to the app below.
-       ----------------------------------------------------------------
-       Pattern: track every "interactive" container's bounding rects
-       on each mousemove (via document.elementFromPoint) and flip
-       ignore-mouse-events accordingly. We always start with
-       {forward:true} so mousemove keeps streaming when ignored.
-       ============================================================ */
-    let lastIgnore = true;     // current "ignore" state
-    function isOverPainted(x, y) {
-      // elementFromPoint respects pointer-events. Everything inside our
-      // painted containers (panel, drawer, add-form, popovers, toasts)
-      // has pointer-events:auto courtesy of the CSS rule near the top of
-      // the stylesheet; the body itself is pointer-events:none. Anything
-      // we hit that is NOT html/body must therefore be a painted region.
-      const elAt = document.elementFromPoint(x, y);
-      if (!elAt) return false;
-      if (elAt === document.documentElement || elAt === document.body) return false;
-      return true;
-    }
-    function setIgnoreMouse(ignore) {
-      if (ignore === lastIgnore) return;
-      lastIgnore = ignore;
-      ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
-    }
-    document.addEventListener('mousemove', (e) => {
-      const over = isOverPainted(e.clientX, e.clientY);
-      setIgnoreMouse(!over);
-    });
-    // When the window loses focus, flip back to ignore so a click on the
-    // surrounding desktop hits the underlying app, not us.
-    window.addEventListener('blur', () => { setIgnoreMouse(true); });
-
     buildPanel();
     buildDrawer();
   </script>
 </body>
 </html>
+

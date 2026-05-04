@@ -134,32 +134,19 @@ function createWindow() {
   // The request handler above is sufficient to gate the user-prompt-eligible
   // mic permission.
 
-  // Window-overlap (block #4): we used to size the BrowserWindow to fit the
-  // panel, then resize on every drawer/add-form open via the resize-window
-  // IPC. That clipped popovers that wanted to extend past the panel because
-  // BrowserWindow bounds are a hard ceiling — anything painted past them just
-  // gets cut.
-  //
-  // New approach: size the window large enough to host the panel + drawer +
-  // add-form simultaneously (~860×900). CSS positions painted content at
-  // fixed offsets near the top; everything else is empty / transparent.
-  // We pair this with setIgnoreMouseEvents(true, {forward:true}) defaulted
-  // ON; the renderer flips ignore=false while the cursor is over a painted
-  // region so clicks land. Outside painted regions, clicks fall through
-  // to the app below.
-  //
-  // Why not full workArea: macOS transparent windows at workArea-size hit
-  // a Cocoa quirk on Tahoe where the window contents fail to composite
-  // (window present in process list, no pixels rendered). 860×900 is well
-  // under the threshold and gives plenty of room for popovers + the drawer
-  // (drawer is 360 wide × ~520 tall; sits right of panel via JS positioning).
-  const CANVAS_W = 860;
-  const CANVAS_H = 900;
+  // Window sized to the panel. When overlays (settings drawer, add-form)
+  // open, the renderer sends a resize-window IPC to grow the window so
+  // the overlay has room to render. This is the same approach the legacy
+  // version used (pre-Block #4). The Block #4 approach (860×900 transparent
+  // canvas + setIgnoreMouseEvents toggle) was reverted because it broke
+  // drag, button clicks, and keybindings — the ignore-mouse-events toggle
+  // race-conditions with -webkit-app-region: drag, and clicks frequently
+  // fell through to underlying apps.
   mainWindow = new BrowserWindow({
-    width: CANVAS_W,
-    height: CANVAS_H,
-    minWidth: 600,
-    minHeight: 400,
+    width: 820,
+    height: 280,
+    minWidth: 380,
+    minHeight: 180,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -172,11 +159,6 @@ function createWindow() {
       backgroundThrottling: false
     }
   });
-
-  // Ignore mouse events by default; forward mousemove so the renderer can
-  // detect cursor entry into painted regions and flip ignore=false. Outside
-  // painted regions, clicks fall through to underlying apps.
-  mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   mainWindow.loadFile('index.html');
   mainWindow.center();
@@ -331,9 +313,8 @@ function watchToggleFile() {
 }
 
 // Re-position the window so it surfaces on the display the cursor is on,
-// then show + focus. The canvas is ~860×900 transparent; the painted panel
-// inside lives in the top portion of it (CSS top:60px). Center horizontally,
-// place the canvas so the panel lands at ~30% of the workArea height.
+// then show + focus. Window is panel-sized (~820×280); center horizontally,
+// place it at ~25% down the workArea for comfortable mid-screen positioning.
 function showAtCursorDisplay() {
   try {
     const cursor = screen.getCursorScreenPoint();
@@ -341,9 +322,7 @@ function showAtCursorDisplay() {
     const work = display.workArea;
     const [winW, winH] = mainWindow.getSize();
     const x = Math.round(work.x + Math.max(0, (work.width - winW) / 2));
-    // Panel paints at ~y=60 inside the canvas; we want the panel ~30% down
-    // the workArea, so canvas top = work.y + 30%*work.height - 60.
-    const y = Math.round(work.y + Math.max(0, work.height * 0.30 - 60));
+    const y = Math.round(work.y + Math.max(0, work.height * 0.25));
     mainWindow.setBounds({ x, y, width: winW, height: winH });
   } catch (err) {
     // If anything goes sideways with multi-display geometry, just show in place.
@@ -358,26 +337,33 @@ function showAtCursorDisplay() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-agents', () => loadAgents());
 
-// resize-window — DEPRECATED as of block #4 (window-overlap). The window is
-// now sized once at launch to a transparent ~workArea canvas; popovers paint
-// past the panel without resizing the window. Calls are silently ignored so
-// the renderer doesn't have to special-case its callsites; the IPC contract
-// is unchanged.
-ipcMain.on('resize-window', () => {
-  // no-op — see createWindow for the static-canvas comment
-});
+// Used by resize-window's bottom-cap logic.
+const WORKAREA_BOTTOM_SAFETY = 4;
 
-// set-ignore-mouse-events — toggles macOS-level click-through. Renderer flips
-// this on as the cursor enters / leaves painted regions. {forward:true}
-// keeps mousemove events flowing even while ignored, so the renderer can
-// detect when to flip back to interactive.
-ipcMain.on('set-ignore-mouse-events', (_event, ignore, options) => {
+// resize-window — called by the renderer when overlays (settings drawer,
+// add-agent form) open or close. Grows / shrinks the window so the overlay
+// has room to render without clipping. Caps height so the window stays
+// within the display's workArea.
+ipcMain.on('resize-window', (event, { width, height }) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const wRaw = Math.max(380, Math.min(1200, Math.round(width || 820)));
+  const hRaw = Math.max(180, Math.min(900, Math.round(height || 280)));
+
+  // Cap height so cur.y + height stays within display.workArea.bottom.
+  let h = hRaw;
   try {
-    mainWindow.setIgnoreMouseEvents(!!ignore, options || { forward: true });
+    const cur = mainWindow.getBounds();
+    const refPoint = { x: cur.x + Math.round(cur.width / 2), y: cur.y };
+    const display = screen.getDisplayNearestPoint(refPoint);
+    const maxBottom = display.workArea.y + display.workArea.height - WORKAREA_BOTTOM_SAFETY;
+    const maxHeight = Math.max(180, maxBottom - cur.y);
+    h = Math.min(hRaw, maxHeight);
   } catch (err) {
-    logToOutLog(`set-ignore-mouse-events failed: ${err.message}`);
+    logToOutLog(`resize-window: bottom-cap lookup failed (${err.message}); using uncapped height`);
   }
+
+  mainWindow.setContentSize(wRaw, h, true);
 });
 
 // ---------------------------------------------------------------------------
