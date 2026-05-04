@@ -46,7 +46,7 @@
   /* ============================================================
      Panel shell — the floating control surface
      ============================================================ */
-  .panel-shell {
+  .panel-shell {\n    -webkit-app-region: drag;
     position: relative;
     width: 780px;
     height: 246px;
@@ -1240,6 +1240,15 @@
     border-color: rgba(255,255,255,0.10);
   }
 </style>
+
+  <script>
+    window.addEventListener('error', function(event) {
+      require('fs').appendFileSync('/tmp/renderer_errors.log', event.error.stack + '\n');
+    });
+    window.addEventListener('unhandledrejection', function(event) {
+      require('fs').appendFileSync('/tmp/renderer_errors.log', event.reason.stack + '\n');
+    });
+  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -1678,10 +1687,14 @@
 
     function buildAgentTile(a) {
       const key = el('div', { class: 'agent-key' }, a.key);
-      const img = el('img', { src: a.src, alt: a.name });
+      const fallbackText = el('div', { 
+        style: 'position: absolute; font-weight: bold; font-size: 24px; opacity: 0.5;', 
+        'aria-hidden': 'true' 
+      }, a.name.charAt(0).toUpperCase());
+      const img = el('img', { src: a.src, alt: a.name, style: 'position: relative; z-index: 2;' });
       img.onerror = () => { img.style.display = 'none'; };
-      const dot = el('span', { class: 'status-dot' });
-      const av = el('div', { class: 'agent-avatar' }, img, dot);
+      const dot = el('span', { class: 'status-dot', style: 'z-index: 3;' });
+      const av = el('div', { class: 'agent-avatar' }, fallbackText, img, dot);
       const name = el('div', { class: 'agent-name' }, a.label);
       const tile = el('button', {
         class: 'agent-tile' + (state.selectedAgents.includes(a.key) ? ' selected' : ''),
