@@ -1,20 +1,21 @@
 # Handoff — TMUX-MASTA
 
 ## Last working on
-Claude-designer design port of AgentRemote reverted to legacy HTML engine. Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
+
+ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent break-pane if the agent shares a window with siblings) and the two settings-popover detach buttons are gone. AgentRemote's HUD architecture refactor (waves 1+2 + visual polish + attach consolidation) is functionally complete on main; Richard has not done end-to-end testing yet.
 
 ## Open priorities
-- [ACTIVE] ALS-003 — P0 punch-list (drag, MULTI semantics, kill-pane guard, telegram-cleanup grep, voice STT polish, number-key→dock-position mapping, pane-status poller, Cmd+digit attach) — dispatched Sonnet bg agent `a4e9458794a887ebe`. Read `tasks/ALS-002-*.md` and `docs/agentremote-v1-pivot-plan.md` first on resume.
-- [WAIT] ACRM project `agent-launch-scripts` registered (Xavier id `77137d67`). My tasks file under that slug. Future fleet directive: all task management goes through ACRM, no more local task files as source of truth.
-- [DEFER] Council T2 spawner — paused; architecture shifted under inbox-driven multi-writer per Lucius eval R&D commit `cbc4fad`. Sentinels likely vestigial. Wait on Phase 0 inbox primitive landing per Swarmy.
-- [DEFER] Atlas-of-Atlas-Island migration — AgentRemote product evolution moves to Atlas post-session per Xavier 2026-05-03 23:57Z. ARB-003/004/008/009 in CorporateHQ project. TMUX-MASTA retains tmux script management lane.
-- [DEFER] Cron-monitor popup, tmux command palette — Atlas-lane backlog per `CLAUDE.md`.
+
+- [DEFER] ALS-008 — per-project orchestrator (launchd plist filtered to project=agent-launch-scripts). Bumped to high by Xavier; durable fix for the dispatch friction this session (cherry-pick rescue + one worker bypassing PR path). Pick up next session.
+- [PENDING-RICHARD] Telegram bot for TMUX-MASTA channel returns 401 from `getMe`. Token in `~/.claude/channels/telegram-tmux-masta/.env` is revoked or wrong. Needs reissue via @BotFather + replace token before Telegram pings work; until then status updates land in Claude Code.
+- [DEFER] ALS-001/002/003 — pre-session tickets still in `dispatch_pending`; waiting on ALS-008 to unblock auto-claim. CHQ orchestrator is project-scoped to CorporateHQ.
+- [DEFER] Atlas-of-Atlas-Island migration — AgentRemote product evolution moves to Atlas post-session per Xavier 2026-05-03; TMUX-MASTA retains the tmux script management lane (chq-tmux.sh, launch-agent.sh, agents.json).
+- [DEFER] Cron-monitor popup, tmux command palette, layout-preset selector — Atlas-lane backlog per CLAUDE.md.
 
 ## Cross-session comms
-- 2026-05-03 Xavier: `agent-launch-scripts` ACRM project registered (id `77137d67-f310-4cb0-b2e1-85d010291f5f`). File AgentRemote rewiring + cron-monitor + tmux-command-palette + Council T2 under that slug. AgentRemote ARB-003/004/008/009 will move to Atlas post-session.
-- 2026-05-03 Swarmy: Council T1 SHIPPED + MERGED (PR ChefDique/message-agent#6). Hold T2 spawner — architecture shifted to inbox-driven; sentinels vestigial. Wait on Phase 0 inbox primitive landing.
-- 2026-05-03 Richard: pivot directive saved to `docs/agentremote-v1-pivot-plan.md` — operator HUD first, Council later. P0 layout/state/process fixes precede any new UI work.
-- 2026-05-03 Richard: stop burning Opus tokens — orchestrate via ACRM, dispatch to tmux-electron-master subagent on Sonnet.
-- 2026-05-03 19:42 PST Gemini (Antigravity): Executed a complete reversion to the fully functional legacy engine to recover native window mechanics (drag, click, focus). Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
+
+- 2026-05-04 Xavier: filed OPS-104 (`--add-artifact` FK constraint on cross-project tasks) + OPS-105 (`--check-criterion --evidence` Phase G SyntaxError JSONB sync); bumped ALS-008 to high; per 2026-05-03 rule each lead owns their queue end-to-end.
+- 2026-05-04 Richard: skip rollback; collapse 3 detach controls into one layout-aware Attach (shipped as ALS-010); reminded about the auto-restart wrapper preserving across break-pane (verified live — pane_pid stable).
+- 2026-05-03 Xavier: AgentRemote product evolution moves to Atlas post-session; TMUX-MASTA keeps the tmux script lane.
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
