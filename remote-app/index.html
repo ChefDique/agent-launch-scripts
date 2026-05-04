@@ -2763,11 +2763,22 @@
       from { --angle: 0deg; }
       to { --angle: 360deg; }
     }
+    /* ALS-009: rim is a child of .panel-stack and pinned to inset:-4px so it
+       tracks the panel's actual rendered geometry on every resize. The previous
+       implementation hardcoded top/left/width/height in pixels, which only
+       lined up at one specific BrowserWindow size and drifted upper-left as
+       the panel was resized via setContentSize. The wrapper carries the same
+       max-width: 720px the panel uses, so the rim never overshoots. */
+    .panel-stack {
+      width: 100%;
+      max-width: 720px;
+      position: relative;
+      -webkit-app-region: drag;
+    }
     .rainbow-rim {
       position: absolute;
-      top: 8px; left: 8px;
-      width: 604px; height: 224px;
-      border-radius: 18px;
+      inset: -4px;
+      border-radius: 26px;
       background: conic-gradient(from var(--angle), #4285f4, #ea4335, #fbbc05, #34a853, #4285f4);
       animation: conic-spin 6s linear infinite;
       filter: blur(3px) brightness(1.2);
@@ -2775,7 +2786,7 @@
       opacity: 0.75;
       pointer-events: none;
     }
-    .panel {
+    .panel-stack > .panel {
       z-index: 10 !important;
       border: none !important;
       box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
@@ -2844,10 +2855,12 @@
     /* xterm.js injects its own .xterm root; we need to make it fill the host. */
     #xterm-host .xterm { height: 100%; }
     #xterm-host .xterm-viewport { overflow-y: hidden !important; }
-\n  </style>
+  </style>
 </head>
 <body>
-  <div class="rainbow-rim"></div>\n  <div class="panel" id="panel">
+  <div class="panel-stack">
+  <div class="rainbow-rim"></div>
+  <div class="panel" id="panel">
     <!-- Row 1: agent dock -->
     <div class="dock" id="dock"></div>
 
@@ -3047,6 +3060,7 @@
       </div>
     </div>
   </div>
+  </div><!-- /.panel-stack (ALS-009) -->
 
   <!-- Right-click radial menu — gooey/liquid-mercury fan-out (Bebber).
        Two sibling layers inside #radial-menu:
