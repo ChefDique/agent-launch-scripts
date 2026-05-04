@@ -1,7 +1,7 @@
 # Handoff — TMUX-MASTA
 
 ## Last working on
-Stitch design port of AgentRemote reverted to legacy HTML engine. Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
+Claude-designer design port of AgentRemote reverted to legacy HTML engine. Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
 
 ## Open priorities
 - [ACTIVE] ALS-003 — P0 punch-list (drag, MULTI semantics, kill-pane guard, telegram-cleanup grep, voice STT polish, number-key→dock-position mapping, pane-status poller, Cmd+digit attach) — dispatched Sonnet bg agent `a4e9458794a887ebe`. Read `tasks/ALS-002-*.md` and `docs/agentremote-v1-pivot-plan.md` first on resume.
