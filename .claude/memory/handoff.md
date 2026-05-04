@@ -1,7 +1,7 @@
 # Handoff — TMUX-MASTA
 
 ## Last working on
-Stitch design port of AgentRemote shipped (HEAD `4d631eb`). In-flight ALS-001 work (voice STT, keybindings, window-overlap) is committed but **drag is broken** — the `setIgnoreMouseEvents(true)` + body `pointer-events:none` combo races against `-webkit-app-region:drag`. ALS-003 is dispatched on Sonnet to fix drag (simplest path: shrink window + drop click-through) plus the rest of the P0 punch-list. By session resume the work should be at `review_pending`.
+Stitch design port of AgentRemote reverted to legacy HTML engine. Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
 
 ## Open priorities
 - [ACTIVE] ALS-003 — P0 punch-list (drag, MULTI semantics, kill-pane guard, telegram-cleanup grep, voice STT polish, number-key→dock-position mapping, pane-status poller, Cmd+digit attach) — dispatched Sonnet bg agent `a4e9458794a887ebe`. Read `tasks/ALS-002-*.md` and `docs/agentremote-v1-pivot-plan.md` first on resume.
@@ -15,5 +15,6 @@ Stitch design port of AgentRemote shipped (HEAD `4d631eb`). In-flight ALS-001 wo
 - 2026-05-03 Swarmy: Council T1 SHIPPED + MERGED (PR ChefDique/message-agent#6). Hold T2 spawner — architecture shifted to inbox-driven; sentinels vestigial. Wait on Phase 0 inbox primitive landing.
 - 2026-05-03 Richard: pivot directive saved to `docs/agentremote-v1-pivot-plan.md` — operator HUD first, Council later. P0 layout/state/process fixes precede any new UI work.
 - 2026-05-03 Richard: stop burning Opus tokens — orchestrate via ACRM, dispatch to tmux-electron-master subagent on Sonnet.
+- 2026-05-03 19:42 PST Gemini (Antigravity): Executed a complete reversion to the fully functional legacy engine to recover native window mechanics (drag, click, focus). Re-injected the Google AI Studio glowing border via an underlying CSS gradient shell, successfully delivering the requested aesthetic upgrade without destabilizing the core routing, voice, or chat mechanisms.
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
