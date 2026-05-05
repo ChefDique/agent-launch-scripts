@@ -98,6 +98,37 @@ session_exists() {
   tmux has-session -t "$SESSION" 2>/dev/null
 }
 
+# Given `tmux list-panes -s -F '#{window_id}\t#{pane_id}'` on stdin, print the
+# pane ids that should be broken out to make each tmux window hold at most one
+# pane. The first pane in each existing window stays put; every sibling gets a
+# new tmux window.
+pane_ids_to_break_for_window_normalization() {
+  awk -F '\t' 'NF >= 2 { seen[$1]++; if (seen[$1] > 1 && $2 ~ /^%[0-9]+$/) print $2 }'
+}
+
+normalize_session_to_tmux_windows() {
+  local layout="$1"
+  case "$layout" in windows|ittab) ;; *) return 0 ;; esac
+
+  local pane_ids
+  pane_ids=$(
+    tmux list-panes -s -t "$SESSION" -F $'#{window_id}\t#{pane_id}' 2>/dev/null \
+      | pane_ids_to_break_for_window_normalization
+  ) || true
+  [[ -z "$pane_ids" ]] && return 0
+
+  local pane_id pane_title
+  while IFS= read -r pane_id; do
+    [[ -z "$pane_id" ]] && continue
+    [[ "$pane_id" =~ ^%[0-9]+$ ]] || continue
+    pane_title=$(tmux display-message -t "$pane_id" -p '#{pane_title}' 2>/dev/null || echo "")
+    tmux break-pane -d -s "$pane_id" -t "${SESSION}:"
+    if [[ -n "$pane_title" ]]; then
+      tmux rename-window -t "$pane_id" "$pane_title" 2>/dev/null || true
+    fi
+  done <<< "$pane_ids"
+}
+
 # Write/update the pane sidecar at SIDECAR_PATH. Called once per pane at
 # creation time — pane_id is stable across agent auto-restart, so this only
 # runs when the pane is first created, NOT on every loop iteration.
@@ -423,14 +454,21 @@ cmd_add() {
     selected_entries+=("$found")
   done
 
-  # Honor the layout chosen at start time (stashed in @chq_layout). New agents
-  # in panes mode go as horizontal splits in chq:0; new agents in windows/ittab
-  # mode go as their own tmux windows. CHQ_LAYOUT env var overrides the stored
-  # value if set — useful for upgrading a panes session to per-window agents.
-  local layout
-  layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
-  [[ -z "$layout" ]] && layout="${CHQ_LAYOUT:-ittab}"
+  # Layout policy for an existing session. CHQ_LAYOUT explicitly overrides the
+  # stored session layout so AgentRemote can upgrade a split-pane session into
+  # per-window panes without requiring a kill/redeploy cycle.
+  local stored_layout layout
+  stored_layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
+  layout="${CHQ_LAYOUT:-$stored_layout}"
+  [[ -z "$layout" ]] && layout="ittab"
   case "$layout" in panes|windows|ittab|tiled) ;; *) layout="ittab";; esac
+
+  if [[ "$layout" == "windows" || "$layout" == "ittab" ]]; then
+    normalize_session_to_tmux_windows "$layout"
+  fi
+  if [[ "$stored_layout" != "$layout" ]]; then
+    tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
+  fi
 
   # Existing-titles check — substring match across ALL panes in the session
   # (not just chq:0) so an agent already in a detached window isn't re-spawned.
@@ -518,6 +556,10 @@ cmd_restart() {
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+if [[ "${CHQ_TMUX_LIB_ONLY:-0}" == "1" ]]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 case "${1:-}" in
   start)   shift; cmd_start "$@" ;;

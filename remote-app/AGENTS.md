@@ -13,7 +13,7 @@ npm install
 bash ../launch-remote.sh
 ```
 
-`npm test` is intentionally not a useful gate today; `package.json` still exits with the default placeholder test.
+`npm test` runs the current layout-policy unit tests plus the launcher pane-normalization helper test.
 
 ## Commands
 

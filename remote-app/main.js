@@ -5,6 +5,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
+const { normalizeSpawnLayout, tmuxAttachCommand } = require('./layout-policy');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -678,9 +679,9 @@ ipcMain.on('spawn-agents', (event, payload) => {
   if (safeAgents.length === 0) return;
 
   // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
-  // 'tiled' added 2026-05-03 for the deploy-preview overlay (auto-balanced grid
-  // via tmux select-layout tiled after spawn).
-  const layout = ['panes', 'windows', 'ittab', 'tiled'].includes(layoutRaw) ? layoutRaw : 'panes';
+  // Fallback is ittab, because the operator default is draggable iTerm
+  // control-mode windows rather than one crowded split-pane tmux window.
+  const layout = normalizeSpawnLayout(layoutRaw);
 
   execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout } }, (err, stdout, stderr) => {
     if (err) {
@@ -1230,16 +1231,15 @@ ipcMain.handle('attach-pane', async (event, id) => {
     }
 
     // Step 3 — no existing iTerm session matched. Open a new one and attach.
-    // Read the layout for ittab → tmux -CC; everything else → plain attach.
+    // ittab uses tmux -CC for draggable iTerm windows; a pane we just broke
+    // out also uses -CC so the new standalone tmux window is movable.
     const layout = await new Promise((resolve) => {
       execFile('tmux', ['show-option', '-t', sessionName, '-v', '-q', '@chq_layout'], (err, stdout) => {
         if (err) return resolve('');
         resolve((stdout || '').trim());
       });
     });
-    const attachCmd = (layout === 'ittab')
-      ? `tmux -CC attach -t ${sessionName}`
-      : `tmux attach -t ${sessionName}`;
+    const attachCmd = tmuxAttachCommand(sessionName, layout, { brokeOut: !!breakPaneResult });
 
     const spawnScript = `tell application "iTerm"
       activate

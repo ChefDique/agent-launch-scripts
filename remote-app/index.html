@@ -3067,22 +3067,22 @@
             <div class="dl-hint">Horizontal panes in one window</div>
           </div>
         </button>
-        <button class="deploy-layout-card" data-layout="tiled" role="radio" aria-checked="false">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="1" y="1" width="30" height="20" rx="3"/><line x1="16" y1="1" x2="16" y2="21"/><line x1="1" y1="11" x2="31" y2="11"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Tiled grid</div>
-            <div class="dl-hint">Auto-balanced tiles</div>
-          </div>
-        </button>
         <button class="deploy-layout-card" data-layout="windows" role="radio" aria-checked="false">
           <div class="dl-icon" aria-hidden="true">
             <svg viewBox="0 0 32 22"><rect class="bg" x="1" y="3" width="30" height="18" rx="3"/><rect class="tab" x="1" y="0" width="9" height="4" rx="1"/><rect class="tab" x="11" y="0" width="9" height="4" rx="1"/><rect class="tab active" x="21" y="0" width="9" height="4" rx="1"/></svg>
           </div>
           <div class="dl-meta">
-            <div class="dl-name">Stacked windows</div>
-            <div class="dl-hint">Tab-style, one window each</div>
+            <div class="dl-name">Tmux windows</div>
+            <div class="dl-hint">One window each, tmux tab-style</div>
+          </div>
+        </button>
+        <button class="deploy-layout-card" data-layout="ittab" role="radio" aria-checked="false">
+          <div class="dl-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 22"><rect class="bg" x="2" y="5" width="18" height="14" rx="3"/><rect class="tab" x="12" y="1" width="18" height="14" rx="3"/><rect class="tab active" x="7" y="3" width="18" height="14" rx="3"/></svg>
+          </div>
+          <div class="dl-meta">
+            <div class="dl-name">iTerm windows</div>
+            <div class="dl-hint">Draggable control-mode windows</div>
           </div>
         </button>
       </div>
@@ -3144,6 +3144,11 @@
 
   <script>
     const { ipcRenderer } = require('electron');
+    const {
+      DEPLOY_LAYOUTS,
+      LAYOUT_MODES,
+      layoutModeToDeployLayout
+    } = require('./layout-policy');
 
     // Auto-focus the chat input whenever main fires the shortcut-driven
     // summon. Richard wants summon → type immediately, no extra click.
@@ -3176,7 +3181,6 @@
     // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
     // multi-pane via iTerm windows is way more flexible than the cramped
     // horizontal-split-pane layout that piled 5+ agents into one tab.
-    const LAYOUT_MODES = ['panes', 'windows', 'ittab'];
     let layoutMode = 'ittab';
     try {
       const stored = localStorage.getItem('agentRemoteLayoutMode');
@@ -4672,9 +4676,9 @@
     // The overlay is a glass card with three things:
     //   1. Roster — one row per agent about to spawn (avatar + name + cwd
     //      + running-or-not chip).
-    //   2. Layout picker — three cards: panes (side-by-side), tiled
-    //      (auto-balanced grid), windows (one window each). Maps to CHQ_LAYOUT
-    //      values plus the new `tiled` mode handled in chq-tmux.sh.
+    //   2. Layout picker — three cards: panes (side-by-side), windows
+    //      (tmux window switching), and ittab/MULTI (draggable iTerm
+    //      control-mode windows). Maps directly to CHQ_LAYOUT values.
     //   3. Cancel + Deploy actions. Confirm fires spawn-agents.
     //
     // Defaults the picker to the segmented-pill choice in the meta row
@@ -4687,21 +4691,8 @@
     let deployPendingIds = null;       // ids the overlay is currently confirming
     let deployPreviewLayout = null;    // user's choice in the overlay (defaults to layoutMode)
 
-    // Deploy preview's layout strings map 1:1 to CHQ_LAYOUT values:
-    //   panes   = side-by-side horizontal split-panes (legacy)
-    //   tiled   = one window with tmux select-layout tiled (auto grid)
-    //   windows = one tmux window per agent (no -CC; tab-style switching)
-    // The renderer's segmented-pill `layoutMode` uses the same vocabulary
-    // for `panes`/`windows`; legacy `ittab` is accepted but reads as
-    // "windows" in the overlay (closest semantic match).
-    const DEPLOY_LAYOUTS = ['panes', 'tiled', 'windows'];
-
     function pillLayoutToOverlayLayout(m) {
-      // Map the existing pill values into the overlay's vocabulary. ittab is
-      // semantically closest to "windows" (one window per agent).
-      if (m === 'ittab') return 'windows';
-      if (DEPLOY_LAYOUTS.includes(m)) return m;
-      return 'panes';
+      return layoutModeToDeployLayout(m);
     }
 
     function openDeployPreview(ids) {
@@ -4818,7 +4809,7 @@
 
       // Layout-card clicks. Sync the overlay's choice AND the meta-row
       // segmented pills so the next Deploy without reopening overlay also
-      // remembers it. ittab/legacy fallback handled at fire time.
+      // remembers it.
       if (grid) {
         grid.addEventListener('click', (e) => {
           const card = e.target.closest('.deploy-layout-card');
@@ -4827,18 +4818,11 @@
           if (!DEPLOY_LAYOUTS.includes(next)) return;
           deployPreviewLayout = next;
           renderDeployLayoutGrid();
-          // Sync the meta-row segmented pills + persist. `tiled` is overlay-
-          // only; the segmented control doesn't carry it (it lives in panes/
-          // windows/ittab vocabulary), so we only sync when the choice maps
-          // cleanly. tiled persists internally so the next overlay open
-          // remembers the choice.
-          if (next === 'panes' || next === 'windows') {
-            layoutMode = next;
-            try { localStorage.setItem('agentRemoteLayoutMode', next); } catch {}
-            const pills = document.querySelectorAll('.layout-pill');
-            pills.forEach(p => p.classList.toggle('active', p.dataset.layout === next));
-            applyLayoutMismatchHint();
-          }
+          layoutMode = next;
+          try { localStorage.setItem('agentRemoteLayoutMode', next); } catch {}
+          const pills = document.querySelectorAll('.layout-pill');
+          pills.forEach(p => p.classList.toggle('active', p.dataset.layout === next));
+          applyLayoutMismatchHint();
         });
       }
 
@@ -4861,8 +4845,8 @@
       }
       const ids = deployPendingIds.slice();
       const layout = deployPreviewLayout || pillLayoutToOverlayLayout(layoutMode);
-      // Fire and close. main.js whitelists layout to one of panes/tiled/
-      // windows/ittab and passes through to chq-tmux.sh as CHQ_LAYOUT.
+      // Fire and close. main.js whitelists layout and passes it through to
+      // chq-tmux.sh as CHQ_LAYOUT.
       ipcRenderer.send('spawn-agents', { agents: ids, layout });
       closeDeployPreview();
     }
