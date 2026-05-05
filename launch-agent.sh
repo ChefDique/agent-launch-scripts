@@ -129,7 +129,6 @@ build_runtime_command() {
       RUNTIME_CMD=(
         codex
         --model "$codex_model"
-        --dangerously-bypass-approvals-and-sandbox
         --ask-for-approval "$codex_approval"
         --sandbox "$codex_sandbox"
         -c "model_reasoning_effort=\"${codex_effort}\""
