@@ -2720,6 +2720,113 @@
       box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
     }
 
+    /* Codex pet: small companion layer perched over the HUD. It is pure
+       presentation and pointer-events:none so it never steals clicks, drag,
+       or key focus from the remote. Gara can replace the inline SVG later
+       without changing the mood-state contract below. */
+    .codex-pet {
+      position: absolute;
+      top: -6px;
+      right: -10px;
+      width: 82px;
+      height: 72px;
+      z-index: 24;
+      pointer-events: none;
+      transform-origin: 56% 65%;
+      animation: pet-float 4.8s var(--ease) infinite;
+      filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.45));
+      opacity: 0.98;
+    }
+    .codex-pet svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      display: block;
+    }
+    .codex-pet .pet-core {
+      fill: rgba(18, 19, 28, 0.96);
+      stroke: rgba(244, 244, 248, 0.18);
+      stroke-width: 1.2;
+    }
+    .codex-pet .pet-mask {
+      fill: rgba(244, 244, 248, 0.88);
+    }
+    .codex-pet .pet-eye {
+      fill: #0b0c12;
+      transform-origin: center;
+      animation: pet-blink 5.6s steps(1) infinite;
+    }
+    .codex-pet .pet-claw {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.9;
+    }
+    .codex-pet .pet-aura {
+      fill: none;
+      stroke: rgba(0, 242, 255, 0.46);
+      stroke-width: 1.4;
+      stroke-dasharray: 3 5;
+      transform-origin: 38px 36px;
+      animation: pet-orbit 7s linear infinite;
+    }
+    .codex-pet .pet-signal {
+      fill: rgba(255, 82, 116, 0.82);
+      opacity: 0;
+      transform-origin: center;
+    }
+    .codex-pet .pet-pad {
+      fill: rgba(224, 124, 76, 0.18);
+      stroke: rgba(224, 124, 76, 0.42);
+      stroke-width: 1;
+    }
+    body.pet-recording .codex-pet,
+    body.voice-recording .codex-pet {
+      animation-duration: 2.2s;
+      transform: translateY(-2px) rotate(-3deg) scale(1.04);
+    }
+    body.pet-recording .codex-pet .pet-signal,
+    body.voice-recording .codex-pet .pet-signal {
+      opacity: 1;
+      animation: pet-signal 0.72s ease-out infinite alternate;
+    }
+    body.pet-transcribing .codex-pet {
+      animation-duration: 1.6s;
+    }
+    body.pet-transcribing .codex-pet .pet-aura {
+      stroke: rgba(244, 197, 66, 0.72);
+      animation-duration: 1.8s;
+    }
+    body.pet-sent .codex-pet {
+      transform: translateY(-5px) rotate(4deg) scale(1.07);
+      transition: transform 0.22s var(--ease);
+    }
+    body.pet-error .codex-pet {
+      animation: pet-error 0.28s ease-out 2;
+    }
+    @keyframes pet-float {
+      0%, 100% { transform: translateY(0) rotate(-1deg); }
+      50% { transform: translateY(-4px) rotate(1.5deg); }
+    }
+    @keyframes pet-orbit {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pet-blink {
+      0%, 92%, 100% { transform: scaleY(1); }
+      94%, 96% { transform: scaleY(0.12); }
+    }
+    @keyframes pet-signal {
+      from { transform: scale(0.86); opacity: 0.42; }
+      to { transform: scale(1.18); opacity: 1; }
+    }
+    @keyframes pet-error {
+      0%, 100% { transform: translateX(0) rotate(-1deg); }
+      30% { transform: translateX(-3px) rotate(-5deg); }
+      70% { transform: translateX(3px) rotate(5deg); }
+    }
+
     /* -------------------------------------------------------------------------
        xterm.js per-agent terminal panel (ALS-005)
        -------------------------------------------------------------------------
@@ -2884,6 +2991,24 @@
       </div>
       <div id="xterm-host"></div>
     </div>
+  </div>
+
+  <div class="codex-pet" id="codex-pet" aria-hidden="true">
+    <svg viewBox="0 0 82 72" role="presentation" focusable="false">
+      <ellipse class="pet-pad" cx="43" cy="62" rx="23" ry="5" />
+      <circle class="pet-aura" cx="42" cy="35" r="25" />
+      <path class="pet-core" d="M42 8 C54 8 64 17 66 30 C69 47 58 60 42 60 C26 60 15 47 18 30 C20 17 30 8 42 8 Z" />
+      <path class="pet-core" d="M22 30 C15 27 11 22 10 16 C17 16 23 20 27 26 Z" />
+      <path class="pet-core" d="M62 30 C69 27 73 22 74 16 C67 16 61 20 57 26 Z" />
+      <path class="pet-mask" d="M28 31 C30 23 36 19 42 19 C48 19 54 23 56 31 C54 41 49 47 42 47 C35 47 30 41 28 31 Z" />
+      <ellipse class="pet-eye" cx="36" cy="33" rx="3.2" ry="4.2" />
+      <ellipse class="pet-eye" cx="48" cy="33" rx="3.2" ry="4.2" />
+      <path class="pet-claw" d="M31 51 C34 54 38 55 42 55 C46 55 50 54 53 51" />
+      <path class="pet-claw" d="M25 18 C29 12 34 10 39 9" />
+      <path class="pet-claw" d="M59 18 C55 12 50 10 45 9" />
+      <circle class="pet-signal" cx="63" cy="18" r="4" />
+      <circle class="pet-signal" cx="69" cy="11" r="2.2" />
+    </svg>
   </div>
 
   <!-- Team-chat overlay — Cmd+T to toggle. Native chat surface that reads/
@@ -3119,11 +3244,13 @@
       // on the first loadAndRender — voiceRec is declared further down in the
       // same script block, so `typeof voiceRec` would throw before its init.
       try {
-        if (voiceRec && (voiceRec.state === 'recording' || voiceRec.state === 'pending')) {
+        if (voiceRec && (voiceRec.state === 'recording' || voiceRec.state === 'pending' || voiceRec.state === 'starting')) {
           if (voiceRec.holdTimer) { clearTimeout(voiceRec.holdTimer); voiceRec.holdTimer = null; }
-          if (voiceRec.state === 'recording') {
+          if (voiceRec.state === 'recording' || voiceRec.state === 'starting') {
             try { cancelVoiceRecording({ shake: false }); } catch { /* ignore */ }
           } else {
+            voiceRec.startToken++;
+            voiceRec.releasePending = false;
             voiceRec.state = 'idle';
             voiceRec.activeId = null;
             voiceRec.activeIdx = null;
@@ -4506,16 +4633,43 @@
     // ---------------------------------------------------------------------
     // Send + Deploy
     // ---------------------------------------------------------------------
-    function send() {
+    async function sendBroadcastMessage({ message, selectedAgents, isAll }) {
+      try {
+        return await ipcRenderer.invoke('broadcast-message', { message, selectedAgents, isAll });
+      } catch (err) {
+        return {
+          ok: false,
+          sent: 0,
+          error: err && err.message ? err.message : String(err)
+        };
+      }
+    }
+
+    async function send() {
       const input = document.getElementById('chat-input');
       const msg = input.value;
       if (!msg) return;
       const selected = Object.values(agents).filter(a => a.selected);
       if (selected.length === 0) return;
-      const isAll = selected.length === Object.keys(agents).length;
+      const isAll = selected.length === agentOrder.length;
       const payload = selected.map(a => ({ id: a.id, tmuxTarget: a.tmuxTarget }));
-      ipcRenderer.send('broadcast-message', { message: msg, selectedAgents: payload, isAll });
+      const result = await sendBroadcastMessage({ message: msg, selectedAgents: payload, isAll });
+      if (!result || !result.ok) {
+        showVoiceToast({
+          kind: 'error',
+          target: 'Send failed',
+          snippet: result && result.error ? result.error : 'no delivery result',
+          ms: 3500
+        });
+        return;
+      }
       input.value = '';
+      showVoiceToast({
+        kind: 'ok',
+        target: `sent to ${result.sent}`,
+        snippet: msg,
+        ms: 1800
+      });
       // Keep selection so consecutive messages don't require re-clicking. Power-user feel.
     }
 
@@ -5303,14 +5457,18 @@
       // Lifecycle:
       //   idle           — no key pressed
       //   pending        — key down, threshold timer running, hasn't crossed yet
-      //   recording      — threshold crossed; analyser running, recog active
+      //   starting       — threshold crossed; waiting on mic / MediaRecorder
+      //   recording      — analyser running, MediaRecorder active
+      //   transcribing   — audio stopped; local Whisper is producing text
       //   permission_denied — getUserMedia rejected; only tap-toggle remains
       state: 'idle',
+      startToken: 0,            // invalidates async getUserMedia completions
+      releasePending: false,    // keyup while state=starting finishes immediately once ready
       activeId: null,           // agent id of the held tile (null when idle)
       activeIdx: null,          // dock index, for the keycap depress animation
       pressedAt: 0,
       holdTimer: null,          // setTimeout firing on threshold cross
-      keyDown: null,            // currently-held key code (F1..F5) — used to
+      keyDown: null,            // currently-held number-row key — used to
                                 // gate the keyup matcher when the user holds
                                 // multiple keys (we only respond to release of
                                 // the same key that started the hold)
@@ -5344,9 +5502,29 @@
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
     function isSpeechAvailable() { return !!SpeechRecognitionCtor; }
 
+    // ---- Codex pet mood ----
+    const PET_MOOD_CLASSES = ['pet-recording', 'pet-transcribing', 'pet-sent', 'pet-error'];
+    let petMoodTimer = null;
+    function setPetMood(mood, ms = 0) {
+      PET_MOOD_CLASSES.forEach(c => document.body.classList.remove(c));
+      if (petMoodTimer) {
+        clearTimeout(petMoodTimer);
+        petMoodTimer = null;
+      }
+      if (mood && mood !== 'idle') document.body.classList.add(`pet-${mood}`);
+      if (ms > 0) {
+        petMoodTimer = setTimeout(() => {
+          PET_MOOD_CLASSES.forEach(c => document.body.classList.remove(c));
+          petMoodTimer = null;
+        }, ms);
+      }
+    }
+
     // ---- Toast ----
     let voiceToastTimer = null;
     function showVoiceToast({ kind, target, snippet, ms = 2500 }) {
+      if (kind === 'error') setPetMood('error', Math.min(ms, 1800));
+      else if (kind === 'ok') setPetMood('sent', Math.min(ms, 1400));
       let el = document.getElementById('voice-toast');
       if (!el) {
         el = document.createElement('div');
@@ -5506,15 +5684,24 @@
       const agent = agents[id];
       if (!agent) return;
       const targetName = labelTextFor(agent);
+      const token = ++voiceRec.startToken;
+      voiceRec.state = 'starting';
+      voiceRec.releasePending = false;
 
       const ui = applyRecordingClasses(idx, id);
-      if (!ui) return;
+      if (!ui) {
+        voiceRec.state = 'idle';
+        voiceRec.activeId = null;
+        voiceRec.activeIdx = null;
+        return;
+      }
       voiceRec.activeId = id;
       voiceRec.activeIdx = idx;
       voiceRec.finalTranscript = '';
       voiceRec.interimTranscript = '';
       // Show the bubble immediately in permission-pending state so the user
       // sees feedback even if getUserMedia takes a beat to resolve.
+      setPetMood('recording');
       setTranscriptText({ targetName, permissionPending: true });
       showTranscriptBubble(ui.tile);
 
@@ -5525,6 +5712,7 @@
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
+        if (voiceRec.startToken !== token) return;
         // Denied or device missing. State change → permission_denied so future
         // holds short-circuit (taps still work).
         clearRecordingClasses();
@@ -5534,9 +5722,13 @@
         showVoiceToast({
           kind: 'error',
           target: 'Mic access denied',
-          snippet: 'F-key voice disabled — grant in System Settings',
+          snippet: 'hold-to-talk disabled — grant in System Settings',
           ms: 4500
         });
+        return;
+      }
+      if (voiceRec.startToken !== token || voiceRec.activeId !== id) {
+        try { stream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
         return;
       }
       voiceRec.mediaStream = stream;
@@ -5579,6 +5771,10 @@
 
       voiceRec.state = 'recording';
       startAnalyserLoop();
+      if (voiceRec.releasePending || !voiceRec.keyDown) {
+        voiceRec.releasePending = false;
+        finishVoiceRecording();
+      }
     }
 
     // Stop everything: recog, audio context, analyser loop. Returns the final
@@ -5612,9 +5808,12 @@
     function cancelVoiceRecording({ shake = true } = {}) {
       const id = voiceRec.activeId;
       const tileEl = voiceRec.tileEl;
+      voiceRec.startToken++;
+      voiceRec.releasePending = false;
       stopRecordingResources();
       clearRecordingClasses();
       hideTranscriptBubble();
+      setPetMood('idle');
       if (shake && tileEl) {
         tileEl.classList.add('voice-cancel-shake');
         setTimeout(() => tileEl.classList.remove('voice-cancel-shake'), 320);
@@ -5637,10 +5836,14 @@
     // base model; first run is slower while the model downloads).
     async function finishVoiceRecording() {
       const id = voiceRec.activeId;
+      if (!id) return;
       const agent = agents[id];
       const targetName = agent ? labelTextFor(agent) : (id || '');
       const mr = voiceRec.mediaRecorder;
       const chunks = voiceRec.audioChunks || [];
+      voiceRec.state = 'transcribing';
+      voiceRec.releasePending = false;
+      setPetMood('transcribing');
 
       // Surface the wait so the bubble doesn't look frozen.
       setTranscriptText({ targetName, hint: '(transcribing…)' });
@@ -5695,6 +5898,7 @@
       if (!composed) {
         // Nothing transcribed — silent no-op. Likely a hold without speech, or
         // whisper failed and already logged.
+        setPetMood('idle');
         return;
       }
       // Dead-agent gate: if the agent isn't running, suppress the send.
@@ -5709,14 +5913,23 @@
       }
       // Send via the existing broadcast-message IPC. Single recipient.
       const payload = [{ id: wasId, tmuxTarget: agents[wasId].tmuxTarget }];
-      ipcRenderer.send('broadcast-message', {
+      const result = await sendBroadcastMessage({
         message: composed,
         selectedAgents: payload,
         isAll: false
       });
+      if (!result || !result.ok) {
+        showVoiceToast({
+          kind: 'error',
+          target: `${targetName} send failed`,
+          snippet: result && result.error ? result.error : 'no matching pane',
+          ms: 3500
+        });
+        return;
+      }
       showVoiceToast({
         kind: 'ok',
-        target: targetName,
+        target: `${targetName} · sent`,
         snippet: composed,
         ms: 2500
       });
@@ -5755,11 +5968,12 @@
 
       // Concurrent F-key during a hold → cancel current, start a new pending
       // for the new agent. The first hold is discarded (no send).
-      if (voiceRec.state === 'recording' || voiceRec.state === 'pending') {
+      if (voiceRec.state === 'transcribing') return;
+      if (voiceRec.state === 'recording' || voiceRec.state === 'pending' || voiceRec.state === 'starting') {
         // Only displace if it's a DIFFERENT key. Same-key keydowns from
         // weird OS / IME re-fires are filtered by ev.repeat above.
         if (voiceRec.keyDown !== code) {
-          if (voiceRec.state === 'recording') {
+          if (voiceRec.state === 'recording' || voiceRec.state === 'starting') {
             cancelVoiceRecording({ shake: true });
           } else if (voiceRec.holdTimer) {
             clearTimeout(voiceRec.holdTimer);
@@ -5823,6 +6037,11 @@
         finishVoiceRecording();
         return;
       }
+      if (voiceRec.state === 'starting') {
+        voiceRec.releasePending = true;
+        voiceRec.keyDown = null;
+        return;
+      }
 
       // Stray release (e.g. permission_denied path).
       voiceRec.keyDown = null;
@@ -5835,16 +6054,18 @@
     // last in the bubble phase, so we don't preempt them.
     window.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Escape') return;
-      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending') return;
+      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending' && voiceRec.state !== 'starting') return;
       // Don't compete with overlay / radial Esc handlers — they preventDefault
       // already if active. We only act when our state machine is engaged.
       if (voiceRec.holdTimer) {
         clearTimeout(voiceRec.holdTimer);
         voiceRec.holdTimer = null;
       }
-      if (voiceRec.state === 'recording') {
+      if (voiceRec.state === 'recording' || voiceRec.state === 'starting') {
         cancelVoiceRecording({ shake: true });
       } else {
+        voiceRec.startToken++;
+        voiceRec.releasePending = false;
         voiceRec.state = 'idle';
         voiceRec.activeId = null;
         voiceRec.activeIdx = null;
@@ -5860,14 +6081,16 @@
     // mediaStream / audioCtx and pinning the dock UI in recording state. No
     // shake feedback — the window isn't visible to show it.
     window.addEventListener('blur', () => {
-      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending') return;
+      if (voiceRec.state !== 'recording' && voiceRec.state !== 'pending' && voiceRec.state !== 'starting') return;
       if (voiceRec.holdTimer) {
         clearTimeout(voiceRec.holdTimer);
         voiceRec.holdTimer = null;
       }
-      if (voiceRec.state === 'recording') {
+      if (voiceRec.state === 'recording' || voiceRec.state === 'starting') {
         cancelVoiceRecording({ shake: false });
       } else {
+        voiceRec.startToken++;
+        voiceRec.releasePending = false;
         voiceRec.state = 'idle';
         voiceRec.activeId = null;
         voiceRec.activeIdx = null;

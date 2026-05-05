@@ -445,16 +445,9 @@ ipcMain.handle('transcribe-voice', async (_event, audioBufferB64) => {
   });
 });
 
-ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }) => {
-  if (!message || (!isAll && (!selectedAgents || selectedAgents.length === 0))) return;
-
+async function resolveBroadcastTargets({ selectedAgents, isAll }) {
   let targets = [];
-  try {
-    targets = await listPanes();
-  } catch (err) {
-    console.error(`[broadcast] tmux list-panes failed: ${err.message}`);
-    return;
-  }
+  targets = await listPanes();
 
   // Build a pane_id → coord lookup from the live list-panes output.
   // Used to resolve a sidecar pane_id to a current send-keys coord.
@@ -467,49 +460,117 @@ ipcMain.on('broadcast-message', async (event, { message, selectedAgents, isAll }
   // Keys are agents.json ids; values carry the stable pane_id (%N).
   const sidecar = readPaneSidecar();
 
+  // "All" means every selected registry agent, not every tmux pane on the
+  // machine. Legacy callers may send isAll with an empty selectedAgents array;
+  // in that case fall back to the registry roster.
+  const agentsToResolve = (selectedAgents && selectedAgents.length)
+    ? selectedAgents
+    : (isAll ? loadAgents() : []);
+
   let sendTo = [];
-  if (isAll) {
-    sendTo = targets.map(t => t.coord);
-  } else {
-    for (const agent of selectedAgents) {
-      // Strategy 1: resolve via sidecar pane_id — stable across renames.
-      const sidecarEntry = sidecar[agent.id];
-      if (sidecarEntry && sidecarEntry.pane_id && paneIdToCoord[sidecarEntry.pane_id]) {
-        sendTo.push(paneIdToCoord[sidecarEntry.pane_id]);
-        continue;
-      }
-      // Strategy 2: fall back to pane-title substring match (covers panes not
-      // yet in the sidecar — e.g. static agent-factory entries that chq-tmux.sh
-      // doesn't register, or sessions started before this version was deployed).
-      const needle = (agent.tmuxTarget || '').toLowerCase();
-      if (!needle) continue;
-      const match = targets.find(t => t.title.toLowerCase().includes(needle));
-      if (match) {
-        sendTo.push(match.coord);
-      } else {
-        console.warn(`[broadcast] no pane matches agent=${agent.id} (sidecar miss + tmuxTarget=${needle} miss)`);
-      }
+  const unresolved = [];
+  for (const agent of agentsToResolve) {
+    // Strategy 1: resolve via sidecar pane_id — stable across renames.
+    const sidecarEntry = sidecar[agent.id];
+    if (sidecarEntry && sidecarEntry.pane_id && paneIdToCoord[sidecarEntry.pane_id]) {
+      sendTo.push(paneIdToCoord[sidecarEntry.pane_id]);
+      continue;
+    }
+    // Strategy 2: fall back to pane-title substring match (covers panes not
+    // yet in the sidecar — e.g. static agent-factory entries that chq-tmux.sh
+    // doesn't register, or sessions started before this version was deployed).
+    const needle = (agent.tmuxTarget || '').toLowerCase();
+    if (!needle) {
+      unresolved.push(agent.id);
+      continue;
+    }
+    const match = targets.find(t => t.title.toLowerCase().includes(needle));
+    if (match) {
+      sendTo.push(match.coord);
+    } else {
+      unresolved.push(agent.id);
+      console.warn(`[broadcast] no pane matches agent=${agent.id} (sidecar miss + tmuxTarget=${needle} miss)`);
     }
   }
 
-  for (const coord of sendTo) {
-    // Two send-keys calls: first types the literal message (so claude's TUI
-    // input box receives the characters), then presses Enter as a separate
-    // keystroke to submit. A single combined call (`message Enter`) typed
-    // the text but didn't submit reliably against claude's TUI — Richard
-    // reported the input sat in the box unsubmitted. The launch-agent.sh
-    // auto-inject sequence uses the same split-call pattern (matches the
-    // legacy per-agent scripts that worked).
+  return {
+    coords: [...new Set(sendTo)],
+    unresolved,
+    livePaneCount: targets.length,
+    requestedAgentCount: agentsToResolve.length
+  };
+}
+
+function sendKeysToCoord(coord, message) {
+  // Two send-keys calls: first types the literal message (so claude's TUI
+  // input box receives the characters), then presses Enter as a separate
+  // keystroke to submit. A single combined call (`message Enter`) typed
+  // the text but didn't submit reliably against claude's TUI — Richard
+  // reported the input sat in the box unsubmitted. The launch-agent.sh
+  // auto-inject sequence uses the same split-call pattern (matches the
+  // legacy per-agent scripts that worked).
+  return new Promise((resolve, reject) => {
     execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
-      if (err) {
-        console.error(`[broadcast] send-keys (text) ${coord} failed: ${ser || err.message}`);
-        return;
-      }
+      if (err) return reject(new Error(ser || err.message));
       execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err2, _o2, ser2) => {
-        if (err2) console.error(`[broadcast] send-keys (Enter) ${coord} failed: ${ser2 || err2.message}`);
+        if (err2) return reject(new Error(ser2 || err2.message));
+        resolve(coord);
       });
     });
+  });
+}
+
+async function broadcastMessage({ message, selectedAgents, isAll } = {}) {
+  const text = typeof message === 'string' ? message.trim() : '';
+  if (!text) return { ok: false, sent: 0, error: 'message required' };
+  if (!isAll && (!selectedAgents || selectedAgents.length === 0)) {
+    return { ok: false, sent: 0, error: 'no selected agents' };
   }
+
+  let resolved;
+  try {
+    resolved = await resolveBroadcastTargets({ selectedAgents, isAll });
+  } catch (err) {
+    console.error(`[broadcast] tmux list-panes failed: ${err.message}`);
+    return { ok: false, sent: 0, error: err.message || 'tmux list-panes failed' };
+  }
+
+  if (resolved.coords.length === 0) {
+    return {
+      ok: false,
+      sent: 0,
+      attempted: 0,
+      unresolved: resolved.unresolved,
+      livePaneCount: resolved.livePaneCount,
+      requestedAgentCount: resolved.requestedAgentCount,
+      error: 'no running panes matched the selected agents'
+    };
+  }
+
+  const results = await Promise.allSettled(resolved.coords.map(coord => sendKeysToCoord(coord, text)));
+  const sent = results.filter(r => r.status === 'fulfilled').length;
+  const failures = results
+    .filter(r => r.status === 'rejected')
+    .map(r => r.reason && r.reason.message ? r.reason.message : String(r.reason));
+
+  failures.forEach(err => console.error(`[broadcast] send failed: ${err}`));
+  return {
+    ok: sent > 0,
+    sent,
+    attempted: resolved.coords.length,
+    unresolved: resolved.unresolved,
+    livePaneCount: resolved.livePaneCount,
+    requestedAgentCount: resolved.requestedAgentCount,
+    failures,
+    error: sent > 0 ? '' : (failures[0] || 'send failed')
+  };
+}
+
+ipcMain.handle('broadcast-message', async (_event, payload) => broadcastMessage(payload));
+
+ipcMain.on('broadcast-message', async (event, payload) => {
+  const result = await broadcastMessage(payload);
+  try { event.reply('broadcast-message-result', result); } catch { /* legacy fire-and-forget */ }
 });
 
 // listPanes() — promise wrapper around `tmux list-panes -a -F '...'`. Returns
