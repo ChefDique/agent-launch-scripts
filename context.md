@@ -12,6 +12,7 @@ This repo is Richard's local operator station for launching and supervising agen
 - A `runtime: "claude"` registry entry must set `allow_claude_runtime: true`; the launcher test fails accidental Claude runtime entries.
 - For Codex entries, the default operator posture is `gpt-5.5`, `model_reasoning_effort=high`, `sandbox=danger-full-access`, and `approval_policy=never`, unless the registry says otherwise.
 - Preserve Hermes and OpenClaw cases even when Codex is the immediate path. Do not collapse the registry back to Claude-only assumptions.
+- Hidden Claude spend counts as a runtime violation. During Codex-constrained periods, startup hooks, launchd jobs, scheduled readers, and skills must not invoke `claude` or `claude -p` unless Richard explicitly authorizes that path.
 
 ## Registry And ACRM Boundary
 

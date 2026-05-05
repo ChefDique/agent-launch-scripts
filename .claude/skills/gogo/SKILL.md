@@ -1,54 +1,66 @@
 ---
 name: gogo
-description: Operator-station session-entry for the meta-agent in ~/agent-launch-scripts. Confirms AgentRemote + launch-infra liveness, peer fleet, and outstanding workstreams from CLAUDE.md, ending with one stated next action. Use at the start of every session in this directory.
+description: Model-agnostic operator-station session-entry for ~/agent-launch-scripts. Confirms AgentRemote, launch-infra, local runtime policy, optional peer visibility, and the next verifiable action. Codex is the default runtime unless the registry explicitly opts into Claude.
 user-invocable: true
 disable-model-invocation: false
 ---
 
-# /gogo — Meta-Agent Session-Entry
+# /gogo - Operator-Station Session Entry
 
-You are starting (or resuming) work as the meta-agent / operator-station maintainer in `~/agent-launch-scripts`. Sister-level to the chq fleet, NOT one of them. Your turf: the launch scripts (`launch-agent.sh`, `chq-tmux.sh`, `agents.json`), the Electron HUD at `remote-app/` (AgentRemote), and the cross-fleet operations that run from this chair.
+You are starting or resuming work as the meta-agent / operator-station maintainer in `~/agent-launch-scripts`. You are sister-level to the local fleet, not one of the fleet panes. Your turf is the launch scripts (`launch-agent.sh`, `chq-tmux.sh`, `agents.json`), the Electron HUD at `remote-app/` (AgentRemote), and cross-fleet operations that run from this chair.
+
+Codex is the current priority runtime. Do not launch Claude from this repo unless `agents.json` explicitly sets `runtime: "claude"` and `allow_claude_runtime: true`.
 
 Run all of these in parallel, then present status:
 
 ```bash
-git status --porcelain | head -20                                       # uncommitted infra changes?
-git log --oneline -10                                                    # trajectory
-jq '.agents | length, [.agents[].id]' agents.json                        # registry sanity
-pgrep -fl "Electron.*remote-app" | head -3                               # AgentRemote alive?
-tail -5 remote-app/out.log                                               # last AgentRemote boot/shortcut events
-tmux ls 2>/dev/null | head -5                                            # active tmux sessions (chq, etc.)
-ls -1 .claude/skills 2>/dev/null                                         # local skills bench
+git status --short --branch
+git log --oneline -10
+jq '.agents | length, [.agents[].id], [.agents[] | {id, runtime, model, allow_claude_runtime}]' agents.json
+pgrep -fl "Electron.*remote-app" | head -3
+tail -5 remote-app/out.log
+tmux ls 2>/dev/null | head -5
+find .claude/skills -maxdepth 2 -name SKILL.md -print 2>/dev/null
 ```
 
-Then via MCP:
+Then check live runtime safety:
 
-- `mcp__claude-peers__list_peers --scope=machine` — peer fleet roster (Xavier, Lucius, Gekko, Swarmy, plus any swarmy-spawned). Their CWDs disambiguate. Note that `directory`/`repo` scopes return zero from this CWD because no peer shares it.
-- `mcp__claude-peers__set_summary` — set your own one-liner summary so peers see what you're working on.
+```bash
+pgrep -x claude || true
+ps -axo pid,ppid,pgid,comm,args | awk '$4=="claude"{print}'
+launchctl print-disabled gui/$(id -u) 2>/dev/null | rg 'self-improving-reader|claude' || true
+```
+
+If `claude-peers` MCP is available in the current harness, use it only as an optional visibility layer:
+
+- List peers with machine scope and match by cwd.
+- Set a one-line summary for this session.
+- If the MCP tool is unavailable, timed out, or not exposed in this harness, do not fail startup. Report peer visibility as unavailable and continue from local process and tmux evidence.
 
 ## Present status (4-6 lines)
 
 Cover, in order:
 1. Most recent commit + uncommitted state
 2. AgentRemote: running yes/no, last shortcut event from out.log
-3. Fleet: which peers are up, any active swarmy spawns
-4. Outstanding workstreams from CLAUDE.md "Active workstreams" section — flag if any have changed status since the file's last edit
+3. Fleet/runtime: active tmux sessions, any live Claude process, and whether `agents.json` is Codex-first
+4. Peer visibility: MCP roster if available, otherwise local-only status
 5. End with `startup ingest: ~X% context`
 
 ## State exactly ONE primary next action
 
-Pick from CLAUDE.md "Outstanding for AgentRemote" backlog OR an explicit follow-up from the prior session's commits OR a peer-message-implied task. Default to **executing** — operator-station work is inside the prior session's grant. Use the threshold question from `~/.claude/rules/decision-discipline.md` before pinging Richard for any approval.
+Pick from `context.md`, `.claude/memory/handoff.md`, the most recent commit trail, or an explicit user follow-up. Default to executing operator-station work. Ask Richard only for exec decisions, credentials, destructive actions, external spend, or ambiguous product direction.
 
 If a parallel-track action is independent, name it as a one-line addendum.
 
-## Critical rules — operator-station discipline
+## Critical Rules
 
-- **Dispatch to `tmux-electron-master` for UI / aesthetic / Electron-internals work.** It's the specialist. This Claude orchestrates. Subagent definition lives at `.claude/agents/tmux-electron-master.md`.
-- **`launch-agent.sh` is the canonical per-agent entrypoint.** All per-agent scripts (xavier.sh, lucius.sh, etc.) call it. `agents.json` is the source of truth for fields. `chq-tmux.sh` `pane_loop` re-reads agents.json each iteration for `auto_restart` — don't break that gate.
-- **Process detection: `ps -eo command= | grep 'claude .*-n <Name>'`, never `pgrep -f`** (truncates args past ~200 bytes on macOS).
-- **Standard claude flag set** is in `chq-tmux.sh` `CLAUDE_FLAGS` — keep `launch-agent.sh` in sync if you change a flag.
-- **Stale-pid cleanup order matters** in the auto-inject: SIGKILL the subshell BEFORE the sleep child. SIGTERM is wrong (bash can trap it). See CLAUDE.md "stale-pid cleanup".
-- **Don't touch other departments' files** — peer fleet repos (`~/ai_projects/CorporateHQ`, `/research-and-development`, `/trading`, `/swarmy`) are off-limits except through their owners (peer messages, dispatched subagents, or explicit Richard direction).
+- `launch-agent.sh` is the canonical per-agent entrypoint. All per-agent scripts call it.
+- `agents.json` is the local execution registry and AgentRemote settings source.
+- `chq-tmux.sh` restart loops re-read `agents.json`; do not break `auto_restart` gating.
+- Build argv arrays per runtime. Do not assemble Codex, Claude, Hermes, OpenClaw, or tmux command strings.
+- Agent display names, pane titles, and registry `tmux_target` values are load-bearing for detection and targeting.
+- For process checks, verify actual executables and tmux panes. Avoid optimistic status.
+- Do not touch peer fleet repos (`~/ai_projects/CorporateHQ`, `~/ai_projects/research-and-development`, `~/ai_projects/trading`, `~/ai_projects/swarmy`) except through their owners, dispatched work, or explicit Richard direction.
 
 ## When the session is mid-arc
 
