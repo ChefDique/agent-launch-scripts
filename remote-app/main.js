@@ -6,6 +6,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
 const { normalizeSpawnLayout, tmuxAttachCommand } = require('./layout-policy');
+const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -130,6 +131,33 @@ function readPaneSidecar() {
 
 // IPC: renderer can request the sidecar directly (e.g. for diagnostic display).
 ipcMain.handle('get-pane-sidecar', () => readPaneSidecar());
+
+function writePaneSidecar(data) {
+  const tmp = `${SIDECAR_PATH}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data || {}, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmp, SIDECAR_PATH);
+}
+
+function removePaneSidecarIds(ids) {
+  try {
+    writePaneSidecar(removeSidecarIds(readPaneSidecar(), ids));
+  } catch (err) {
+    logToOutLog(`[sidecar] cleanup failed for ${ids.join(',')}: ${err.message}`);
+  }
+}
+
+function removePaneSidecarSession(sessionName) {
+  try {
+    writePaneSidecar(removeSidecarSession(readPaneSidecar(), sessionName));
+  } catch (err) {
+    logToOutLog(`[sidecar] cleanup failed for session ${sessionName}: ${err.message}`);
+  }
+}
+
+async function resolveLiveAgentPanes(agent) {
+  const panes = await listPanes();
+  return resolveAgentPanes({ agent, panes, sidecar: readPaneSidecar() });
+}
 
 function createWindow() {
   // Nuke every flavor of stale state on launch so renderer edits show up
@@ -450,13 +478,6 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
   let targets = [];
   targets = await listPanes();
 
-  // Build a pane_id → coord lookup from the live list-panes output.
-  // Used to resolve a sidecar pane_id to a current send-keys coord.
-  const paneIdToCoord = {};
-  for (const t of targets) {
-    if (t.paneId) paneIdToCoord[t.paneId] = t.coord;
-  }
-
   // Read the sidecar written by chq-tmux.sh at pane creation time.
   // Keys are agents.json ids; values carry the stable pane_id (%N).
   const sidecar = readPaneSidecar();
@@ -471,26 +492,12 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
   let sendTo = [];
   const unresolved = [];
   for (const agent of agentsToResolve) {
-    // Strategy 1: resolve via sidecar pane_id — stable across renames.
-    const sidecarEntry = sidecar[agent.id];
-    if (sidecarEntry && sidecarEntry.pane_id && paneIdToCoord[sidecarEntry.pane_id]) {
-      sendTo.push(paneIdToCoord[sidecarEntry.pane_id]);
-      continue;
-    }
-    // Strategy 2: fall back to pane-title substring match (covers panes not
-    // yet in the sidecar — e.g. static agent-factory entries that chq-tmux.sh
-    // doesn't register, or sessions started before this version was deployed).
-    const needle = (agent.tmuxTarget || '').toLowerCase();
-    if (!needle) {
-      unresolved.push(agent.id);
-      continue;
-    }
-    const match = targets.find(t => t.title.toLowerCase().includes(needle));
-    if (match) {
-      sendTo.push(match.coord);
+    const matches = resolveAgentPanes({ agent, panes: targets, sidecar });
+    if (matches.length > 0) {
+      matches.forEach(m => sendTo.push(m.coord));
     } else {
       unresolved.push(agent.id);
-      console.warn(`[broadcast] no pane matches agent=${agent.id} (sidecar miss + tmuxTarget=${needle} miss)`);
+      console.warn(`[broadcast] no pane matches agent=${agent.id} (sidecar + title miss)`);
     }
   }
 
@@ -618,26 +625,12 @@ ipcMain.handle('pane-status', async () => {
     return agents.map(a => ({ id: a.id, running: false, attached: false }));
   }
 
-  // Build pane_id → pane lookup for sidecar resolution.
-  const paneById = {};
-  for (const p of panes) {
-    if (p.paneId) paneById[p.paneId] = p;
-  }
   const sidecar = readPaneSidecar();
 
   // Match each agent → its pane (if any), then derive the session.
   // Strategy 1: stable pane_id via sidecar. Strategy 2: pane-title fallback.
   const matches = agents.map(a => {
-    // Sidecar path — preferred (stable across renames).
-    const sc = sidecar[a.id];
-    if (sc && sc.pane_id && paneById[sc.pane_id]) {
-      const session = paneById[sc.pane_id].coord.split(':')[0];
-      return { id: a.id, running: true, session };
-    }
-    // Title-grep fallback — covers non-sidecar panes.
-    const needle = (a.tmuxTarget || '').toLowerCase();
-    if (!needle) return { id: a.id, running: false, session: null };
-    const pane = panes.find(p => p.title.toLowerCase().includes(needle));
+    const pane = resolveAgentPanes({ agent: a, panes, sidecar })[0];
     if (!pane) return { id: a.id, running: false, session: null };
     const session = pane.coord.split(':')[0];
     return { id: a.id, running: true, session };
@@ -906,9 +899,7 @@ ipcMain.handle('restart-agent', async (event, id) => {
     const agent = agents.find(a => a.id === safeId);
     if (!agent) throw new Error(`agent "${safeId}" not in registry`);
 
-    const panes = await listPanes();
-    const needle = (agent.tmuxTarget || '').toLowerCase();
-    const match = panes.find(p => p.title.toLowerCase().includes(needle));
+    const match = (await resolveLiveAgentPanes(agent))[0];
     if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     await new Promise((resolve, reject) => {
@@ -1057,14 +1048,13 @@ ipcMain.handle('kill-pane', async (event, id) => {
     const agent = agentList.find(a => a.id === safeId);
     if (!agent) throw new Error(`agent "${safeId}" not in registry`);
 
-    const panes = await listPanes();
-    const needle = (agent.tmuxTarget || '').toLowerCase();
-    const matches = panes.filter(p => p.title.toLowerCase().includes(needle));
+    const matches = await resolveLiveAgentPanes(agent);
     if (matches.length === 0) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Kill all matching panes (in case there are multiple — e.g. if the same
     // agent ended up duplicated across windows). Each kill-pane is its own
     // execFile call, no shell. Reap bg pids BEFORE killing the pane.
+    await teardownPipePaneForAgent(safeId);
     for (const m of matches) {
       await reapAgentBgPids(safeId, m.paneId);
       await new Promise((resolve, reject) => {
@@ -1074,6 +1064,7 @@ ipcMain.handle('kill-pane', async (event, id) => {
         });
       });
     }
+    removePaneSidecarIds([safeId]);
     return { ok: true, killed: matches.map(m => m.coord) };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -1125,10 +1116,10 @@ ipcMain.handle('attach-pane', async (event, id) => {
     const agentList = loadAgents();
     const agent = agentList.find(a => a.id === safeId);
     if (!agent) throw new Error(`agent "${safeId}" not in registry`);
-
-    const panes = await listPanes();
     const needle = (agent.tmuxTarget || '').toLowerCase();
-    let match = panes.find(p => p.title.toLowerCase().includes(needle));
+
+    let panes = await listPanes();
+    let match = resolveAgentPanes({ agent, panes, sidecar: readPaneSidecar() })[0];
     if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Defense in depth: ensure the coord came back in the expected shape
@@ -1289,10 +1280,12 @@ ipcMain.handle('kill-session', async () => {
         // there was nothing to kill, the desired end-state already holds.
         const msg = ser || err.message || '';
         if (/no server running|can't find session|session not found/i.test(msg)) {
+          removePaneSidecarSession('chq');
           return resolve({ ok: true, killed: false });
         }
         return resolve({ ok: false, error: msg });
       }
+      removePaneSidecarSession('chq');
       resolve({ ok: true, killed: true });
     });
   });
@@ -1588,12 +1581,13 @@ function pipeFifoPath(agentId) {
   return path.join('/tmp', `agent-remote-pipe-${agentId}`);
 }
 
-// Resolve pane_id for an agent from the sidecar.
-// Returns the stable pane_id string (%N) or null if not found.
-function resolvePaneId(agentId) {
-  const sidecar = readPaneSidecar();
-  const entry = sidecar[agentId];
-  return (entry && entry.pane_id) ? entry.pane_id : null;
+// Resolve the live tmux pane for an agent. Prefers the sidecar's stable
+// pane_id, then falls back to title matching through the shared resolver.
+async function resolvePaneForAgentId(agentId) {
+  const agents = loadAgents();
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return null;
+  return (await resolveLiveAgentPanes(agent))[0] || null;
 }
 
 // start-pane-pipe — called by renderer when a tile is expanded.
@@ -1609,8 +1603,9 @@ ipcMain.handle('start-pane-pipe', async (_event, agentId) => {
     // Clean up any prior pipe for this agent first.
     await teardownPipePaneForAgent(safeId);
 
-    const paneId = resolvePaneId(safeId);
-    if (!paneId) throw new Error(`no sidecar entry for agent "${safeId}" — Deploy it first`);
+    const pane = await resolvePaneForAgentId(safeId);
+    const paneId = pane && pane.paneId;
+    if (!paneId) throw new Error(`no running pane for agent "${safeId}" — Deploy it first`);
 
     const fifoPath = pipeFifoPath(safeId);
 
