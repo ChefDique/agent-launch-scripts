@@ -2,19 +2,20 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote docs/repo-structure cleanup and Codex pet integration path.
+**Last working on:** AgentRemote pet companion MVP, with main functionality deferred to the next session.
 
-**State at last pause (2026-05-05T05:36:11-0700):**
-- R&D QMD retrieval found the Lucius/Codex structure direction: short `AGENTS.md`, `docs/` as system of record, and active/completed execution plans.
-- `agent-launch-scripts` docs were reorganized and committed in `72c4703 Organize agent docs for AgentRemote`; branch is `main...origin/main [ahead 3]`.
-- Richard installed the `hatch-pet` Codex skill at `~/.codex/skills/hatch-pet/SKILL.md`; it creates/validates Codex-compatible pet asset packs, not the AgentRemote runtime widget.
+**State at last pause (2026-05-05T07:40:00-0700):**
+- `AGENTS.md`, `CLAUDE.md`, and `remote-app/AGENTS.md` were aligned and pushed in `768fc9d`.
+- Openclaw was generated/validated as a Codex pet experiment, but Richard clarified Openclaw should eventually be a crab and that art should be handled later.
+- AgentRemote was switched back to an MVP premade companion roster from `~/.codex/pets`: `goku`, `nimbus`, `gaara`, `codeberg`, and `neo`; pushed in `5d4226b`.
+- Pets are companion chrome only. They do not replace agent buttons or agent identity. Current default is Goku, with `window.agentRemotePet.set('<id>')` available for later wiring.
 - Current Codex session is running under `Codex.app ... app-server`, not a tmux restart loop; `/done` cleanup should not kill `$PPID`.
 
-**Next verifiable step:** Implement AgentRemote pet runtime by reading `~/.codex/pets/*/pet.json`, loading the `1536x1872` `spritesheet.webp`, and mapping voice/send/status events to the hatch-pet animation rows.
+**Next verifiable step:** Start the next session on the main functionality: live-validate AgentRemote hold-to-talk/local STT -> `transcribe-voice` -> single-agent `broadcast-message`, then verify deploy/send behavior against a fresh `chq` session before claiming tmux/xterm reliability.
 
-**If that step fails:** Inspect `~/.codex/skills/hatch-pet/references/codex-pet-contract.md` and `animation-rows.md`, then verify Electron can load local pet asset paths through `main.js` IPC without copying assets into `remote-app/`.
+**If that step fails:** Check `remote-app/out.log`, `remote-app/main.js` IPC handlers (`transcribe-voice`, `broadcast-message`, `pane-status`, xterm pipe handlers), `/tmp/agent-remote-panes.json`, and `chq-tmux.sh` sidecar writes before changing UI.
 
-**Pending uncommitted diff:** none after `/done` handoff commit.
+**Pending uncommitted diff:** `.claude/memory/handoff.md` until the `/done` handoff commit lands, then none.
 
 ---
 
@@ -39,5 +40,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 ## Session log
 
 - 2026-05-05-SESSION: R&D QMD/graphify repo-structure retrieval, agent-first docs reorg, and Codex `hatch-pet` integration path identified for AgentRemote — commits: `72c4703` docs reorg plus `/done` handoff commit — gated on Richard: none
+- 2026-05-05-SESSION_2: AgentRemote instructions aligned, Openclaw pet experiment completed, then MVP premade pet roster (`goku`, `nimbus`, `gaara`, `codeberg`, `neo`) bundled as companion chrome — commits: `768fc9d`, `855fa29`, `5d4226b` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
