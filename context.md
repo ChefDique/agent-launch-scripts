@@ -7,7 +7,9 @@ This repo is Richard's local operator station for launching and supervising agen
 - The launcher stack must stay model/runtime agnostic across Codex, Claude, Hermes, and OpenClaw.
 - Codex is the current priority runtime because Claude session starts can waste scarce Claude tokens.
 - `launch-agent.sh` is the runtime boundary. It reads `agents.json`, builds argv arrays, and execs the configured runtime.
+- Missing `runtime` values default to Codex, not Claude.
 - `runtime: "codex"` must launch `codex`, not `claude`. Claude-only boot behavior such as `/color` and `/rename` auto-injects must stay gated to `runtime: "claude"`.
+- A `runtime: "claude"` registry entry must set `allow_claude_runtime: true`; the launcher test fails accidental Claude runtime entries.
 - For Codex entries, the default operator posture is `gpt-5.5`, `model_reasoning_effort=high`, `sandbox=danger-full-access`, and `approval_policy=never`, unless the registry says otherwise.
 - Preserve Hermes and OpenClaw cases even when Codex is the immediate path. Do not collapse the registry back to Claude-only assumptions.
 

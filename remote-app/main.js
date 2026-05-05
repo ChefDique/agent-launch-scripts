@@ -64,40 +64,46 @@ function loadAgents() {
   try {
     const raw = fs.readFileSync(REGISTRY_PATH, 'utf8');
     const data = JSON.parse(raw);
-    return data.agents.map(a => ({
-      id: a.id,
-      displayName: a.display_name,
-      // Runtime-aware targeting: Claude panes eventually get /rename'd by
-      // launch-agent.sh; Codex/Hermes/OpenClaw panes keep the tmux title set by
-      // chq-tmux.sh. Explicit tmux_target wins when a registry entry needs to
-      // override either convention.
-      tmuxTarget: a.tmux_target
-        || (a.rename_to ? a.rename_to.toLowerCase() : a.display_name.toLowerCase()),
-      cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
-      runtime: a.runtime || 'claude',
-      model: a.model || null,
-      color: a.color || null,
-      themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
-      // Auto-restart defaults to true when the field is omitted (matches the
-      // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
-      autoRestart: a.auto_restart !== false,
-      // Expose the RAW registry value (empty string when the user hasn't set
-      // an override). The renderer uses this to drive the dock label: any
-      // non-empty value wins, otherwise the renderer falls back to
-      // displayLabelFor() (mixed-case displayName + the overlordswarmy → Swarmy
-      // alias). The /rename actually-sent-to-tmux default (display_name
-      // uppercased, mirroring launch-agent.sh) is surfaced via the renderer's
-      // input placeholder, so the user can still see what the empty fallback
-      // resolves to. Was previously eagerly resolved here, which prevented the
-      // renderer from telling "user explicitly set it to XAVIER" apart from
-      // "user set nothing and main filled in XAVIER".
-      renameTo: a.rename_to || '',
-      startupSlash: a.startup_slash || '',
-      avatar: a.avatar || `${a.id}.svg`,
-      // hidden: true means "kept in registry but hidden from the dock bar".
-      // Set via the "Remove from bar" radial action; cleared via "Show hidden".
-      hidden: !!a.hidden
-    }));
+    return data.agents.map(a => {
+      const runtime = a.runtime || 'codex';
+      const tmuxTarget = a.tmux_target
+        || (runtime === 'claude' && a.rename_to
+          ? a.rename_to.toLowerCase()
+          : String(a.id || a.display_name || '').toLowerCase());
+      return {
+        id: a.id,
+        displayName: a.display_name,
+        // Runtime-aware targeting: Claude panes eventually get /rename'd by
+        // launch-agent.sh; Codex/Hermes/OpenClaw panes keep the tmux title set by
+        // chq-tmux.sh. Explicit tmux_target wins when a registry entry needs to
+        // override either convention.
+        tmuxTarget,
+        cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
+        runtime,
+        model: a.model || null,
+        color: a.color || null,
+        themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
+        // Auto-restart defaults to true when the field is omitted (matches the
+        // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
+        autoRestart: a.auto_restart !== false,
+        // Expose the RAW registry value (empty string when the user hasn't set
+        // an override). The renderer uses this to drive the dock label: any
+        // non-empty value wins, otherwise the renderer falls back to
+        // displayLabelFor() (mixed-case displayName + the overlordswarmy → Swarmy
+        // alias). The /rename actually-sent-to-tmux default (display_name
+        // uppercased, mirroring launch-agent.sh) is surfaced via the renderer's
+        // input placeholder, so the user can still see what the empty fallback
+        // resolves to. Was previously eagerly resolved here, which prevented the
+        // renderer from telling "user explicitly set it to XAVIER" apart from
+        // "user set nothing and main filled in XAVIER".
+        renameTo: a.rename_to || '',
+        startupSlash: a.startup_slash || '',
+        avatar: a.avatar || `${a.id}.svg`,
+        // hidden: true means "kept in registry but hidden from the dock bar".
+        // Set via the "Remove from bar" radial action; cleared via "Show hidden".
+        hidden: !!a.hidden
+      };
+    });
   } catch (err) {
     console.error(`[remote] failed to read registry ${REGISTRY_PATH}: ${err.message}`);
     return [];
@@ -754,6 +760,10 @@ ipcMain.handle('add-agent', async (event, payload) => {
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
       ? '/gogo'
       : String(payload.startupSlash).trim();
+    const runtime = String(payload.runtime || 'codex').trim().toLowerCase();
+    if (!['codex', 'claude', 'hermes', 'openclaw'].includes(runtime)) {
+      throw new Error('runtime must be codex, claude, hermes, or openclaw');
+    }
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
 
     // Guard against id collisions.
@@ -773,10 +783,17 @@ ipcMain.handle('add-agent', async (event, payload) => {
       const entry = {
         id,
         display_name: displayName,
+        runtime,
         cwd,
         color,
         startup_slash: startupSlash
       };
+      if (runtime === 'codex') {
+        entry.model = 'gpt-5.5';
+        entry.reasoning_effort = 'high';
+        entry.sandbox = 'danger-full-access';
+        entry.approval_policy = 'never';
+      }
       if (themeColor) entry.theme_color = themeColor;
       if (avatarFilename) entry.avatar = avatarFilename;
       data.agents.push(entry);
@@ -923,6 +940,14 @@ const UPDATABLE_FIELDS = {
   auto_restart:  v => Boolean(v),
   color:         v => String(v || '').trim().toLowerCase(),
   theme_color:   v => (/^#[0-9a-fA-F]{3,8}$/.test(String(v || '').trim()) ? String(v).trim() : null),
+  runtime:       v => {
+    const runtime = String(v || '').trim().toLowerCase();
+    return ['codex', 'claude', 'hermes', 'openclaw'].includes(runtime) ? runtime : null;
+  },
+  model:         v => String(v || '').trim(),
+  reasoning_effort: v => String(v || '').trim(),
+  sandbox:       v => String(v || '').trim(),
+  approval_policy: v => String(v || '').trim(),
   rename_to:     v => String(v || '').trim(),
   startup_slash: v => String(v || '').trim()
 };
@@ -937,7 +962,9 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
     for (const [k, v] of Object.entries(patch)) {
       const coerce = UPDATABLE_FIELDS[k];
       if (!coerce) continue;
-      cleanPatch[k] = coerce(v);
+      const coerced = coerce(v);
+      if (k === 'runtime' && !coerced) throw new Error('runtime must be codex, claude, hermes, or openclaw');
+      cleanPatch[k] = coerced;
     }
     if (Object.keys(cleanPatch).length === 0) throw new Error('no updatable fields in patch');
 
@@ -946,6 +973,12 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
       const entry = (data.agents || []).find(a => a.id === safeId);
       if (!entry) throw new Error(`agent "${safeId}" not in registry`);
       Object.assign(entry, cleanPatch);
+      if (cleanPatch.runtime === 'codex') {
+        if (!entry.model) entry.model = 'gpt-5.5';
+        if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
+        if (!entry.sandbox) entry.sandbox = 'danger-full-access';
+        if (!entry.approval_policy) entry.approval_policy = 'never';
+      }
       updatedEntry = entry;
     });
     return { ok: true, entry: updatedEntry };

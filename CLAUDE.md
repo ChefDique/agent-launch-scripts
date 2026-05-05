@@ -40,6 +40,7 @@ The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintaine
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
 - Keep the remote model/runtime agnostic. It controls local processes and panes; it should not depend on one model vendor.
 - Codex is the priority runtime while Claude tokens are constrained. Preserve Claude, Hermes, and OpenClaw support, but do not launch Claude from a Codex path unless the registry explicitly asks for `runtime: "claude"`.
+- Any `runtime: "claude"` entry must also set `allow_claude_runtime: true`; tests should fail accidental Claude defaults.
 - Use ACRM for task creation, review state, and agent lookup/creation decisions. `agents.json` remains the local execution registry and AgentRemote settings source until a live ACRM-backed add-agent path is implemented.
 
 ## Claude-Specific Role

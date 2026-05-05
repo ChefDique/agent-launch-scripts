@@ -54,7 +54,7 @@ CWD="${PROJECT_ROOT:-${RAW_CWD/#\~/$HOME}}"
 
 COLOR="$(field color)"
 RUNTIME="$(field runtime)"
-[[ -z "$RUNTIME" ]] && RUNTIME="claude"
+[[ -z "$RUNTIME" ]] && RUNTIME="codex"
 MODEL="$(field model)"
 REASONING_EFFORT="$(field reasoning_effort)"
 [[ -z "$REASONING_EFFORT" ]] && REASONING_EFFORT="$(field effort)"

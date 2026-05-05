@@ -9,7 +9,7 @@ set -euo pipefail
 #   chq-tmux.sh attach   — attach to the CHQ session
 #   chq-tmux.sh restart <dept> — restart a single department pane
 
-SESSION="chq"
+SESSION="${CHQ_SESSION:-chq}"
 CHQ_ROOT="/Users/richardadair/ai_projects/CorporateHQ"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
@@ -31,6 +31,10 @@ REGISTRY="${AGENT_REGISTRY:-${HOME}/agent-launch-scripts/agents.json}"
 LAUNCH_AGENT="${HOME}/agent-launch-scripts/launch-agent.sh"
 AGENT_FACTORY="${HOME}/ai_projects/agent-factory"
 
+shell_quote() {
+  printf '%q' "$1"
+}
+
 DEPARTMENTS=()
 if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
   # Pull id|cwd from the registry. The DEPARTMENTS entry uses `id` for both
@@ -42,7 +46,10 @@ if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
   while IFS=$'\t' read -r id cwd; do
     [[ -z "$id" ]] && continue
     cwd="${cwd/#\~/$HOME}"
-    DEPARTMENTS+=("${id}|${cwd}|${id}|bash ${LAUNCH_AGENT} ${id}")
+    q_registry=$(shell_quote "$REGISTRY")
+    q_launch_agent=$(shell_quote "$LAUNCH_AGENT")
+    q_id=$(shell_quote "$id")
+    DEPARTMENTS+=("${id}|${cwd}|${id}|AGENT_REGISTRY=${q_registry} bash ${q_launch_agent} ${q_id}")
   done < <(jq -r '.agents[] | [.id, .cwd] | @tsv' "$REGISTRY")
 else
   echo "WARN: agents.json registry not found or jq missing — registry agents unavailable" >&2
@@ -287,9 +294,8 @@ cmd_start() {
   local first="${selected_entries[0]}"
   IFS='|' read -r dept cwd wname script <<< "$first"
 
-  tmux new-session -d -s "$SESSION" -n "chq" -c "$cwd" -x 220 -y 50
+  tmux new-session -d -s "$SESSION" -n "chq" -c "$cwd" -x 220 -y 50 "$(pane_loop "$cwd" "$script" "$dept")"
   tmux select-pane -t "${SESSION}:chq.0" -T "$wname"
-  tmux send-keys -t "${SESSION}:chq.0" "$(pane_loop "$cwd" "$script" "$dept")" Enter
   # Capture stable pane_id for the sidecar (registry agents only — static
   # agent-factory entries don't have an agents.json id to key on, so skip them).
   # The dept field IS the agents.json id for registry entries (see DEPARTMENTS
@@ -310,9 +316,8 @@ cmd_start() {
           # -P -F '#{pane_id}' prints the new pane's stable id (%N notation)
           # so we target by id rather than positional index from here on.
           local new_pid
-          new_pid=$(tmux split-window -h -t "${SESSION}:chq" -c "$cwd" -P -F '#{pane_id}')
+          new_pid=$(tmux split-window -h -t "${SESSION}:chq" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
           tmux select-pane -t "$new_pid" -T "$wname"
-          tmux send-keys -t "$new_pid" "$(pane_loop "$cwd" "$script" "$dept")" Enter
           write_pane_sidecar "$dept" "$new_pid" || true
           ;;
         windows|ittab)
@@ -324,9 +329,8 @@ cmd_start() {
           # Repro: tmux new-session -d -s chq -n chq; tmux new-window -t chq -n x
           # → "create window failed: index 0 in use". With -t "chq:" it works.
           local new_pid
-          new_pid=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
+          new_pid=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
           tmux select-pane -t "$new_pid" -T "$wname"
-          tmux send-keys -t "$new_pid" "$(pane_loop "$cwd" "$script" "$dept")" Enter
           write_pane_sidecar "$dept" "$new_pid" || true
           ;;
       esac
@@ -477,18 +481,17 @@ cmd_add() {
         # "%47") to stdout. Stable id is safer than pane_index because indexes
         # renumber on every split. Both `panes` and `tiled` go via split-window;
         # `tiled` gets an additional `select-layout tiled` re-balance below.
-        new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}')
+        new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
         ;;
       windows|ittab)
         # new-window -P -F prints the new window's pane id directly. Trailing
         # colon = session-target form (avoids the same -t-ambiguity bug
         # documented in cmd_start above when the first window's name equals
         # the session name).
-        new_pane_id=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}')
+        new_pane_id=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
         ;;
     esac
     tmux select-pane -t "$new_pane_id" -T "$wname"
-    tmux send-keys -t "$new_pane_id" "$(pane_loop "$cwd" "$script" "$dept")" Enter
     # Write pane_id sidecar so AgentRemote can target by stable id, not title.
     write_pane_sidecar "$dept" "$new_pane_id" || true
     echo "  ${wname} added -> ${cwd} (layout=${layout})"

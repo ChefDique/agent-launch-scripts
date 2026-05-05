@@ -43,6 +43,12 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "id": "legacy",
       "display_name": "Legacy",
       "cwd": "$TMP_DIR/claude-cwd"
+    },
+    {
+      "id": "explicit-claude",
+      "display_name": "Explicit Claude",
+      "cwd": "$TMP_DIR/claude-cwd",
+      "runtime": "claude"
     }
   ]
 }
@@ -69,8 +75,21 @@ grep -qx 'ARG:--no-alt-screen' <<< "$codex_output"
 grep -qx 'ARG:/gogo' <<< "$codex_output"
 
 legacy_output="$(run_agent legacy)"
-grep -qx 'COMMAND:claude' <<< "$legacy_output"
-grep -qx 'ARG:-n' <<< "$legacy_output"
-grep -qx 'ARG:Legacy' <<< "$legacy_output"
+grep -qx 'COMMAND:codex' <<< "$legacy_output"
+grep -qx 'ARG:gpt-5.5' <<< "$legacy_output"
+grep -qx 'ARG:model_reasoning_effort="high"' <<< "$legacy_output"
+
+explicit_claude_output="$(run_agent explicit-claude)"
+grep -qx 'COMMAND:claude' <<< "$explicit_claude_output"
+grep -qx 'ARG:-n' <<< "$explicit_claude_output"
+grep -qx 'ARG:Explicit Claude' <<< "$explicit_claude_output"
+
+if jq -e '[.agents[] | select((.runtime // "codex") == "claude" and (.allow_claude_runtime != true))] | length == 0' "$REPO_ROOT/agents.json" >/dev/null; then
+  :
+else
+  echo "agents.json contains a Claude runtime entry without allow_claude_runtime=true" >&2
+  jq -r '.agents[] | select((.runtime // "codex") == "claude" and (.allow_claude_runtime != true)) | "  - " + .id' "$REPO_ROOT/agents.json" >&2
+  exit 1
+fi
 
 echo "launch-agent runtime tests passed"

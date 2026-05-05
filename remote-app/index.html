@@ -1962,7 +1962,8 @@
       letter-spacing: 0.4px;
       text-transform: uppercase;
     }
-    .radial-settings .settings-row input[type=text] {
+    .radial-settings .settings-row input[type=text],
+    .radial-settings .settings-row select {
       flex: 1;
       background: var(--bg-input);
       border: 1px solid var(--border-soft);
@@ -1974,7 +1975,8 @@
       outline: none;
       transition: border-color 0.2s var(--ease);
     }
-    .radial-settings .settings-row input[type=text]:focus {
+    .radial-settings .settings-row input[type=text]:focus,
+    .radial-settings .settings-row select:focus {
       border-color: var(--accent);
     }
     .radial-settings .settings-row input[type=text].invalid {
@@ -2903,12 +2905,21 @@
       </div>
       <div class="form-row">
         <label>name</label>
-        <input id="f-name" placeholder="display name (claude -n flag)" />
+        <input id="f-name" placeholder="display name" />
       </div>
       <div class="form-row">
         <label>cwd</label>
         <input id="f-cwd" placeholder="~/path/to/project" />
         <button class="pick-btn" id="f-cwd-pick">Pick</button>
+      </div>
+      <div class="form-row">
+        <label>runtime</label>
+        <select id="f-runtime">
+          <option value="codex" selected>Codex</option>
+          <option value="claude">Claude</option>
+          <option value="hermes">Hermes</option>
+          <option value="openclaw">OpenClaw</option>
+        </select>
       </div>
       <div class="form-row">
         <label>color</label>
@@ -4305,8 +4316,15 @@
       if (!agent) return;
       const layer = document.getElementById('radial-settings');
       layer.dataset.agentId = id;
+      const runtimeOptions = ['codex', 'claude', 'hermes', 'openclaw']
+        .map(r => `<option value="${r}" ${((agent.runtime || 'codex') === r) ? 'selected' : ''}>${r}</option>`)
+        .join('');
       layer.innerHTML = `
         <div class="settings-title">${escapeHtml(agent.displayName || id)} · settings</div>
+        <div class="settings-row">
+          <label for="set-runtime">Runtime</label>
+          <select id="set-runtime">${runtimeOptions}</select>
+        </div>
         <div class="toggle-row">
           <div class="toggle-meta">
             <div class="verb">Auto-restart</div>
@@ -4436,6 +4454,21 @@
         if (!res.ok) {
           agent.autoRestart = prev;
           toggle.checked = prev;
+          flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+        }
+      });
+
+      const runtimeSelect = layer.querySelector('#set-runtime');
+      runtimeSelect.addEventListener('change', async () => {
+        const next = runtimeSelect.value;
+        const prev = agent.runtime || 'codex';
+        agent.runtime = next;
+        const res = await ipcRenderer.invoke('update-agent', { id, patch: { runtime: next } });
+        if (res.ok) {
+          await loadAndRender();
+        } else {
+          agent.runtime = prev;
+          runtimeSelect.value = prev;
           flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
         }
       });
@@ -5090,12 +5123,14 @@
         startupSlash: document.getElementById('f-slash').value.trim(),
         avatarSrc: pickedAvatarPath
       };
+      payload.runtime = document.getElementById('f-runtime').value;
       const result = await ipcRenderer.invoke('add-agent', payload);
       if (!result.ok) { errEl.textContent = result.error || 'unknown error'; return; }
       // Reset form, close, reload.
       ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('f-slash').value = '/gogo';
       document.getElementById('f-color').value = '#00f2ff';
+      document.getElementById('f-runtime').value = 'codex';
       pickedAvatarPath = null;
       document.body.classList.remove('adding');
       await loadAndRender();

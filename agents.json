@@ -3,7 +3,8 @@
   "_field_docs": {
     "id": "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
     "display_name": "Human-facing label. Claude runtimes pass it to -n <Name>; other runtimes use it for pane labels and AgentRemote UI.",
-    "runtime": "Agent CLI runtime. Supported values: claude, codex, hermes, openclaw. Defaults to claude for legacy entries.",
+    "runtime": "Agent CLI runtime. Supported values: codex, claude, hermes, openclaw. Defaults to codex for missing legacy entries while Claude tokens are constrained.",
+    "allow_claude_runtime": "Set true only for an intentional Claude runtime entry. Tests fail any runtime=claude entry without this explicit opt-in.",
     "model": "Optional runtime-specific model. Claude defaults to claude-opus-4-7[1m]; Codex defaults to gpt-5.5.",
     "reasoning_effort": "Optional runtime-specific effort/thinking level. Claude maps to --effort; Codex maps to model_reasoning_effort; OpenClaw maps to --thinking.",
     "provider": "Optional provider for runtimes that expose one, currently Hermes.",
@@ -25,10 +26,14 @@
     {
       "id": "xavier",
       "display_name": "Xavier",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#00f2ff",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
       "rename_to": "XAVIER"
@@ -36,10 +41,14 @@
     {
       "id": "lucius",
       "display_name": "Lucius",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/ai_projects/research-and-development",
       "color": "purple",
       "theme_color": "#ffaa00",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
       "env": {
@@ -50,10 +59,14 @@
     {
       "id": "gekko",
       "display_name": "Gekko",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/ai_projects/trading",
       "color": "green",
       "theme_color": "#00ff88",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
       "rename_to": "GEKKO"
@@ -61,10 +74,14 @@
     {
       "id": "swarmy",
       "display_name": "overlordswarmy",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
       "theme_color": "#ff77cc",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
       "rename_to": "OVERLORDSWARMY",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
@@ -72,13 +89,18 @@
     {
       "id": "claude",
       "display_name": "Claude",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/agent-launch-scripts",
       "color": "orange",
       "theme_color": "#e07c4c",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
       "rename_to": "TMUX-MASTA",
       "startup_slash": "/gogo",
-      "avatar": "claude.svg"
+      "avatar": "claude.svg",
+      "hidden": true
     },
     {
       "id": "codex",
@@ -93,6 +115,20 @@
       "rename_to": "CODEX",
       "startup_slash": "/gogo",
       "avatar": "codex.svg"
+    },
+    {
+      "id": "tmux-masta",
+      "display_name": "TMUX-MASTA",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/agent-launch-scripts",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "theme_color": "#ff7b00",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "avatar": "tmux-masta.svg"
     }
   ]
 }
