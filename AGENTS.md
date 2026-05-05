@@ -53,7 +53,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 
 ## Critical Patterns
 
-- `claude -n <Name>` names are load-bearing for pane titles, process detection, and targeting.
+- Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
 - Restart loops live in tmux orchestrators, not inside per-agent launchers.
 - Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.

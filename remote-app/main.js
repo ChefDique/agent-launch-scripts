@@ -25,7 +25,7 @@ const OUT_LOG = path.join(__dirname, 'out.log');
 // Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
 // rather than fragile pane-title grep. pane_id survives agent auto-restart
-// (pane_loop relaunches claude in the SAME pane), so no re-write is needed on
+// (pane_loop relaunches the configured runtime in the SAME pane), so no re-write is needed on
 // relaunch — the sidecar entry for a given agent is valid until the session ends.
 const SIDECAR_PATH = '/tmp/agent-remote-panes.json';
 
@@ -67,14 +67,15 @@ function loadAgents() {
     return data.agents.map(a => ({
       id: a.id,
       displayName: a.display_name,
-      // tmux pane title after claude's /rename runs. launch-agent.sh sends
-      // `/rename $RENAME_TO` where RENAME_TO is rename_to from the registry
-      // (or display_name uppercased as the fallback). The pane title becomes
-      // that string verbatim, so the substring needle is its lowercased form.
-      // Explicit tmux_target wins if a registry entry needs to override.
+      // Runtime-aware targeting: Claude panes eventually get /rename'd by
+      // launch-agent.sh; Codex/Hermes/OpenClaw panes keep the tmux title set by
+      // chq-tmux.sh. Explicit tmux_target wins when a registry entry needs to
+      // override either convention.
       tmuxTarget: a.tmux_target
         || (a.rename_to ? a.rename_to.toLowerCase() : a.display_name.toLowerCase()),
       cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
+      runtime: a.runtime || 'claude',
+      model: a.model || null,
       color: a.color || null,
       themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
       // Auto-restart defaults to true when the field is omitted (matches the
@@ -510,10 +511,10 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
-  // Two send-keys calls: first types the literal message (so claude's TUI
-  // input box receives the characters), then presses Enter as a separate
-  // keystroke to submit. A single combined call (`message Enter`) typed
-  // the text but didn't submit reliably against claude's TUI — Richard
+  // Two send-keys calls: first types the literal message (so agent TUIs
+  // receive the characters), then presses Enter as a separate keystroke to
+  // submit. A single combined call (`message Enter`) typed the text but didn't
+  // submit reliably against Claude's TUI — Richard
   // reported the input sat in the box unsubmitted. The launch-agent.sh
   // auto-inject sequence uses the same split-call pattern (matches the
   // legacy per-agent scripts that worked).
@@ -661,8 +662,8 @@ ipcMain.handle('pane-status', async () => {
 // Use chq-tmux.sh's `add` subcommand (not `start`) — `add` creates the session
 // if missing OR appends panes to an existing one. The old `start` path bailed
 // with "Session already exists" when chq was already up, which was the root
-// cause of the "Deploy doesn't work after first deploy" bug — clicking the
-// claude button (or any agent) once chq existed was a silent no-op.
+// cause of the "Deploy doesn't work after first deploy" bug — clicking an
+// agent button once chq existed was a silent no-op.
 ipcMain.on('spawn-agents', (event, payload) => {
   // Back-compat: payload may be a bare array of agent ids (legacy renderer)
   // or { agents, layout } (post-v2.5 settings popover with layout checkboxes).
@@ -881,11 +882,11 @@ ipcMain.handle('unhide-agent', async (event, id) => {
 });
 
 // Restart-agent IPC — non-destructive. Sends Ctrl-C to the agent's tmux pane;
-// chq-tmux.sh's restart loop respawns claude in 3s. Mirrors what
+// chq-tmux.sh's restart loop respawns the configured runtime in 3s. Mirrors what
 // `chq-tmux.sh restart <name>` does, but we route through tmux directly here
 // because the chq-tmux.sh restart subcommand uses the wname (registry id) and
 // addresses the pane as `chq:0:<wname>` — which doesn't always match after
-// claude's /rename mutates the title. Resolving by tmux_target substring
+// Claude's /rename may mutate the title. Resolving by tmux_target substring
 // (same rule as broadcast targeting) is more robust.
 //
 // Returns { ok: true, message } if a pane was found and SIGINT was sent.

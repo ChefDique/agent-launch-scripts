@@ -5,7 +5,7 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "node --test test/*.test.js && bash ../test/chq-layout-normalization.test.sh"
+    "test": "node --test test/*.test.js && bash ../test/chq-layout-normalization.test.sh && bash ../test/launch-agent-runtime.test.sh"
   },
   "keywords": [],
   "author": "",

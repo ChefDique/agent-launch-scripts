@@ -2,15 +2,22 @@
   "_comment": "Agent registry. Single source of truth for launch-agent.sh, chq-tmux.sh, and the Electron remote. Add a new agent by appending one entry — no new bash file needed.",
   "_field_docs": {
     "id": "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
-    "display_name": "Value passed to claude's -n <Name> flag. Load-bearing — used by ps-grep detection and pane targeting.",
+    "display_name": "Human-facing label. Claude runtimes pass it to -n <Name>; other runtimes use it for pane labels and AgentRemote UI.",
+    "runtime": "Agent CLI runtime. Supported values: claude, codex, hermes, openclaw. Defaults to claude for legacy entries.",
+    "model": "Optional runtime-specific model. Claude defaults to claude-opus-4-7[1m]; Codex defaults to gpt-5.5.",
+    "reasoning_effort": "Optional runtime-specific effort/thinking level. Claude maps to --effort; Codex maps to model_reasoning_effort; OpenClaw maps to --thinking.",
+    "provider": "Optional provider for runtimes that expose one, currently Hermes.",
+    "sandbox": "Optional Codex sandbox mode. Defaults to danger-full-access for Codex entries launched from this local operator HUD.",
+    "approval_policy": "Optional Codex approval policy. Defaults to never for Codex entries launched from this local operator HUD.",
+    "runtime_args": "Optional argv array appended to the generated runtime command for runtime-specific flags.",
     "tmux_target": "Pane title used for broadcast + status targeting. Defaults to lowercased rename_to when present, otherwise lowercased display_name. Only set explicitly to override that derivation.",
     "cwd": "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
-    "color": "Argument to claude's /color slash command. Set during the auto-inject sequence.",
+    "color": "Claude-only argument to /color. Set during Claude auto-inject; ignored by Codex/Hermes/OpenClaw.",
     "theme_color": "Hex color string (e.g. '#00f2ff') used by AgentRemote to generate per-agent CSS variables at runtime. Controls the active-border glow and radial-orb palette. Picked in the Add Agent modal. Falls back to --accent if omitted.",
-    "rename_to": "Argument to claude's /rename slash command. Defaults to display_name uppercased.",
+    "rename_to": "Claude-only argument to /rename. Non-Claude runtimes keep the tmux pane title unless tmux_target is set.",
     "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
     "auto_restart": "If false, chq-tmux.sh's pane_loop exits after the agent quits instead of relooping after RESTART_DELAY. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
-    "pre_launch": "Optional path to a hook script run before exec claude. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
+    "pre_launch": "Optional path to a hook script run before execing the configured runtime. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
     "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
     "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."
   },
@@ -18,6 +25,7 @@
     {
       "id": "xavier",
       "display_name": "Xavier",
+      "runtime": "claude",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#00f2ff",
@@ -28,6 +36,7 @@
     {
       "id": "lucius",
       "display_name": "Lucius",
+      "runtime": "claude",
       "cwd": "~/ai_projects/research-and-development",
       "color": "purple",
       "theme_color": "#ffaa00",
@@ -41,6 +50,7 @@
     {
       "id": "gekko",
       "display_name": "Gekko",
+      "runtime": "claude",
       "cwd": "~/ai_projects/trading",
       "color": "green",
       "theme_color": "#00ff88",
@@ -51,6 +61,7 @@
     {
       "id": "swarmy",
       "display_name": "overlordswarmy",
+      "runtime": "claude",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
       "theme_color": "#ff77cc",
@@ -61,12 +72,27 @@
     {
       "id": "claude",
       "display_name": "Claude",
+      "runtime": "claude",
       "cwd": "~/agent-launch-scripts",
       "color": "orange",
       "theme_color": "#e07c4c",
       "rename_to": "TMUX-MASTA",
       "startup_slash": "/gogo",
       "avatar": "claude.svg"
+    },
+    {
+      "id": "codex",
+      "display_name": "Codex",
+      "runtime": "codex",
+      "cwd": "~/agent-launch-scripts",
+      "theme_color": "#10a37f",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "rename_to": "CODEX",
+      "startup_slash": "/gogo",
+      "avatar": "codex.svg"
     }
   ]
 }

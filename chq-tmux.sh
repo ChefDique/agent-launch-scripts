@@ -14,22 +14,10 @@ CHQ_ROOT="/Users/richardadair/ai_projects/CorporateHQ"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
-# Flags every CHQ claude session must launch with.
-# - telegram channel for Mugatu/Derek messaging
-# - skip-permissions so hooks/tools don't prompt inside tmux
-# - claude-peers dev channel for peer messaging
-# - exclude-dynamic-system-prompt-sections to keep context lean
-CLAUDE_FLAGS=(
-  --channels "plugin:telegram@claude-plugins-official"
-  --dangerously-skip-permissions
-  --dangerously-load-development-channels "server:claude-peers"
-  --exclude-dynamic-system-prompt-sections
-)
-
 # Department definitions: name|cwd|window-name|script
 #
 # Two sources, merged into one DEPARTMENTS array:
-#   1. Registry-driven (agents.json) — xavier/lucius/gekko/swarmy/claude.
+#   1. Registry-driven (agents.json) — xavier/lucius/gekko/swarmy/claude/codex.
 #      Each registry entry contributes ONE department whose script field is
 #      `bash launch-agent.sh <id>` so adding a new agent here is just an
 #      `agents.json` append.
@@ -46,9 +34,9 @@ AGENT_FACTORY="${HOME}/ai_projects/agent-factory"
 DEPARTMENTS=()
 if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
   # Pull id|cwd from the registry. The DEPARTMENTS entry uses `id` for both
-  # the dept slug AND the initial pane title (wname) — claude's /rename
-  # overwrites the title to display_name afterward via launch-agent.sh's
-  # auto-inject. Broadcast targeting (Electron remote) reads tmux_target
+  # the dept slug AND the initial pane title (wname) — Claude's /rename
+  # may overwrite that title afterward, while Codex/Hermes/OpenClaw keep it.
+  # Broadcast targeting (Electron remote) reads tmux_target
   # from the registry directly, so the initial wname only matters for the
   # CLI (chq-tmux.sh start <name>) and the pane-border-format display.
   while IFS=$'\t' read -r id cwd; do
@@ -72,8 +60,8 @@ DEPARTMENTS+=(
 # Sidecar file written by chq-tmux.sh at pane creation time. Maps agent id
 # (from agents.json) → stable pane_id (%N notation) so remote-app/main.js can
 # target broadcasts via pane_id rather than the brittle pane-title grep.
-# pane_id is stable across agent auto-restart: pane_loop relaunches claude
-# in the SAME pane, so no re-write is needed on relaunch.
+# pane_id is stable across agent auto-restart: pane_loop relaunches the
+# configured runtime in the SAME pane, so no re-write is needed on relaunch.
 SIDECAR_PATH="/tmp/agent-remote-panes.json"
 
 # ---------------------------------------------------------------------------
@@ -177,7 +165,7 @@ PYEOF
 }
 
 # Build the restart loop command for a department pane.
-# Claude runs, and when it exits the loop waits RESTART_DELAY seconds then relaunches.
+# The runtime runs, and when it exits the loop waits RESTART_DELAY seconds then relaunches.
 # Each iteration writes a timestamped banner + exit code to /tmp/chq-pane-<slug>.log
 # so post-mortem can tell whether the loop never started vs. started but was SIGKILL'd.
 #
@@ -548,7 +536,7 @@ cmd_restart() {
 
   IFS='|' read -r dept cwd wname script <<< "$found"
 
-  # Send Ctrl-C to kill current claude, then the loop restarts it
+  # Send Ctrl-C to kill current runtime, then the loop restarts it
   tmux send-keys -t "${SESSION}:${wname}" C-c
   echo "Restarting ${wname} (${dept})... loop will relaunch in ${RESTART_DELAY}s."
 }

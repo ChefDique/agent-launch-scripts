@@ -18,7 +18,7 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 ## Load-Bearing Invariants
 
-- The agent name passed with `-n <Name>` is used by process detection, pane titles, and Electron targeting.
+- Agent runtime identity comes from `agents.json`. Claude entries use `-n <Name>` plus `/rename`; Codex/Hermes/OpenClaw entries keep the tmux title set by `chq-tmux.sh` unless `tmux_target` overrides it.
 - The tmux restart loop belongs in `chq-tmux.sh` and related tmux orchestrators.
 - Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
 - Layout state can persist in the running tmux session through `@chq_layout`.
@@ -28,6 +28,7 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 ```bash
 bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh
+bash test/launch-agent-runtime.test.sh
 cd remote-app && npm install
 bash ../launch-remote.sh
 ```
