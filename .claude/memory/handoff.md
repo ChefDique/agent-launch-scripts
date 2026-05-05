@@ -2,20 +2,18 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote tmux pane management reliability: draggable `MULTI` layout policy and kill-pane resolution.
+**Last working on:** Codex-first, model-agnostic AgentRemote launcher handoff.
 
-**State at last pause (2026-05-05T09:40:13-0700):**
-- Shipped `d46016d` so `MULTI` preserves `CHQ_LAYOUT=ittab`, Deploy defaults to draggable iTerm control-mode windows, and an existing split `chq` session can normalize into per-agent tmux windows.
-- Shipped `29e4761` so status, broadcast, restart, attach, xterm, and kill share a sidecar-first pane resolver; this fixes the live case where TMUX-MASTA lights up from sidecar `%44` even though the pane title is empty.
-- AgentRemote was restarted via `bash launch-remote.sh` and is running from `remote-app` as PID `83896`.
-- Post-cleanup live check: no `chq` session is present, and `/tmp/agent-remote-panes.json` no longer maps `claude` to `%44`. This is consistent with the refreshed right-click kill path succeeding after AgentRemote loaded `29e4761`.
-- `/tmp/agent-remote-panes.json` still has old `chq` sidecar entries for `xavier`, `gekko`, and `swarmy`, but their pane ids are not live; the shared resolver ignores them unless a matching live pane id exists.
-- Richard raised the next product direction: a custom AgentRemote display streaming logs / pipe output may be cleaner than making xterm behave like the primary terminal manager. Keep tmux as the control substrate for identity, kill, restart, send, and deploy.
-- Current Codex session is running under `Codex.app ... app-server`, not a tmux restart loop; `/done` cleanup should not kill `$PPID` unless a wrapper is actually proven.
+**State at last pause (2026-05-05T12:37:12-0700):**
+- Shipped `c18f5a4` so `launch-agent.sh` dispatches by `runtime`, `agents.json` includes a Codex agent, and Codex launches `codex --model gpt-5.5 ... /gogo` without invoking Claude or Claude-only auto-injects.
+- ACRM task `ALS-011` is assigned to `codex`, all criteria are checked with evidence, and the task is `review_pending`; the completed heartbeat monitor was deleted after confirming no uncommitted repo diff.
+- Shipped `bfd8d95` to add `context.md` and align `AGENTS.md`, `CLAUDE.md`, and `docs/README.md` around Codex-first/model-agnostic launch policy, ACRM coordination, and Codex-owned technical review.
+- Verification passed: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, `bash test/launch-agent-runtime.test.sh`, `cd remote-app && npm test`, `git diff --check`, and `qmd update && qmd embed`.
+- Current Codex session is running under the desktop/app-server harness, not a proven tmux restart loop; `/done` cleanup should not kill `$PPID` from this harness.
 
-**Next verifiable step:** Start a fresh small `MULTI` deploy from AgentRemote, confirm iTerm control-mode windows are draggable, then right-click kill one agent and verify the pane disappears and its sidecar entry clears without a stale light.
+**Next verifiable step:** In a fresh Codex CLI session, read `context.md`, then validate Codex launch with `bash chq-tmux.sh start codex` or AgentRemote Deploy and confirm the spawned process is `codex`, not `claude`.
 
-**If that step fails:** Check `remote-app/out.log`, `remote-app/main.js` `kill-pane` handler, `remote-app/pane-resolver.js`, `/tmp/agent-remote-panes.json`, and `tmux list-panes -s -t chq -F '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}\t#{pane_current_command}'`.
+**If that step fails:** Check `context.md`, `agents.json`, `launch-agent.sh` `build_runtime_command`, `remote-app/out.log`, and the fake-binary coverage in `test/launch-agent-runtime.test.sh` before touching live session startup.
 
 **Pending uncommitted diff:** `.claude/memory/handoff.md` until the `/done` handoff commit lands, then none.
 
@@ -44,5 +42,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-05-SESSION: R&D QMD/graphify repo-structure retrieval, agent-first docs reorg, and Codex `hatch-pet` integration path identified for AgentRemote — commits: `72c4703` docs reorg plus `/done` handoff commit — gated on Richard: none
 - 2026-05-05-SESSION_2: AgentRemote instructions aligned, Openclaw pet experiment completed, then MVP premade pet roster (`goku`, `nimbus`, `gaara`, `codeberg`, `neo`) bundled as companion chrome — commits: `768fc9d`, `855fa29`, `5d4226b` — gated on Richard: none
 - 2026-05-05-SESSION_3: AgentRemote tmux pane management baseline fixed: `MULTI` now preserves draggable `ittab`, split sessions can normalize to per-window panes, and kill/restart/attach/broadcast/xterm now resolve panes through shared sidecar-first identity — commits: `d46016d`, `29e4761` — gated on Richard: verify right-click kill on live `%44`
+- 2026-05-05-SESSION_4: Codex-first runtime support and durable docs handoff: `launch-agent.sh` now dispatches Codex/Claude/Hermes/OpenClaw by registry runtime, `agents.json` includes a Codex entry, ACRM `ALS-011` is `review_pending`, and `context.md` records the Codex-first/ACRM operating contract — commits: `c18f5a4`, `bfd8d95` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
