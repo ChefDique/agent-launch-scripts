@@ -13,12 +13,13 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 ## Startup Read Order
 
 1. `.claude/memory/handoff.md` — current active thread and next verifiable step.
-2. `docs/README.md` — durable docs map.
-3. `docs/product/agentremote.md` — product boundary and money-path focus.
-4. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-5. `DESIGN.md` — AgentRemote visual system and migration target.
-6. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
-7. `remote-app/AGENTS.md` — required before UI or IPC edits.
+2. `context.md` — current model/runtime and ACRM operating contract.
+3. `docs/README.md` — durable docs map.
+4. `docs/product/agentremote.md` — product boundary and money-path focus.
+5. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+6. `DESIGN.md` — AgentRemote visual system and migration target.
+7. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
+8. `remote-app/AGENTS.md` — required before UI or IPC edits.
 
 ## Index of scoped AGENTS.md
 
@@ -41,6 +42,8 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Core value is fast communication with agents: select targets, type or hold-to-talk, send instantly, and trust delivery feedback.
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
 - Keep the remote model/runtime agnostic. It controls local processes and panes; it should not depend on one model vendor.
+- Codex is the priority runtime while Claude tokens are constrained. Preserve Claude, Hermes, and OpenClaw support, but do not launch Claude from a Codex path unless the registry explicitly asks for `runtime: "claude"`.
+- Use ACRM for task creation, review state, and agent lookup/creation decisions. `agents.json` remains the local execution registry and AgentRemote settings source until a live ACRM-backed add-agent path is implemented.
 
 ## Workflow Rules
 
@@ -54,6 +57,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 ## Critical Patterns
 
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
+- `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
 - Restart loops live in tmux orchestrators, not inside per-agent launchers.
 - Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.

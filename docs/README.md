@@ -5,13 +5,14 @@ This directory is the durable knowledge base for `agent-launch-scripts`. Keep `A
 ## Read Order
 
 1. `../AGENTS.md` — model-agnostic agent map.
-2. `../README.md` — short human-facing repo summary.
-3. `product/agentremote.md` — product boundary and money-path focus.
-4. `operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-5. `../DESIGN.md` — current AgentRemote visual system and migration target.
-6. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
-7. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
-8. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
+2. `../context.md` — current model/runtime and ACRM operating contract.
+3. `../README.md` — short human-facing repo summary.
+4. `product/agentremote.md` — product boundary and money-path focus.
+5. `operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+6. `../DESIGN.md` — current AgentRemote visual system and migration target.
+7. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
+8. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
+9. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
 
 ## Directory Contract
 
