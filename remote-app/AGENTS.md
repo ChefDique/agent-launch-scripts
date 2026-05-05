@@ -1,10 +1,12 @@
+<!-- Managed by agent: Codex. Scoped instructions for AgentRemote Electron work. -->
+
 # AGENTS.md
 
-## Scope
+## Overview
 
 This directory contains the current AgentRemote Electron app: `main.js` for native process control and IPC, `index.html` for the renderer, and `assets/` for avatars.
 
-## Commands
+## Setup
 
 ```bash
 npm install
@@ -13,16 +15,38 @@ bash ../launch-remote.sh
 
 `npm test` is intentionally not a useful gate today; `package.json` still exits with the default placeholder test.
 
-## Edit Rules
+## Commands
+
+- Launch: `bash ../launch-remote.sh`
+- Stop: `bash ../launch-remote.sh stop`
+- Duplicate check: `pgrep -fl "Electron\\.app/Contents/MacOS/Electron \\." | grep remote-app`
+
+## Code style
 
 - Use argv-style process execution in `main.js`; avoid shell string interpolation for tmux, iTerm, or file operations.
+- Keep renderer changes aligned with `../DESIGN.md` tokens and component primitives.
 - Keep the HUD lightweight: local spawn, attach, broadcast, status, voice, and nearby operator controls.
-- Do not add ACRM/Atlas/Swarmy worker-runtime state here unless a plan explicitly assigns it.
-- Preserve the local Whisper hold-to-talk path and immediate send feedback when touching keybindings or broadcast flow.
-- Keep UI changes aligned with `../DESIGN.md` tokens and component primitives.
+- Preserve local Whisper hold-to-talk and immediate send feedback when touching keybindings or broadcast flow.
 
-## Verification
+## Security
 
-- Launch with `bash ../launch-remote.sh` after UI or IPC changes.
-- Check for duplicates with `pgrep -fl "Electron\\.app/Contents/MacOS/Electron \\." | grep remote-app`.
-- Validate tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
+- Do not expose arbitrary shell command entry from renderer state.
+- Validate file paths and agent IDs in IPC handlers before touching the filesystem or tmux.
+- Keep AgentRemote local-process oriented; do not add external service calls without an explicit plan.
+
+## Checklist
+
+- Read `../AGENTS.md`, `../docs/README.md`, and `../docs/exec-plans/active/agentremote-v1-pivot-plan.md`.
+- Launch AgentRemote after UI or IPC changes.
+- Verify tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
+
+## Examples
+
+- Good: `execFile('tmux', ['send-keys', '-t', coord, message, 'C-m'])`
+- Bad: concatenating renderer-provided strings into a shell command.
+
+## When stuck
+
+- For UI/motion/aesthetic uncertainty, read `../.claude/agents/tmux-electron-master.md`.
+- For product scope, read `../docs/product/agentremote.md`.
+- For launch/runtime behavior, read `../docs/operations/launch-scripts.md`.
