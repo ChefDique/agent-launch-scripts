@@ -1,0 +1,7 @@
+{
+  "id": "codeberg",
+  "displayName": "Codeberg",
+  "description": "A bald, stern chibi code-refiner pet in a black porkpie hat, sunglasses, dark jacket, checked shirt, khaki pants, and cyan code crystal.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "person"
+}

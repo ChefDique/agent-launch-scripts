@@ -1,6 +1,0 @@
-{
-  "id": "openclaw",
-  "displayName": "Openclaw",
-  "description": "A compact Codex operator companion for AgentRemote, built for local voice, delivery feedback, and agent-control states.",
-  "spritesheetPath": "spritesheet.webp"
-}
