@@ -90,7 +90,7 @@ Once 1–8 are landed: implement Council v0 per `COUNCIL.md`. T1 is shipped (Swa
 Use this exact preamble at the top of any agent brief that touches AgentRemote files:
 
 ```
-Read docs/agentremote-v1-pivot-plan.md first. Do not implement new Council UI
+Read docs/exec-plans/active/agentremote-v1-pivot-plan.md first. Do not implement new Council UI
 until the P0 AgentRemote layout/state fixes are complete. AgentRemote v1 is the
 trusted local operator HUD; keep Swarmy worker-runtime concerns separate unless
 explicitly assigned.
