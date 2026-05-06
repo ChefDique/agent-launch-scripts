@@ -41,41 +41,56 @@
       flex-direction: column;
       align-items: center;
       justify-content: flex-end;
-      gap: 4px;
+      gap: 5px;
     }
     .bubble {
-      width: min(100%, 284px);
-      max-height: 116px;
+      position: relative;
+      width: min(100%, 340px);
+      min-height: 112px;
+      max-height: min(220px, calc(100vh - 118px));
       border: 1px solid var(--border-soft);
       border-radius: 14px;
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 36%),
+        radial-gradient(circle at 18px 16px, color-mix(in srgb, var(--accent) 16%, transparent), transparent 34px),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 40%),
         var(--bg-glass);
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.10),
-        0 16px 30px rgba(0, 0, 0, 0.36);
-      backdrop-filter: blur(26px) saturate(140%);
+        inset 0 1px 0 rgba(255, 255, 255, 0.09),
+        0 14px 28px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(24px) saturate(136%);
       overflow: hidden;
       opacity: 0.98;
       -webkit-app-region: no-drag;
     }
-    .bubble-head {
-      height: 24px;
-      padding: 0 8px 0 10px;
+    .bubble::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 30px;
+      background: linear-gradient(180deg, rgba(8, 8, 14, 0.66), rgba(8, 8, 14, 0));
+      pointer-events: none;
+      z-index: 1;
+    }
+    .chat-meta {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      max-width: 112px;
       display: flex;
       align-items: center;
-      gap: 7px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 6px;
       color: var(--text-muted);
       font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
-      letter-spacing: 0.4px;
+      letter-spacing: 0.26px;
       text-transform: uppercase;
+      pointer-events: none;
+      z-index: 2;
     }
     .live-dot {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       background: var(--accent);
       box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
@@ -83,36 +98,54 @@
     }
     .agent-name {
       min-width: 0;
+      max-width: 96px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .close-btn {
-      margin-left: auto;
+    .chrome-actions {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      z-index: 3;
+      -webkit-app-region: no-drag;
+    }
+    .icon-btn {
       width: 18px;
       height: 18px;
       border: 0;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.06);
       color: rgba(255, 255, 255, 0.62);
-      font-size: 13px;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
       line-height: 1;
       cursor: pointer;
       -webkit-app-region: no-drag;
     }
-    .close-btn:hover {
+    .icon-btn:hover {
       color: var(--text-primary);
       background: rgba(255, 255, 255, 0.12);
     }
+    .collapse-btn {
+      font-size: 14px;
+      transform: rotate(0deg);
+      transition: transform 0.18s var(--ease), background 0.18s var(--ease), color 0.18s var(--ease);
+    }
     .log {
-      max-height: 54px;
+      min-height: 48px;
+      max-height: min(112px, calc(100vh - 214px));
       overflow: auto;
-      padding: 7px 9px 6px;
+      padding: 31px 10px 7px;
       display: flex;
       flex-direction: column;
-      gap: 5px;
+      gap: 6px;
       font-size: 11px;
-      line-height: 1.35;
+      line-height: 1.38;
       user-select: text;
     }
     .log::-webkit-scrollbar { width: 4px; }
@@ -121,15 +154,21 @@
       background: rgba(255, 255, 255, 0.18);
     }
     .msg {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 5px;
+      display: block;
+      min-width: 0;
       color: rgba(244, 244, 248, 0.9);
     }
     .msg .from {
+      display: none;
       color: var(--accent);
       font-weight: 700;
       text-transform: uppercase;
+    }
+    .msg .text {
+      display: block;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .empty {
       color: var(--text-muted);
@@ -137,9 +176,9 @@
     }
     .reply {
       display: grid;
-      grid-template-columns: 1fr 46px;
+      grid-template-columns: minmax(0, 1fr) 46px;
       gap: 6px;
-      padding: 0 7px 7px;
+      padding: 0 8px 8px;
     }
     .reply input {
       min-width: 0;
@@ -176,10 +215,54 @@
       opacity: 0.46;
       filter: grayscale(0.4);
     }
+    .resize-grip {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 12px;
+      height: 12px;
+      border-right: 1px solid rgba(255, 255, 255, 0.24);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.24);
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    .chat-tab {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      padding: 0 10px;
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      border-radius: 999px;
+      background: rgba(20, 20, 30, 0.68);
+      color: var(--text-primary);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(22px) saturate(132%);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.18px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .chat-tab::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+    }
+    body.chat-collapsed .bubble {
+      display: none;
+    }
+    body.chat-collapsed .chat-tab {
+      display: flex;
+    }
     .sprite-wrap {
       position: relative;
-      width: 116px;
-      height: 126px;
+      width: 112px;
+      height: 122px;
       flex: 0 0 auto;
       filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.48));
       transform-origin: 50% 75%;
@@ -213,17 +296,61 @@
       image-rendering: auto;
       animation: row 1.25s var(--pet-step) infinite;
     }
-    body.sending .sprite {
+    body.mood-running-right .sprite {
+      --pet-y: -104px;
+      --pet-to-x: -768px;
+      --pet-step: steps(8);
+      animation-duration: 0.92s;
+    }
+    body.mood-running-left .sprite {
+      --pet-y: -208px;
+      --pet-to-x: -768px;
+      --pet-step: steps(8);
+      animation-duration: 0.92s;
+    }
+    body.mood-waving .sprite {
+      --pet-y: -312px;
+      --pet-to-x: -384px;
+      --pet-step: steps(4);
+      animation-duration: 0.74s;
+    }
+    body.sending .sprite,
+    body.mood-jumping .sprite {
       --pet-y: -416px;
       --pet-to-x: -480px;
       --pet-step: steps(5);
       animation-duration: 0.8s;
     }
-    body.error .sprite {
+    body.error .sprite,
+    body.mood-failed .sprite {
       --pet-y: -520px;
       --pet-to-x: -768px;
       --pet-step: steps(8);
       animation-duration: 0.95s;
+    }
+    body.mood-waiting .sprite {
+      --pet-y: -624px;
+      --pet-to-x: -576px;
+      --pet-step: steps(6);
+      animation-duration: 1.25s;
+    }
+    body.mood-running .sprite {
+      --pet-y: -728px;
+      --pet-to-x: -576px;
+      --pet-step: steps(6);
+      animation-duration: 0.82s;
+    }
+    body.mood-review .sprite {
+      --pet-y: -832px;
+      --pet-to-x: -576px;
+      --pet-step: steps(6);
+      animation-duration: 1.2s;
+    }
+    body.pet-moving .sprite-wrap {
+      animation-duration: 0.9s;
+      filter:
+        drop-shadow(0 18px 24px rgba(0, 0, 0, 0.48))
+        drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 45%, transparent));
     }
     @keyframes row {
       to { background-position: var(--pet-to-x) var(--pet-y); }
@@ -236,11 +363,15 @@
 </head>
 <body>
   <main class="pet-shell">
+    <button class="chat-tab" id="chat-tab" type="button" title="Show chat" aria-label="Show chat">chat</button>
     <section class="bubble" aria-label="Agent pet chat">
-      <div class="bubble-head">
+      <div class="chat-meta">
         <span class="live-dot"></span>
         <span class="agent-name" id="agent-name">Agent</span>
-        <button class="close-btn" id="close" title="Close pet" aria-label="Close pet">x</button>
+      </div>
+      <div class="chrome-actions">
+        <button class="icon-btn collapse-btn" id="collapse" title="Collapse chat" aria-label="Collapse chat">^</button>
+        <button class="icon-btn close-btn" id="close" title="Close pet" aria-label="Close pet">x</button>
       </div>
       <div class="log" id="log">
         <div class="empty">waiting for agent output</div>
@@ -249,6 +380,7 @@
         <input id="reply-input" type="text" autocomplete="off" spellcheck="false" placeholder="reply" />
         <button id="reply" disabled>Send</button>
       </div>
+      <span class="resize-grip" aria-hidden="true"></span>
     </section>
     <div class="sprite-wrap" title="Drag to move">
       <span class="sprite" id="sprite" role="presentation"></span>
@@ -262,12 +394,16 @@
     let chatTailOffset = 0;
     let historyLoaded = false;
     let pollHandle = null;
+    let moodTimer = null;
 
     const nameEl = document.getElementById('agent-name');
     const logEl = document.getElementById('log');
     const inputEl = document.getElementById('reply-input');
     const sendBtn = document.getElementById('reply');
     const closeBtn = document.getElementById('close');
+    const collapseBtn = document.getElementById('collapse');
+    const chatTabBtn = document.getElementById('chat-tab');
+    const collapseKey = `agentremote.pet.${agentId || 'unknown'}.chatCollapsed`;
 
     function normalizeSender(value) {
       const raw = String(value || '').toLowerCase();
@@ -289,8 +425,54 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function setCollapsed(collapsed) {
+      document.body.classList.toggle('chat-collapsed', collapsed);
+      collapseBtn.title = collapsed ? 'Show chat' : 'Collapse chat';
+      collapseBtn.setAttribute('aria-label', collapseBtn.title);
+      try { localStorage.setItem(collapseKey, collapsed ? '1' : '0'); } catch {}
+      if (!collapsed) requestAnimationFrame(scrollToBottom);
+    }
+
+    const MOOD_CLASSES = [
+      'mood-running-right',
+      'mood-running-left',
+      'mood-waving',
+      'mood-jumping',
+      'mood-failed',
+      'mood-waiting',
+      'mood-running',
+      'mood-review'
+    ];
+
+    function normalizeMood(value) {
+      const mood = String(value || 'idle').toLowerCase();
+      if (mood === 'recording' || mood === 'sent') return 'waving';
+      if (mood === 'transcribing' || mood === 'thinking') return 'review';
+      if (mood === 'error' || mood === 'failed') return 'failed';
+      if (mood === 'moving-right') return 'running-right';
+      if (mood === 'moving-left') return 'running-left';
+      if (MOOD_CLASSES.includes(`mood-${mood}`)) return mood;
+      return 'idle';
+    }
+
+    function setMood(mood, ms = 0) {
+      if (moodTimer) {
+        clearTimeout(moodTimer);
+        moodTimer = null;
+      }
+      document.body.classList.remove(...MOOD_CLASSES);
+      const next = normalizeMood(mood);
+      if (next !== 'idle') document.body.classList.add(`mood-${next}`);
+      if (ms > 0) {
+        moodTimer = setTimeout(() => {
+          document.body.classList.remove(...MOOD_CLASSES);
+          moodTimer = null;
+        }, ms);
+      }
+    }
+
     function renderMessages(envelopes, append = false) {
-      const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-10);
+      const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-6);
       if (!append) logEl.innerHTML = '';
       if (!filtered.length && !append && logEl.children.length === 0) {
         const empty = document.createElement('div');
@@ -308,12 +490,13 @@
         from.className = 'from';
         from.textContent = normalizeSender(env.from || '?');
         const body = document.createElement('span');
+        body.className = 'text';
         body.textContent = String(env.message || '');
         row.appendChild(from);
         row.appendChild(body);
         logEl.appendChild(row);
       }
-      while (logEl.children.length > 10) logEl.removeChild(logEl.firstElementChild);
+      while (logEl.children.length > 6) logEl.removeChild(logEl.firstElementChild);
       scrollToBottom();
     }
 
@@ -359,6 +542,7 @@
       inputEl.value = '';
       sendBtn.disabled = true;
       document.body.classList.add('sending');
+      setMood('jumping', 900);
       const local = {
         from: 'richard',
         to: config.agent.id,
@@ -386,6 +570,13 @@
       sendReply();
     });
     sendBtn.addEventListener('click', sendReply);
+    collapseBtn.addEventListener('click', () => {
+      setCollapsed(true);
+    });
+    chatTabBtn.addEventListener('click', () => {
+      setCollapsed(false);
+      inputEl.focus();
+    });
     closeBtn.addEventListener('click', () => {
       ipcRenderer.invoke('pet-close-window', { agentId });
     });
@@ -395,9 +586,19 @@
       renderMessages([], false);
       loadHistory();
     });
+    ipcRenderer.on('pet-mood', (_event, payload = {}) => {
+      setMood(payload.mood || 'idle', Number(payload.ms) || 0);
+    });
+    ipcRenderer.on('pet-window-moving', (_event, payload = {}) => {
+      const moving = !!payload.moving;
+      document.body.classList.toggle('pet-moving', moving);
+      setMood(moving ? `moving-${payload.direction === 'left' ? 'left' : 'right'}` : 'jumping', moving ? 0 : 650);
+    });
     window.addEventListener('beforeunload', () => {
       if (pollHandle) clearInterval(pollHandle);
+      if (moodTimer) clearTimeout(moodTimer);
     });
+    try { setCollapsed(localStorage.getItem(collapseKey) === '1'); } catch {}
     init();
   </script>
 </body>

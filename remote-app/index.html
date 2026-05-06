@@ -5631,8 +5631,10 @@
       if (selected.length === 0) return;
       const isAll = selected.length === agentOrder.length;
       const payload = selected.map(a => ({ id: a.id, tmuxTarget: a.tmuxTarget }));
+      selected.forEach(a => sendPetWindowMood(a.id, 'review'));
       const result = await sendBroadcastMessage({ message: msg, selectedAgents: payload, isAll });
       if (!result || !result.ok) {
+        selected.forEach(a => sendPetWindowMood(a.id, 'error', 1800));
         showVoiceToast({
           kind: 'error',
           target: 'Send failed',
@@ -5642,6 +5644,7 @@
         return;
       }
       input.value = '';
+      selected.forEach(a => sendPetWindowMood(a.id, 'sent', 1400));
       showVoiceToast({
         kind: 'ok',
         target: `sent to ${result.sent}`,
@@ -6707,6 +6710,11 @@
           petMoodTimer = null;
         }, ms);
       }
+    }
+
+    function sendPetWindowMood(agentId, mood, ms = 0) {
+      if (!agentId) return;
+      ipcRenderer.send('pet-set-mood', { agentId, mood: mood || 'idle', ms });
     }
 
     // ---- Toast ----

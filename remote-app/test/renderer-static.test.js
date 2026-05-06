@@ -57,7 +57,43 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /id="sprite"/);
   assert.match(petWindow, /id="log"/);
   assert.match(petWindow, /id="close"/);
+  assert.match(petWindow, /id="collapse"/);
+  assert.match(petWindow, /id="chat-tab"/);
   assert.match(petWindow, /id="reply"/);
+  assert.match(petWindow, /chat-collapsed/);
+  assert.match(petWindow, /chat-meta/);
+  assert.match(petWindow, /overflow-wrap: anywhere/);
+  assert.match(petWindow, /resize-grip/);
   assert.match(petWindow, /pet-send-message/);
   assert.match(petWindow, /chat-tail-init/);
+  assert.doesNotMatch(petWindow, /class="bubble-head"/);
+});
+
+test('main process pet windows are resizable and broadcasts delay submit after literal text', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /resizable: true/);
+  assert.match(main, /minWidth: 320/);
+  assert.match(main, /height: Math\.max\(238/);
+  assert.match(main, /pet-set-mood/);
+  assert.match(main, /pet-window-moving/);
+  assert.match(main, /send-keys', '-t', coord, '-l', message/);
+  assert.match(main, /setTimeout\(\(\) => \{/);
+  assert.match(main, /send-keys', '-t', coord, 'C-m'/);
+});
+
+test('floating pet window maps Codex atlas rows and move events to moods', () => {
+  const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
+  assert.match(petWindow, /mood-running-right/);
+  assert.match(petWindow, /mood-running-left/);
+  assert.match(petWindow, /mood-waving/);
+  assert.match(petWindow, /mood-jumping/);
+  assert.match(petWindow, /mood-failed/);
+  assert.match(petWindow, /mood-waiting/);
+  assert.match(petWindow, /mood-running/);
+  assert.match(petWindow, /mood-review/);
+  assert.match(petWindow, /pet-window-moving/);
+  assert.match(petWindow, /pet-moving/);
+  assert.match(html, /sendPetWindowMood/);
+  assert.match(html, /sendPetWindowMood\(a\.id, 'review'\)/);
+  assert.match(html, /sendPetWindowMood\(a\.id, 'sent', 1400\)/);
 });

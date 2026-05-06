@@ -54,6 +54,7 @@ const TOGGLE_ACCELERATOR = 'Cmd+Shift+Space';
 let mainWindow;
 const petWindows = new Map();
 const petWindowConfigs = new Map();
+const petMoveTimers = new Map();
 let isQuitting = false;
 
 // Best-effort append to remote-app/out.log. Used so registration warnings
@@ -226,15 +227,15 @@ function defaultPetForAgent(agent) {
 function defaultPetBounds(agentId) {
   const display = screen.getPrimaryDisplay();
   const work = display.workArea;
-  let x = work.x + Math.round(work.width / 2) - 150;
+  let x = work.x + Math.round(work.width / 2) - 160;
   let y = work.y + 80;
   if (mainWindow && !mainWindow.isDestroyed()) {
     const mainBounds = mainWindow.getBounds();
-    x = mainBounds.x + Math.max(0, Math.round(mainBounds.width / 2) - 150);
+    x = mainBounds.x + Math.max(0, Math.round(mainBounds.width / 2) - 160);
     y = Math.max(work.y + 16, mainBounds.y - 130);
   }
   const offset = Math.max(0, Array.from(petWindows.keys()).indexOf(agentId)) * 26;
-  return { x: x + offset, y: y + offset, width: 300, height: 250 };
+  return { x: x + offset, y: y + offset, width: 320, height: 236 };
 }
 
 function persistPetBounds(agentId, bounds) {
@@ -260,6 +261,13 @@ function notifyPetWindows(channel, ...args) {
 function notifyMainPetState() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   try { mainWindow.webContents.send('agent-pet-state-changed', readPetState()); }
+  catch { /* renderer not ready */ }
+}
+
+function sendToPetWindow(agentId, channel, payload = {}) {
+  const win = petWindows.get(String(agentId || ''));
+  if (!win || win.isDestroyed()) return;
+  try { win.webContents.send(channel, payload); }
   catch { /* renderer not ready */ }
 }
 
@@ -309,17 +317,25 @@ function showAgentPetWindow(agentId, petId) {
 
   const savedBounds = state.bounds[agent.id];
   const bounds = savedBounds && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)
-    ? { width: 300, height: 250, ...savedBounds }
+    ? {
+        ...savedBounds,
+        width: Math.max(320, Math.min(560, Number(savedBounds.width) || 320)),
+        height: Math.max(238, Math.min(560, Number(savedBounds.height) || 238))
+      }
     : defaultPetBounds(agent.id);
   const win = new BrowserWindow({
-    width: bounds.width || 300,
-    height: bounds.height || 250,
+    width: bounds.width || 320,
+    height: bounds.height || 236,
+    minWidth: 320,
+    minHeight: 238,
+    maxWidth: 560,
+    maxHeight: 560,
     x: bounds.x,
     y: bounds.y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
     movable: true,
     hasShadow: false,
     skipTaskbar: true,
@@ -336,10 +352,33 @@ function showAgentPetWindow(agentId, petId) {
   win.once('ready-to-show', () => {
     if (!win.isDestroyed()) win.showInactive();
   });
+  let lastMoveBounds = win.getBounds();
+  win.on('move', () => {
+    if (win.isDestroyed()) return;
+    const nextBounds = win.getBounds();
+    const dx = nextBounds.x - lastMoveBounds.x;
+    lastMoveBounds = nextBounds;
+    sendToPetWindow(agent.id, 'pet-window-moving', {
+      moving: true,
+      direction: dx < 0 ? 'left' : 'right'
+    });
+    if (petMoveTimers.has(agent.id)) clearTimeout(petMoveTimers.get(agent.id));
+    petMoveTimers.set(agent.id, setTimeout(() => {
+      petMoveTimers.delete(agent.id);
+      sendToPetWindow(agent.id, 'pet-window-moving', { moving: false });
+    }, 180));
+  });
   win.on('moved', () => {
-    if (!win.isDestroyed()) persistPetBounds(agent.id, win.getBounds());
+    if (!win.isDestroyed()) {
+      persistPetBounds(agent.id, win.getBounds());
+      sendToPetWindow(agent.id, 'pet-window-moving', { moving: false });
+    }
   });
   win.on('closed', () => {
+    if (petMoveTimers.has(agent.id)) {
+      clearTimeout(petMoveTimers.get(agent.id));
+      petMoveTimers.delete(agent.id);
+    }
     petWindows.delete(agent.id);
     petWindowConfigs.delete(agent.id);
     if (isQuitting) return;
@@ -879,6 +918,15 @@ ipcMain.handle('pet-send-message', async (_event, payload = {}) => {
   });
 });
 
+ipcMain.on('pet-set-mood', (_event, payload = {}) => {
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  if (!agentId) return;
+  sendToPetWindow(agentId, 'pet-mood', {
+    mood: typeof payload.mood === 'string' ? payload.mood : 'idle',
+    ms: Number.isFinite(payload.ms) ? payload.ms : 0
+  });
+});
+
 ipcMain.handle('pet-close-window', (_event, payload = {}) => {
   return hideAgentPetWindow(payload.agentId);
 });
@@ -1018,20 +1066,19 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
-  // Two send-keys calls: first types the literal message (so agent TUIs
-  // receive the characters), then presses Enter as a separate keystroke to
-  // submit. A single combined call (`message Enter`) typed the text but didn't
-  // submit reliably against Claude's TUI — Richard
-  // reported the input sat in the box unsubmitted. The launch-agent.sh
-  // auto-inject sequence uses the same split-call pattern (matches the
-  // legacy per-agent scripts that worked).
+  // Two send-keys calls: first type the literal message, then press Enter as a
+  // separate keystroke. The small delay matters for full-screen agent TUIs:
+  // tmux can accept the literal text before the app has processed it, causing
+  // the submit key to land early and leave the text sitting in the input box.
   return new Promise((resolve, reject) => {
     execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
       if (err) return reject(new Error(ser || err.message));
-      execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err2, _o2, ser2) => {
-        if (err2) return reject(new Error(ser2 || err2.message));
-        resolve(coord);
-      });
+      setTimeout(() => {
+        execFile('tmux', ['send-keys', '-t', coord, 'C-m'], (err2, _o2, ser2) => {
+          if (err2) return reject(new Error(ser2 || err2.message));
+          resolve(coord);
+        });
+      }, 120);
     });
   });
 }
