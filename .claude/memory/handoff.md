@@ -2,22 +2,20 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote v1 HUD polish shipped, then scoped the next thread: make per-agent Codex pets undockable/floating with chat bubbles while preserving the HUD's current free-moving/lock behavior.
+**Last working on:** Non-pet TMUX-MASTA fixes: restored `/gogo`, simplified Deploy to one movable window per agent, fixed tmux send ordering, and made launch scripts worktree-local.
 
-**State at last pause (2026-05-06T00:52:27-0700):**
-- Commit `fbf20e1` was pushed to `origin/main`: 4-harness picker, Hermes/OpenClaw SVG assets, GIF/image avatar support, harness mascot fallback, Armory import, full add/edit form reuse for right-click settings, styled scrollbars, popup close buttons, intentional hidden-agent control, per-agent pet toggles, and bundled Goku pet removal.
-- Auto-restart was confirmed wired: renderer persists `auto_restart`, `main.js` loads omitted as true, and `chq-tmux.sh` pane loop re-reads `agents.json` each iteration and exits instead of respawning when `auto_restart` is false.
-- Gaara was messaged via the local message-agent bus for better Hermes/OpenClaw animated logo SVGs; delivery/correlation id was `codex-to-gaara-1778046735`.
-- Richard asked whether AgentRemote pets can be undockable/floating like Codex app pets and whether they can have chat. Answer: yes, with Electron limits. Use separate transparent frameless BrowserWindow pet surfaces (one per visible pet, or a shared overlay window) rather than the current inline DOM pets. Persist per-pet coordinates. Do not change AgentRemote's HUD toggle, locking, or free-moving placement semantics.
-- Chat path for floating pets should reuse existing local substrates: `chat-tail-init`, `chat-tail-read`, `chat-post`, and `~/.message-agent/channels/team/messages.jsonl` for team chat; `broadcast-message` remains the pane-send path for agent-targeted messages. Pet bubbles should appear above each floating pet, stream voice/transcript/team-chat text, and include a compact reply input/button like Richard's screenshot so the user can answer directly from the bubble.
-- Live click testing briefly caused the HUD to jump across displays because a temporary summon/rescue patch changed visible-but-unfocused behavior. That was backed out before commit. Next session must avoid touching the locking/free-moving behavior unless Richard explicitly asks.
-- Current branch is `main`, aligned with `origin/main` after push before this `/done` handoff update.
+**State at last pause (2026-05-06T02:56:32-0700):**
+- Commit `2624436` exists on branch `codex/tmux-gogo-launch-fixes`: AgentRemote Deploy exposes only `EACH` (`CHQ_LAYOUT=ittab`), `broadcast-message` sends text and submit in one ordered tmux command sequence, agent IDs can be edited only while not running, and `chq-tmux.sh` / `launch-remote.sh` resolve paths from their own worktree.
+- Global `/gogo` was restored outside this repo at `/Users/richardadair/.agents/skills/gogo/SKILL.md` and pinned in `/Users/richardadair/.codex/config.toml`; it now delegates to repo-local CHQ/R&D/trading-style `gogo` skills before falling back to the generic startup checklist.
+- Verification passed: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, `cd remote-app && npm test`, `git diff --check`, and a live tmux smoke proving `ittab` creates separate tmux windows with one pane each.
+- AgentRemote was relaunched from `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts/remote-app` and duplicate main-checkout Electron processes were reaped. Current live process at closeout was PID `6161`.
+- The main checkout `/Users/richardadair/agent-launch-scripts` still has pre-existing dirty asset/registry changes (`agents.json`, `gaara.svg` delete, `gaara.gif`, `gara.gif`, `goku.gif`). Do not overwrite or clean those without Richard.
 
-**Next verifiable step:** Prototype floating pet windows without changing HUD movement: create a minimal transparent frameless pet BrowserWindow for one visible agent, load the same Codex pet spritesheet, allow dragging/persisted position, close/spawn from the pet button, render a chat bubble with streaming text plus reply input, and prove the main AgentRemote window stays where Richard placed it.
+**Next verifiable step:** Decide how to land `codex/tmux-gogo-launch-fixes` from the detached worktree, then manually exercise AgentRemote Deploy: select two agents, Deploy, confirm iTerm shows one movable control-mode window per agent, and Send submits immediately instead of leaving text in the chat inbox.
 
-**If that step fails:** Check Electron transparent/frameless child-window behavior, `remote-app/out.log`, file URL loading for `~/.codex/pets/*/spritesheet.webp`, and macOS Spaces/always-on-top interactions. Fall back to a single transparent overlay BrowserWindow before touching the main HUD toggle/lock path.
+**If that step fails:** Check `remote-app/out.log`, `/tmp/agent-remote-panes.json`, `tmux show-option -t chq -v -q '@chq_layout'`, `tmux list-windows -t chq`, and whether an existing non-control-mode tmux client is attached. Use `bash launch-remote.sh` from this branch to avoid accidentally launching the dirty main checkout.
 
-**Pending uncommitted diff:** none after this `/done` handoff commit.
+**Pending uncommitted diff:** none in this worktree after the `/done` handoff commit; global Codex config/skill edits are outside this repo.
 
 ---
 
@@ -48,5 +46,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-05-SESSION_5: Global Codex config cleanup disabled Claude-origin plugins and configured the supported Codex TUI status line equivalent; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
 - 2026-05-05-SESSION_6: `/done` and `/chores` local skills pinned explicitly in Codex config after slash-command exposure confusion; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
 - 2026-05-06-SESSION: AgentRemote harness/avatar/settings/Armory/pet HUD polish shipped and pushed; next thread scoped to floating undockable pet windows with streaming/reply-capable chat bubbles while preserving HUD free-move behavior — commits: `fbf20e1` pushed plus `/done` handoff commit — gated on Richard: none
+- 2026-05-06-SESSION_2: TMUX-MASTA non-pet fixes shipped in a worktree: generic `/gogo` restored/pinned, AgentRemote Deploy simplified to one movable tmux/iTerm window per agent, send ordering fixed, ID edits allowed for stopped agents, and launch scripts made worktree-local — commits: `2624436` plus `/done` handoff commit — gated on Richard: decide landing path for `codex/tmux-gogo-launch-fixes`
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
