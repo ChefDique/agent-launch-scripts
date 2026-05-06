@@ -276,7 +276,6 @@ function showAgentPetWindow(agentId, petId) {
   const existing = petWindows.get(agent.id);
   if (existing && !existing.isDestroyed()) {
     existing.webContents.send('pet-config-updated', config);
-    notifyMainPetState();
     return { ok: true, state: readPetState() };
   }
 
@@ -787,6 +786,14 @@ ipcMain.handle('list-codex-pets', () => {
   }
 });
 
+ipcMain.handle('agent-pet-state', () => {
+  try {
+    return { ok: true, state: readPetState() };
+  } catch (err) {
+    return { ok: false, error: err.message, state: emptyPetState() };
+  }
+});
+
 ipcMain.handle('load-agent-pet-state', () => {
   try {
     return { ok: true, state: readPetState() };
@@ -796,18 +803,41 @@ ipcMain.handle('load-agent-pet-state', () => {
 });
 
 ipcMain.handle('show-agent-pet', (_event, payload = {}) => {
-  return showAgentPetWindow(payload.agentId, payload.petId);
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  const petId = typeof payload.petId === 'string' ? payload.petId : '';
+  return showAgentPetWindow(agentId, petId);
 });
 
 ipcMain.handle('hide-agent-pet', (_event, payload = {}) => {
-  return hideAgentPetWindow(payload.agentId);
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  return hideAgentPetWindow(agentId);
 });
 
-ipcMain.handle('pet-window-init-data', (_event, payload = {}) => {
-  const id = String(payload.agentId || '');
-  const config = petWindowConfigs.get(id);
-  if (!config) return { ok: false, error: `no pet config for ${id}` };
-  return { ok: true, config };
+ipcMain.handle('get-agent-pet-config', (_event, payload = {}) => {
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  const config = petWindowConfigs.get(agentId);
+  if (config) return { ok: true, config };
+
+  const state = readPetState();
+  const selectedPetId = state.selections[agentId];
+  if (!state.visible[agentId] || !selectedPetId) {
+    return { ok: false, error: 'pet window is not active' };
+  }
+  const agent = agentById(agentId);
+  const pet = petById(selectedPetId);
+  if (!agent || !pet) return { ok: false, error: 'missing agent or pet' };
+  return {
+    ok: true,
+    config: {
+      agent: {
+        id: agent.id,
+        displayName: agent.displayName || agent.id,
+        tmuxTarget: agent.tmuxTarget,
+        themeColor: agent.themeColor || '#e07c4c'
+      },
+      pet
+    }
+  };
 });
 
 ipcMain.handle('pet-send-message', async (_event, payload = {}) => {
@@ -824,15 +854,6 @@ ipcMain.handle('pet-close-window', (_event, payload = {}) => {
   return hideAgentPetWindow(payload.agentId);
 });
 
-ipcMain.on('pet-set-mood', (_event, payload = {}) => {
-  const id = String(payload.agentId || '');
-  const win = petWindows.get(id);
-  if (!win || win.isDestroyed()) return;
-  win.webContents.send('pet-mood', {
-    mood: payload.mood || 'idle',
-    ms: Number.isFinite(payload.ms) ? payload.ms : 0
-  });
-});
 ipcMain.handle('list-armory-agents', () => fetchArmoryAgents());
 
 // Resize the BrowserWindow to fit the rendered DOM. Renderer measures itself
@@ -2113,6 +2134,11 @@ app.on('before-quit', () => {
   isQuitting = true;
   if (chatWatchDebounce) { clearTimeout(chatWatchDebounce); chatWatchDebounce = null; }
   if (chatWatcher) { try { chatWatcher.close(); } catch { /* already closed */ } chatWatcher = null; }
+  for (const win of petWindows.values()) {
+    try { if (win && !win.isDestroyed()) win.close(); } catch {}
+  }
+  petWindows.clear();
+  petWindowConfigs.clear();
   // Tear down all live pipe-pane registrations so we don't leave zombie
   // tmux pipe-pane entries if the user closes AgentRemote without collapsing.
   teardownAllPipePanes();

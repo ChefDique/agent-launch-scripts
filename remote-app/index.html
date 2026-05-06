@@ -4168,34 +4168,25 @@
       layer.innerHTML = '';
       const visibleIds = agentOrder.filter(id => isAgentPetVisible(id) && agents[id]);
       document.body.classList.toggle('has-agent-pets', visibleIds.length > 0);
+      visibleIds.forEach(id => {
+        const pet = petForAgent(agents[id]);
+        if (!pet) return;
+        ipcRenderer.invoke('show-agent-pet', { agentId: id, petId: pet.id }).catch(() => {});
+      });
       updatePetMoodTarget();
     }
 
     function positionAgentPets() {
-      document.querySelectorAll('.agent-pet').forEach(el => {
-        const id = el.dataset.agentId;
-        const tile = document.querySelector(`.agent-tile[data-agent-id="${CSS.escape(id)}"]`);
-        if (!tile) return;
-        const r = tile.getBoundingClientRect();
-        const left = Math.max(2, Math.min(window.innerWidth - 70, r.left + r.width / 2 - 48));
-        const top = Math.max(2, r.top - 72);
-        el.style.setProperty('--pet-left', `${Math.round(left)}px`);
-        el.style.setProperty('--pet-top', `${Math.round(top)}px`);
-      });
+      // Floating pets are separate transparent Electron windows now. The HUD
+      // does not reposition inline sprite DOM while it moves.
     }
 
     function activePetAnchorFor(id) {
-      if (!id || !isAgentPetVisible(id)) return null;
-      return document.querySelector(`.agent-pet[data-agent-id="${CSS.escape(id)}"]`);
+      return null;
     }
 
     function updatePetMoodTarget() {
-      document.querySelectorAll('.agent-pet.pet-mood-target').forEach(el => {
-        el.classList.remove('pet-mood-target');
-      });
-      if (!petMoodAgentId) return;
-      const el = activePetAnchorFor(petMoodAgentId);
-      if (el) el.classList.add('pet-mood-target');
+      // No-op for the HUD. Dedicated pet windows own sprite mood state.
     }
 
     // Convert a hex color like "#00f2ff" to an rgba glow string at 55% alpha.

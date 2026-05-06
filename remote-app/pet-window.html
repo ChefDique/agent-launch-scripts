@@ -2,66 +2,209 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' file: data:;">
   <title>AgentRemote Pet</title>
   <style>
     :root {
       --accent: #e07c4c;
       --ease: cubic-bezier(0.16, 1, 0.3, 1);
-      --text: #f4f4f8;
-      --muted: rgba(244, 244, 248, 0.62);
-      --glass: rgba(12, 12, 18, 0.76);
-      --border: rgba(255, 255, 255, 0.13);
-      --pet-y: 0px;
-      --pet-to-x: -576px;
-      --pet-step: steps(6);
+      --text-primary: #f4f4f8;
+      --text-muted: #9a9aa8;
+      --bg-deep: rgba(8, 8, 14, 0.72);
+      --bg-glass: rgba(20, 20, 30, 0.64);
+      --border-soft: rgba(255, 255, 255, 0.12);
     }
     * { box-sizing: border-box; }
-    html, body {
+    html,
+    body {
       width: 100%;
       height: 100%;
       margin: 0;
       overflow: hidden;
       background: transparent;
-      color: var(--text);
-      font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-      -webkit-user-select: none;
+      color: var(--text-primary);
+      font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      user-select: none;
     }
     body {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 8px 8px 10px;
       -webkit-app-region: drag;
     }
-    button,
-    input {
-      -webkit-app-region: no-drag;
-      font: inherit;
-    }
-    .stage {
+    .pet-shell {
       position: relative;
       width: 100%;
       height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
     }
-    .pet {
-      position: absolute;
-      left: 102px;
-      top: 0;
-      width: 96px;
-      height: 104px;
-      filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.5));
+    .bubble {
+      width: min(100%, 284px);
+      max-height: 116px;
+      border: 1px solid var(--border-soft);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 36%),
+        var(--bg-glass);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        0 16px 30px rgba(0, 0, 0, 0.36);
+      backdrop-filter: blur(26px) saturate(140%);
+      overflow: hidden;
+      opacity: 0.98;
+      -webkit-app-region: no-drag;
+    }
+    .bubble-head {
+      height: 24px;
+      padding: 0 8px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+      flex: 0 0 auto;
+    }
+    .agent-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .close-btn {
+      margin-left: auto;
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.62);
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .close-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .log {
+      max-height: 54px;
+      overflow: auto;
+      padding: 7px 9px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11px;
+      line-height: 1.35;
+      user-select: text;
+    }
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-thumb {
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+    }
+    .msg {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px;
+      color: rgba(244, 244, 248, 0.9);
+    }
+    .msg .from {
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .empty {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .reply {
+      display: grid;
+      grid-template-columns: 1fr 46px;
+      gap: 6px;
+      padding: 0 7px 7px;
+    }
+    .reply input {
+      min-width: 0;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      padding: 0 8px;
+      font: inherit;
+      font-size: 11px;
+      outline: none;
+      -webkit-app-region: no-drag;
+    }
+    .reply input:focus {
+      border-color: color-mix(in srgb, var(--accent) 68%, white 8%);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+    .reply button {
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--accent) 82%, white 8%);
+      color: #120c09;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .reply button:disabled {
+      cursor: default;
+      opacity: 0.46;
+      filter: grayscale(0.4);
+    }
+    .sprite-wrap {
+      position: relative;
+      width: 116px;
+      height: 126px;
+      flex: 0 0 auto;
+      filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.48));
+      transform-origin: 50% 75%;
       animation: float 4.8s var(--ease) infinite;
     }
-    .pet::before {
+    .sprite-wrap::before {
       content: "";
       position: absolute;
-      inset: 25px 8px 3px;
+      left: 16px;
+      right: 16px;
+      bottom: 4px;
+      height: 28px;
       border-radius: 50%;
-      background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 30%, transparent), rgba(224, 124, 76, 0.08) 45%, transparent 72%);
+      background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 24%, transparent), transparent 70%);
       filter: blur(10px);
-      opacity: 0.72;
-      transform: translateY(12px) scaleX(0.9);
+      opacity: 0.78;
     }
     .sprite {
+      --pet-y: 0px;
+      --pet-to-x: -576px;
+      --pet-step: steps(6);
       position: relative;
-      width: 100%;
-      height: 100%;
+      width: 96px;
+      height: 104px;
+      margin: 6px auto 0;
       display: block;
       background-image: var(--pet-sheet);
       background-repeat: no-repeat;
@@ -70,140 +213,17 @@
       image-rendering: auto;
       animation: row 1.25s var(--pet-step) infinite;
     }
-    body.mood-recording .sprite {
-      --pet-y: -312px;
-      --pet-to-x: -384px;
-      --pet-step: steps(4);
-      animation-duration: 0.72s;
-    }
-    body.mood-thinking .sprite,
-    body.mood-transcribing .sprite {
-      --pet-y: -832px;
-      --pet-to-x: -576px;
-      --pet-step: steps(6);
-      animation-duration: 1.1s;
-    }
-    body.mood-sent .pet {
-      transform: translateY(-5px) rotate(4deg) scale(1.02);
-      transition: transform 0.22s var(--ease);
-    }
-    body.mood-sent .sprite {
+    body.sending .sprite {
       --pet-y: -416px;
       --pet-to-x: -480px;
       --pet-step: steps(5);
       animation-duration: 0.8s;
     }
-    body.mood-error .pet {
-      animation: shake 0.28s ease-out 2;
-    }
-    body.mood-error .sprite {
+    body.error .sprite {
       --pet-y: -520px;
       --pet-to-x: -768px;
       --pet-step: steps(8);
       animation-duration: 0.95s;
-    }
-    .bubble {
-      position: absolute;
-      left: 16px;
-      right: 16px;
-      bottom: 10px;
-      min-height: 132px;
-      border: 1px solid var(--border);
-      border-radius: 15px;
-      background: linear-gradient(180deg, rgba(18, 18, 26, 0.84), var(--glass));
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 18px 40px rgba(0, 0, 0, 0.36);
-      backdrop-filter: blur(24px) saturate(140%);
-      padding: 10px;
-      -webkit-app-region: no-drag;
-    }
-    .head {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 7px;
-    }
-    .name {
-      min-width: 0;
-      flex: 1;
-      color: var(--text);
-      font-size: 11px;
-      font-weight: 700;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .status {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 65%, transparent);
-    }
-    .close {
-      width: 20px;
-      height: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.11);
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--muted);
-      cursor: pointer;
-      line-height: 1;
-    }
-    .close:hover {
-      color: var(--text);
-      border-color: var(--border);
-    }
-    .log {
-      height: 58px;
-      overflow: auto;
-      padding-right: 3px;
-      font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
-      font-size: 10px;
-      line-height: 1.35;
-      color: var(--muted);
-    }
-    .line {
-      margin: 0 0 4px;
-      word-break: break-word;
-    }
-    .line.self { color: rgba(244, 244, 248, 0.9); }
-    .line.error { color: #ff8b8b; }
-    .composer {
-      display: grid;
-      grid-template-columns: 1fr 54px;
-      gap: 7px;
-      margin-top: 8px;
-    }
-    input {
-      min-width: 0;
-      height: 30px;
-      border: 1px solid rgba(255, 255, 255, 0.10);
-      border-radius: 9px;
-      background: rgba(255, 255, 255, 0.055);
-      color: var(--text);
-      outline: none;
-      padding: 0 9px;
-      font-size: 11px;
-    }
-    input:focus {
-      border-color: color-mix(in srgb, var(--accent) 70%, rgba(255, 255, 255, 0.16));
-    }
-    .reply {
-      height: 30px;
-      border: 0;
-      border-radius: 9px;
-      background: var(--accent);
-      color: #17110d;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-    }
-    .reply:disabled {
-      cursor: default;
-      opacity: 0.45;
     }
     @keyframes row {
       to { background-position: var(--pet-to-x) var(--pet-y); }
@@ -212,168 +232,172 @@
       0%, 100% { transform: translateY(0) rotate(-1deg); }
       50% { transform: translateY(-4px) rotate(1.5deg); }
     }
-    @keyframes shake {
-      0%, 100% { transform: translateX(0) rotate(-1deg); }
-      30% { transform: translateX(-3px) rotate(-5deg); }
-      70% { transform: translateX(3px) rotate(5deg); }
-    }
   </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="pet" id="pet"><span class="sprite" id="sprite"></span></div>
-    <section class="bubble">
-      <div class="head">
-        <span class="status"></span>
-        <div class="name" id="name">Agent</div>
-        <button class="close" id="close" title="Close">x</button>
+  <main class="pet-shell">
+    <section class="bubble" aria-label="Agent pet chat">
+      <div class="bubble-head">
+        <span class="live-dot"></span>
+        <span class="agent-name" id="agent-name">Agent</span>
+        <button class="close-btn" id="close" title="Close pet" aria-label="Close pet">x</button>
       </div>
-      <div class="log" id="log"></div>
-      <div class="composer">
-        <input id="input" placeholder="Reply to agent">
-        <button class="reply" id="reply" disabled>REPLY</button>
+      <div class="log" id="log">
+        <div class="empty">waiting for agent output</div>
+      </div>
+      <div class="reply">
+        <input id="reply-input" type="text" autocomplete="off" spellcheck="false" placeholder="reply" />
+        <button id="reply" disabled>Send</button>
       </div>
     </section>
-  </div>
+    <div class="sprite-wrap" title="Drag to move">
+      <span class="sprite" id="sprite" role="presentation"></span>
+    </div>
+  </main>
   <script>
     const { ipcRenderer } = require('electron');
     const params = new URLSearchParams(window.location.search);
     const agentId = params.get('agentId') || '';
     let config = null;
-    let chatOffset = 0;
-    let chatLoaded = false;
-    let moodTimer = null;
+    let chatTailOffset = 0;
+    let historyLoaded = false;
+    let pollHandle = null;
+
+    const nameEl = document.getElementById('agent-name');
+    const logEl = document.getElementById('log');
+    const inputEl = document.getElementById('reply-input');
+    const sendBtn = document.getElementById('reply');
+    const closeBtn = document.getElementById('close');
 
     function normalizeSender(value) {
       const raw = String(value || '').toLowerCase();
-      return raw.startsWith('claude-') ? raw.slice(7) : raw;
+      if (raw.startsWith('claude-')) return raw.slice(7);
+      if (raw === 'overlordswarmy') return 'swarmy';
+      return raw;
     }
 
-    function appendLine(text, className = '') {
-      const log = document.getElementById('log');
-      const line = document.createElement('div');
-      line.className = 'line' + (className ? ` ${className}` : '');
-      line.textContent = text;
-      log.appendChild(line);
-      while (log.children.length > 40) log.removeChild(log.firstElementChild);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    function renderConfig(next) {
-      config = next;
-      const agent = config.agent || {};
-      const pet = config.pet || {};
-      document.documentElement.style.setProperty('--accent', agent.themeColor || '#e07c4c');
-      document.documentElement.style.setProperty('--pet-sheet', `url("${pet.sheetUrl}")`);
-      document.getElementById('name').textContent = `${agent.displayName || agent.id || 'Agent'} / ${pet.displayName || pet.id || 'Pet'}`;
-    }
-
-    function setMood(mood, ms = 0) {
-      document.body.classList.remove('mood-recording', 'mood-thinking', 'mood-transcribing', 'mood-sent', 'mood-error');
-      if (mood && mood !== 'idle') document.body.classList.add(`mood-${mood}`);
-      if (moodTimer) clearTimeout(moodTimer);
-      moodTimer = null;
-      if (ms > 0) {
-        moodTimer = setTimeout(() => {
-          document.body.classList.remove('mood-recording', 'mood-thinking', 'mood-transcribing', 'mood-sent', 'mood-error');
-          moodTimer = null;
-        }, ms);
-      }
-    }
-
-    function shouldShowEnvelope(env) {
-      if (!env || !config || !config.agent) return false;
+    function messageBelongsHere(env) {
+      if (!env || typeof env !== 'object' || !config) return false;
       const from = normalizeSender(env.from);
-      const id = String(config.agent.id || '').toLowerCase();
-      const name = String(config.agent.displayName || '').toLowerCase();
-      return from === 'richard' || from === id || from === name;
+      const to = normalizeSender(env.to);
+      const id = normalizeSender(config.agent.id);
+      const label = normalizeSender(config.agent.displayName);
+      return from === 'richard' || from === id || from === label || to === id || to === label;
     }
 
-    function renderEnvelope(env) {
-      const from = normalizeSender(env.from) || '?';
-      const msg = String(env.message || '').trim();
-      if (!msg) return;
-      appendLine(`${from}: ${msg}`, from === 'richard' ? 'self' : '');
+    function scrollToBottom() {
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
-    async function loadChat() {
-      try {
-        const res = await ipcRenderer.invoke('chat-tail-init');
-        if (!res || !res.ok) return;
-        chatOffset = res.offset || 0;
-        chatLoaded = true;
-        const envs = Array.isArray(res.envelopes) ? res.envelopes : [];
-        envs.filter(shouldShowEnvelope).slice(-8).forEach(renderEnvelope);
-        if (document.getElementById('log').children.length === 0) {
-          appendLine('Ready. Drag the pet, then reply from here.');
-        }
-      } catch (err) {
-        appendLine(`chat read failed: ${err.message || err}`, 'error');
+    function renderMessages(envelopes, append = false) {
+      const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-10);
+      if (!append) logEl.innerHTML = '';
+      if (!filtered.length && !append && logEl.children.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'waiting for agent output';
+        logEl.appendChild(empty);
+        return;
       }
-    }
-
-    async function tailChat() {
-      if (!chatLoaded) return;
-      try {
-        const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatOffset });
-        if (!res || !res.ok) return;
-        chatOffset = typeof res.offset === 'number' ? res.offset : chatOffset;
-        const envs = Array.isArray(res.envelopes) ? res.envelopes : [];
-        envs.filter(shouldShowEnvelope).forEach(renderEnvelope);
-      } catch { /* heartbeat covers later */ }
-    }
-
-    async function sendReply() {
-      const input = document.getElementById('input');
-      const button = document.getElementById('reply');
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = '';
-      button.disabled = true;
-      appendLine(`richard: ${text}`, 'self');
-      setMood('thinking');
-      try {
-        const res = await ipcRenderer.invoke('pet-send-message', { agentId, message: text });
-        if (!res || !res.ok || !res.sent) {
-          appendLine(`send failed: ${(res && res.error) || 'no matching pane'}`, 'error');
-          setMood('error', 1400);
-        } else {
-          appendLine(`sent to ${res.sent} pane${res.sent === 1 ? '' : 's'}`);
-          setMood('sent', 1200);
-        }
-      } catch (err) {
-        appendLine(`send failed: ${err.message || err}`, 'error');
-        setMood('error', 1400);
+      const existingEmpty = logEl.querySelector('.empty');
+      if (existingEmpty && filtered.length) existingEmpty.remove();
+      for (const env of filtered) {
+        const row = document.createElement('div');
+        row.className = 'msg';
+        const from = document.createElement('span');
+        from.className = 'from';
+        from.textContent = normalizeSender(env.from || '?');
+        const body = document.createElement('span');
+        body.textContent = String(env.message || '');
+        row.appendChild(from);
+        row.appendChild(body);
+        logEl.appendChild(row);
       }
+      while (logEl.children.length > 10) logEl.removeChild(logEl.firstElementChild);
+      scrollToBottom();
+    }
+
+    async function loadHistory() {
+      const res = await ipcRenderer.invoke('chat-tail-init');
+      if (!res || !res.ok) return;
+      chatTailOffset = res.offset || 0;
+      historyLoaded = true;
+      renderMessages(res.envelopes || [], false);
+    }
+
+    async function tailRefresh() {
+      if (!historyLoaded) return;
+      const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatTailOffset });
+      if (!res || !res.ok) return;
+      chatTailOffset = typeof res.offset === 'number' ? res.offset : chatTailOffset;
+      renderMessages(res.envelopes || [], true);
+    }
+
+    function applyConfig(next) {
+      config = next;
+      if (!config || !config.agent || !config.pet) return;
+      document.documentElement.style.setProperty('--accent', config.agent.themeColor || '#e07c4c');
+      nameEl.textContent = config.agent.displayName || config.agent.id;
+      document.getElementById('sprite').style.setProperty('--pet-sheet', `url("${config.pet.sheetUrl}")`);
+      document.title = `${config.agent.displayName || config.agent.id} Pet`;
     }
 
     async function init() {
-      const res = await ipcRenderer.invoke('pet-window-init-data', { agentId });
+      const res = await ipcRenderer.invoke('get-agent-pet-config', { agentId });
       if (!res || !res.ok) {
-        appendLine((res && res.error) || 'pet config missing', 'error');
+        nameEl.textContent = 'Pet unavailable';
         return;
       }
-      renderConfig(res.config);
-      await loadChat();
-      setInterval(tailChat, 5000);
+      applyConfig(res.config);
+      await loadHistory();
+      pollHandle = setInterval(tailRefresh, 4000);
     }
 
-    document.getElementById('input').addEventListener('input', (ev) => {
-      document.getElementById('reply').disabled = !ev.target.value.trim();
-    });
-    document.getElementById('input').addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') {
-        ev.preventDefault();
-        sendReply();
+    async function sendReply() {
+      const text = inputEl.value.trim();
+      if (!text || !config) return;
+      inputEl.value = '';
+      sendBtn.disabled = true;
+      document.body.classList.add('sending');
+      const local = {
+        from: 'richard',
+        to: config.agent.id,
+        message: text
+      };
+      renderMessages([local], true);
+      try {
+        const res = await ipcRenderer.invoke('pet-send-message', { agentId, message: text });
+        if (!res || !res.ok) {
+          document.body.classList.add('error');
+          setTimeout(() => document.body.classList.remove('error'), 1300);
+        }
+      } finally {
+        setTimeout(() => document.body.classList.remove('sending'), 900);
+        inputEl.focus();
       }
+    }
+
+    inputEl.addEventListener('input', () => {
+      sendBtn.disabled = !inputEl.value.trim();
     });
-    document.getElementById('reply').addEventListener('click', sendReply);
-    document.getElementById('close').addEventListener('click', () => {
+    inputEl.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      sendReply();
+    });
+    sendBtn.addEventListener('click', sendReply);
+    closeBtn.addEventListener('click', () => {
       ipcRenderer.invoke('pet-close-window', { agentId });
     });
-    ipcRenderer.on('pet-config-updated', (_event, next) => renderConfig(next));
-    ipcRenderer.on('pet-mood', (_event, payload = {}) => setMood(payload.mood || 'idle', payload.ms || 0));
-    ipcRenderer.on('chat-tail-changed', () => tailChat());
+    ipcRenderer.on('chat-tail-changed', tailRefresh);
+    ipcRenderer.on('pet-config-updated', (_event, next) => {
+      applyConfig(next);
+      renderMessages([], false);
+      loadHistory();
+    });
+    window.addEventListener('beforeunload', () => {
+      if (pollHandle) clearInterval(pollHandle);
+    });
     init();
   </script>
 </body>
