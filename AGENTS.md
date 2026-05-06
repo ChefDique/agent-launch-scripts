@@ -59,7 +59,8 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 
 ## Session-End Cleanup
 
-- Before ending a session that launched, restarted, or tested AgentRemote, run `bash scripts/session-end-cleanup.sh` unless Richard explicitly asks to keep AgentRemote running. Use `--keep-agentremote` only when preserving the live HUD is intentional.
+- Before ending a session that launched, restarted, or tested AgentRemote, run `bash scripts/session-end-cleanup.sh` to clear stale Electron/worktree state, then relaunch the canonical HUD with `bash launch-remote.sh` unless Richard explicitly asks to leave AgentRemote stopped. Richard expects the shortcut key to work after agent closeout and should not have to guess whether the app is running.
+- Use `--keep-agentremote` only when preserving an already-running live HUD is intentional and stale worktree instances have already been ruled out.
 - The cleanup script is the model-agnostic closeout hook. It stops stale AgentRemote Electron processes from the canonical checkout and Codex worktrees, clears AgentRemote Chromium caches while preserving `Local Storage/` and `pet-state.json`, prints `git status`, lists worktrees, and reports any remaining AgentRemote processes.
 - Do not leave app processes, worktree-launched HUDs, or unexplained dirty state behind at final response. If anything must remain running or dirty, say exactly what it is, why it remains, and how to clean it.
 

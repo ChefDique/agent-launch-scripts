@@ -41,14 +41,17 @@ pgrep -fl "Electron\\.app/Contents/MacOS/Electron \\." | grep remote-app
 ```
 
 Use the session cleanup script before ending any session that launched,
-restarted, or tested AgentRemote:
+restarted, or tested AgentRemote, then relaunch the canonical HUD so the
+global shortcut still has a live app target:
 
 ```bash
 bash scripts/session-end-cleanup.sh
+bash launch-remote.sh
 ```
 
 Use `--keep-agentremote` only when the live HUD should intentionally stay
-running after handoff.
+running during cleanup and stale worktree instances have already been ruled
+out. Leave AgentRemote stopped only when Richard explicitly asks for that.
 
 ## Deferred Decisions
 
