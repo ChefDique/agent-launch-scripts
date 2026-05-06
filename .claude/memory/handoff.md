@@ -2,20 +2,20 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Codex config cleanup: disabled Claude-origin plugins, set Codex-native status line, and restored `/done` plus `/chores` skill exposure.
+**Last working on:** AgentRemote v1 HUD polish shipped, then scoped the next thread: make per-agent Codex pets undockable/floating with chat bubbles while preserving the HUD's current free-moving/lock behavior.
 
-**State at last pause (2026-05-05T17:48:58-0700):**
-- Updated `/Users/richardadair/.codex/config.toml` outside this repo so `claude-mem@thedotmack`, `quantitative-trading@claude-code-workflows`, and all configured `claude-plugins-official` plugins are disabled.
-- Kept OpenAI/Codex-native plugin entries enabled, including `superpowers@openai-curated`, `github@openai-curated`, `browser-use@openai-bundled`, and `computer-use@openai-bundled`.
-- Confirmed Codex does not support Claude's `statusLine.command` hook; configured the supported `[tui].status_line` list plus `terminal_title` instead.
-- Pinned local cleanup skills in `/Users/richardadair/.codex/config.toml`: `/Users/richardadair/.agents/skills/chores/SKILL.md` and `/Users/richardadair/.agents/skills/done/SKILL.md`, both `enabled = true`.
-- Verification passed: parsed `/Users/richardadair/.codex/config.toml` with `tomllib`, checked Claude-origin plugin entries are `False`, and fetched the official Codex config schema to confirm `[tui].status_line` is array-based.
-- Repo code was not changed during the config cleanup; prior handoff commit `a8feecf` was pushed and branch is aligned with `origin/main` before this `/done` handoff update.
-- Current Codex session appears to be running under the desktop/app-server harness, not a proven tmux restart loop; do not blindly `kill $PPID` from this harness.
+**State at last pause (2026-05-06T00:52:27-0700):**
+- Commit `fbf20e1` was pushed to `origin/main`: 4-harness picker, Hermes/OpenClaw SVG assets, GIF/image avatar support, harness mascot fallback, Armory import, full add/edit form reuse for right-click settings, styled scrollbars, popup close buttons, intentional hidden-agent control, per-agent pet toggles, and bundled Goku pet removal.
+- Auto-restart was confirmed wired: renderer persists `auto_restart`, `main.js` loads omitted as true, and `chq-tmux.sh` pane loop re-reads `agents.json` each iteration and exits instead of respawning when `auto_restart` is false.
+- Gaara was messaged via the local message-agent bus for better Hermes/OpenClaw animated logo SVGs; delivery/correlation id was `codex-to-gaara-1778046735`.
+- Richard asked whether AgentRemote pets can be undockable/floating like Codex app pets and whether they can have chat. Answer: yes, with Electron limits. Use separate transparent frameless BrowserWindow pet surfaces (one per visible pet, or a shared overlay window) rather than the current inline DOM pets. Persist per-pet coordinates. Do not change AgentRemote's HUD toggle, locking, or free-moving placement semantics.
+- Chat path for floating pets should reuse existing local substrates: `chat-tail-init`, `chat-tail-read`, `chat-post`, and `~/.message-agent/channels/team/messages.jsonl` for team chat; `broadcast-message` remains the pane-send path for agent-targeted messages. Pet bubbles should appear above each floating pet, stream voice/transcript/team-chat text, and include a compact reply input/button like Richard's screenshot so the user can answer directly from the bubble.
+- Live click testing briefly caused the HUD to jump across displays because a temporary summon/rescue patch changed visible-but-unfocused behavior. That was backed out before commit. Next session must avoid touching the locking/free-moving behavior unless Richard explicitly asks.
+- Current branch is `main`, aligned with `origin/main` after push before this `/done` handoff update.
 
-**Next verifiable step:** Start a fresh Codex session and confirm the exposed skill/plugin list no longer includes disabled Claude-origin plugin duplicates and does include `/done` plus `/chores`; then visually confirm the Codex TUI status line shows model, cwd, git branch, context, tokens, limits, session, and task progress.
+**Next verifiable step:** Prototype floating pet windows without changing HUD movement: create a minimal transparent frameless pet BrowserWindow for one visible agent, load the same Codex pet spritesheet, allow dragging/persisted position, close/spawn from the pet button, render a chat bubble with streaming text plus reply input, and prove the main AgentRemote window stays where Richard placed it.
 
-**If that step fails:** Inspect `/Users/richardadair/.codex/config.toml`, especially `[plugins]` and `[tui]`; if Claude-origin skills still appear, restart the Codex app/server process so plugin exposure reloads from config.
+**If that step fails:** Check Electron transparent/frameless child-window behavior, `remote-app/out.log`, file URL loading for `~/.codex/pets/*/spritesheet.webp`, and macOS Spaces/always-on-top interactions. Fall back to a single transparent overlay BrowserWindow before touching the main HUD toggle/lock path.
 
 **Pending uncommitted diff:** none after this `/done` handoff commit.
 
@@ -47,5 +47,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-05-SESSION_4: Codex-first runtime support and durable docs handoff: `launch-agent.sh` now dispatches Codex/Claude/Hermes/OpenClaw by registry runtime, all local fleet entries default to Codex, ACRM `ALS-011` is `review_pending`, and `context.md` records the Codex-first/ACRM operating contract — commits: `c18f5a4`, `bfd8d95`, `6de1a43` — gated on Richard: none
 - 2026-05-05-SESSION_5: Global Codex config cleanup disabled Claude-origin plugins and configured the supported Codex TUI status line equivalent; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
 - 2026-05-05-SESSION_6: `/done` and `/chores` local skills pinned explicitly in Codex config after slash-command exposure confusion; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
+- 2026-05-06-SESSION: AgentRemote harness/avatar/settings/Armory/pet HUD polish shipped and pushed; next thread scoped to floating undockable pet windows with streaming/reply-capable chat bubbles while preserving HUD free-move behavior — commits: `fbf20e1` pushed plus `/done` handoff commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
