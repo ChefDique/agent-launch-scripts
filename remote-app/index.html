@@ -1952,13 +1952,12 @@
       font-weight: 600;
     }
 
-    /* Layout choice grid — three cards in a row at full width, each a
-       little SVG schematic + name + hint. Clicking flips data-layout on
-       the card; the JS reads which card has aria-checked=true at confirm
+    /* Layout choice grid — one intentional card at full width. Clicking keeps
+       data-layout on the card; the JS reads aria-checked=true at confirm
        time. Hover lifts; selected has the accent border + glow. */
     .deploy-layout-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -3547,20 +3546,11 @@
           <span class="glyph">✕</span>
           <span class="confirm"><span class="ok">✓</span><span class="no">✗</span></span>
         </button>
-        <!-- Layout-mode segmented control. Affects the Deploy button: the
-             selected mode rides along as the `layout` field on spawn-agents.
-             Persists to localStorage so the choice survives across launches.
-             When chq is running AND the active pill differs from the session's
-             stashed @chq_layout, the wrapper gets a `mismatch` class — amber
-             border + tooltip telegraphing "stop session and redeploy to apply". -->
-        <!-- Layout-pill base tooltips set here; applyLayoutMismatchHint() below
-             swaps in the running-state suffix on each poll tick when a session
-             is up. Spec: each pill carries a short explainer of how that
-             layout actually behaves. -->
+        <!-- Deploy layout is intentionally single-mode in AgentRemote:
+             one tmux pane per agent, each broken into its own tmux window,
+             then attached via tmux -CC so iTerm can move/dock/split them. -->
         <div class="layout-pills" id="layout-pills" role="radiogroup" aria-label="Spawn layout mode">
-          <button class="layout-pill active" data-layout="panes"   data-base-title="Horizontal split-panes in one tmux window. Cramped at 5+ agents." title="Horizontal split-panes in one tmux window. Cramped at 5+ agents.">PANES</button>
-          <button class="layout-pill"        data-layout="windows" data-base-title="One tmux window per agent. Switch with Ctrl-b N." title="One tmux window per agent. Switch with Ctrl-b N.">WINDOWS</button>
-          <button class="layout-pill"        data-layout="ittab"   data-base-title="One iTerm window per agent (tmux -CC). Drag, dock, split freely." title="One iTerm window per agent (tmux -CC). Drag, dock, split freely.">MULTI</button>
+          <button class="layout-pill active" data-layout="ittab" data-base-title="One tmux pane per agent, attached through iTerm control-mode windows. Move, dock, or split them freely." title="One tmux pane per agent, attached through iTerm control-mode windows. Move, dock, or split them freely.">EACH</button>
         </div>
         <button class="util-btn" id="edit-btn" title="Edit mode — show × badges to remove agents from registry">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
@@ -3654,31 +3644,13 @@
       <div class="deploy-roster" id="deploy-roster"></div>
       <div class="deploy-section-label">Layout</div>
       <div class="deploy-layout-grid" id="deploy-layout-grid" role="radiogroup" aria-label="Spawn layout">
-        <button class="deploy-layout-card" data-layout="panes" role="radio" aria-checked="false">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="1" y="1" width="30" height="20" rx="3"/><line x1="11" y1="1" x2="11" y2="21"/><line x1="21" y1="1" x2="21" y2="21"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Side-by-side</div>
-            <div class="dl-hint">Horizontal panes in one window</div>
-          </div>
-        </button>
-        <button class="deploy-layout-card" data-layout="windows" role="radio" aria-checked="false">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="1" y="3" width="30" height="18" rx="3"/><rect class="tab" x="1" y="0" width="9" height="4" rx="1"/><rect class="tab" x="11" y="0" width="9" height="4" rx="1"/><rect class="tab active" x="21" y="0" width="9" height="4" rx="1"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Tmux windows</div>
-            <div class="dl-hint">One window each, tmux tab-style</div>
-          </div>
-        </button>
         <button class="deploy-layout-card" data-layout="ittab" role="radio" aria-checked="false">
           <div class="dl-icon" aria-hidden="true">
             <svg viewBox="0 0 32 22"><rect class="bg" x="2" y="5" width="18" height="14" rx="3"/><rect class="tab" x="12" y="1" width="18" height="14" rx="3"/><rect class="tab active" x="7" y="3" width="18" height="14" rx="3"/></svg>
           </div>
           <div class="dl-meta">
-            <div class="dl-name">iTerm windows</div>
-            <div class="dl-hint">Draggable control-mode windows</div>
+            <div class="dl-name">Each agent</div>
+            <div class="dl-hint">One movable tmux/iTerm window per agent</div>
           </div>
         </button>
       </div>
@@ -3803,11 +3775,9 @@
     let petPickerOpenForId = null;
     let petMoodAgentId = null;
 
-    // Spawn-layout mode — affects the Deploy button. One of:
-    //   panes    → single chq window split horizontally (default, today's behavior)
-    //   windows  → each agent in its own tmux window (Ctrl-b N to switch)
-    //   ittab    → tmux -CC attach so iTerm renders each tmux window as its
-    //              own iTerm window (multi-pane via iTerm windows).
+    // Spawn-layout mode — affects the Deploy button. AgentRemote exposes the
+    // single operator path Richard asked for: one tmux pane per agent, each in
+    // its own tmux window, attached through tmux -CC so iTerm can move them.
     // Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks.
     // Whitelisted on read; stale/corrupt values fall back to 'ittab'.
     // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
@@ -5671,9 +5641,8 @@
     // The overlay is a glass card with three things:
     //   1. Roster — one row per agent about to spawn (avatar + name + cwd
     //      + running-or-not chip).
-    //   2. Layout picker — three cards: panes (side-by-side), windows
-    //      (tmux window switching), and ittab/MULTI (draggable iTerm
-    //      control-mode windows). Maps directly to CHQ_LAYOUT values.
+    //   2. Layout picker — one intentional operator path: ittab/EACH,
+    //      which maps to CHQ_LAYOUT=ittab.
     //   3. Cancel + Deploy actions. Confirm fires spawn-agents.
     //
     // Defaults the picker to the segmented-pill choice in the meta row
@@ -5867,10 +5836,9 @@
     // Session-layout tracking + tear-down button (Issue 2)
     // ---------------------------------------------------------------------
     // chq-tmux.sh stashes the chosen layout in a tmux session option
-    // @chq_layout at start time, and cmd_add reads it back on every Deploy.
-    // So once a session is up in (e.g.) `panes` mode, flipping the WINDOWS
-    // pill in the panel and re-Deploying re-uses the existing session under
-    // the OLD layout — confusing. Surface that with:
+    // @chq_layout at start time. AgentRemote now exposes only EACH/ittab, but
+    // old or externally-started sessions may still be in a legacy layout.
+    // Surface that with:
     //
     //   1. A tooltip / amber border on .layout-pills when the active pill
     //      differs from the session's @chq_layout (and a session is running).
@@ -5903,8 +5871,8 @@
     // v2.7: ALSO refresh per-pill tooltips here (they live in data-base-title)
     // so each pill keeps its own explainer + a running-state suffix when
     // applicable. Same poll tick that flips the .mismatch class also rewrites
-    // the per-pill .title — Richard hovers PANES and sees "Horizontal split-
-    // panes…" plus the suffix "Session running in PANES mode" when it applies.
+    // the per-pill .title — Richard hovers EACH and sees the active attach
+    // shape plus a running-session suffix when it applies.
     function applyLayoutMismatchHint() {
       const pills = document.getElementById('layout-pills');
       if (!pills) return;
@@ -6052,7 +6020,13 @@
       const idInput = document.getElementById('f-id');
       const submit = document.getElementById('f-submit');
       const importBtn = document.getElementById('armory-import-btn');
-      if (idInput) idInput.readOnly = agentFormMode === 'edit';
+      if (idInput) {
+        const running = agentFormMode === 'edit' && id && agents[id] && agents[id].running;
+        idInput.readOnly = !!running;
+        idInput.title = running
+          ? 'Stop this agent before changing its id'
+          : 'Agent id. Editable while the agent is not running.';
+      }
       if (submit) submit.textContent = agentFormMode === 'edit' ? 'Save' : 'Create';
       if (importBtn) importBtn.style.display = agentFormMode === 'edit' ? 'none' : '';
     }
@@ -6093,7 +6067,11 @@
       setAddHarnessRuntime(agent.runtime || 'codex');
       document.body.classList.add('adding');
       syncWindowSize();
-      requestAnimationFrame(() => document.getElementById('f-name').focus());
+      requestAnimationFrame(() => {
+        const idEl = document.getElementById('f-id');
+        const nameEl = document.getElementById('f-name');
+        (idEl && !idEl.readOnly ? idEl : nameEl).focus();
+      });
     }
 
     function closeAddForm() {
@@ -6257,6 +6235,7 @@
       errEl.textContent = '';
       const themeColor = document.getElementById('f-color').value;  // hex from <input type="color">
       const payload = {
+        originalId: editingAgentId,
         id: document.getElementById('f-id').value.trim(),
         displayName: document.getElementById('f-name').value.trim(),
         cwd: document.getElementById('f-cwd').value.trim(),

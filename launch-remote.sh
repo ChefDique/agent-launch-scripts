@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Agent Remote Management Script
 
-APP_DIR="/Users/richardadair/agent-launch-scripts/remote-app"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$SCRIPT_DIR/remote-app"
 ELECTRON_APP="$APP_DIR/node_modules/electron/dist/Electron.app"
 ELECTRON_BIN="$ELECTRON_APP/Contents/MacOS/Electron"
 AGENTREMOTE_APP_PATTERN="/agent-launch-scripts/remote-app"

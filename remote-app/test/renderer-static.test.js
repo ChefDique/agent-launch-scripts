@@ -97,3 +97,16 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
   assert.match(html, /sendPetWindowMood\(a\.id, 'review'\)/);
   assert.match(html, /sendPetWindowMood\(a\.id, 'sent', 1400\)/);
 });
+
+test('deploy surface keeps the operator path to one movable window per agent', () => {
+  assert.match(html, /data-layout="ittab"/);
+  assert.match(html, />EACH<\/button>/);
+  assert.doesNotMatch(html, /data-layout="panes"/);
+  assert.doesNotMatch(html, /data-layout="windows"/);
+});
+
+test('edit form allows agent id edits until the agent is running', () => {
+  assert.match(html, /Stop this agent before changing its id/);
+  assert.match(html, /originalId: editingAgentId/);
+  assert.doesNotMatch(html, /idInput\.readOnly = agentFormMode === 'edit'/);
+});

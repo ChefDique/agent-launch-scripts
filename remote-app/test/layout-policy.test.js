@@ -9,22 +9,24 @@ const {
   tmuxAttachCommand
 } = require('../layout-policy');
 
-test('MULTI/ittab remains the deploy layout instead of degrading to plain windows', () => {
+test('EACH/ittab remains the deploy layout instead of degrading to plain windows', () => {
   assert.equal(layoutModeToDeployLayout('ittab'), 'ittab');
 });
 
-test('deploy picker exposes split panes, plain tmux windows, and draggable iTerm windows only', () => {
-  assert.deepEqual(DEPLOY_LAYOUTS, ['panes', 'windows', 'ittab']);
+test('deploy picker exposes only the movable per-agent iTerm window layout', () => {
+  assert.deepEqual(DEPLOY_LAYOUTS, ['ittab']);
 });
 
 test('spawn layout fallback is the movable ittab layout', () => {
+  assert.equal(normalizeSpawnLayout('panes'), 'ittab');
+  assert.equal(normalizeSpawnLayout('windows'), 'ittab');
   assert.equal(normalizeSpawnLayout('bogus'), 'ittab');
   assert.equal(normalizeSpawnLayout(''), 'ittab');
   assert.equal(normalizeSpawnLayout(null), 'ittab');
 });
 
 test('renderer layout modes match the spawn whitelist', () => {
-  assert.deepEqual(LAYOUT_MODES, ['panes', 'windows', 'ittab']);
+  assert.deepEqual(LAYOUT_MODES, ['ittab']);
 });
 
 test('attach uses iTerm control mode for movable window layouts and break-outs', () => {

@@ -1,5 +1,5 @@
-const LAYOUT_MODES = ['panes', 'windows', 'ittab'];
-const DEPLOY_LAYOUTS = ['panes', 'windows', 'ittab'];
+const LAYOUT_MODES = ['ittab'];
+const DEPLOY_LAYOUTS = ['ittab'];
 
 const DEFAULT_LAYOUT = 'ittab';
 
