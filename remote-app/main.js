@@ -705,20 +705,14 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
-  // Two send-keys calls: first types the literal message (so agent TUIs
-  // receive the characters), then presses Enter as a separate keystroke to
-  // submit. A single combined call (`message Enter`) typed the text but didn't
-  // submit reliably against Claude's TUI — Richard
-  // reported the input sat in the box unsubmitted. The launch-agent.sh
-  // auto-inject sequence uses the same split-call pattern (matches the
-  // legacy per-agent scripts that worked).
+  // One tmux command sequence: literal text first, submit keystroke second.
+  // Separate execFile calls can leave Codex/Claude TUIs with text typed into
+  // the inbox but not submitted. Keeping both operations in one tmux client
+  // preserves ordering without going through a shell.
   return new Promise((resolve, reject) => {
-    execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
+    execFile('tmux', ['send-keys', '-t', coord, '-l', message, ';', 'send-keys', '-t', coord, 'C-m'], (err, _o, ser) => {
       if (err) return reject(new Error(ser || err.message));
-      execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err2, _o2, ser2) => {
-        if (err2) return reject(new Error(ser2 || err2.message));
-        resolve(coord);
-      });
+      resolve(coord);
     });
   });
 }
@@ -895,11 +889,15 @@ ipcMain.on('spawn-agents', (event, payload) => {
     //
     // This is more reliable than scraping iTerm session names — tmux is
     // the source of truth for "is anyone watching this session".
-    execFile('tmux', ['list-clients', '-t', 'chq', '-F', '#{client_name}'], (errLC, lcOut) => {
-      const hasClient = !errLC && lcOut.split('\n').some(l => l.trim().length > 0);
-      if (hasClient) {
-        // Someone (likely iTerm) is already attached. Just bring iTerm
-        // forward so the existing tab is visible — no new tab spawn.
+    execFile('tmux', ['list-clients', '-t', 'chq', '-F', '#{client_name}\t#{client_control_mode}'], (errLC, lcOut) => {
+      const clients = !errLC
+        ? lcOut.split('\n').map(l => l.trim()).filter(Boolean)
+        : [];
+      const hasClient = clients.length > 0;
+      const hasControlClient = clients.some(line => line.split('\t')[1] === '1');
+      if ((layout === 'ittab' && hasControlClient) || (layout !== 'ittab' && hasClient)) {
+        // Someone is already attached in the right mode. Just bring iTerm
+        // forward so the existing control-mode windows/tab stay in place.
         execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
         return;
       }
@@ -1147,7 +1145,9 @@ const UPDATABLE_FIELDS = {
 
 ipcMain.handle('update-agent-form', async (event, payload = {}) => {
   try {
+    const originalId = String(payload.originalId || payload.id || '').trim().toLowerCase();
     const safeId = String(payload.id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(originalId)) throw new Error('invalid original id');
     if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
     const displayName = String(payload.displayName || '').trim();
     if (!displayName) throw new Error('display_name required');
@@ -1174,10 +1174,25 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       fs.copyFileSync(avatarSrc, path.join(ASSETS_DIR, avatarFilename));
     }
 
+    if (safeId !== originalId) {
+      const existingAgents = loadAgents();
+      if (existingAgents.some(a => a.id === safeId)) throw new Error(`agent id "${safeId}" already exists`);
+      const originalAgent = existingAgents.find(a => a.id === originalId);
+      if (!originalAgent) throw new Error(`agent "${originalId}" not in registry`);
+      const liveMatches = await resolveLiveAgentPanes(originalAgent);
+      if (liveMatches.length > 0) throw new Error('stop this agent before changing its id');
+    }
+
     let updatedEntry = null;
     writeRegistry(data => {
-      const entry = (data.agents || []).find(a => a.id === safeId);
-      if (!entry) throw new Error(`agent "${safeId}" not in registry`);
+      const entry = (data.agents || []).find(a => a.id === originalId);
+      if (!entry) throw new Error(`agent "${originalId}" not in registry`);
+      const oldId = entry.id;
+      if (safeId !== oldId && !avatarFilename && !entry.avatar) {
+        const oldBundledAvatar = bundledAvatarForId(oldId);
+        if (oldBundledAvatar) entry.avatar = oldBundledAvatar;
+      }
+      entry.id = safeId;
       entry.display_name = displayName;
       entry.cwd = cwd;
       entry.runtime = runtime;

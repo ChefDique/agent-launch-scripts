@@ -10,6 +10,7 @@ set -euo pipefail
 #   chq-tmux.sh restart <dept> — restart a single department pane
 
 SESSION="${CHQ_SESSION:-chq}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHQ_ROOT="/Users/richardadair/ai_projects/CorporateHQ"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
@@ -27,8 +28,8 @@ AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 #
 # Xavier is the harness slot (not a department). The registry order puts it
 # first, so it lands as the leftmost pane on `start all`.
-REGISTRY="${AGENT_REGISTRY:-${HOME}/agent-launch-scripts/agents.json}"
-LAUNCH_AGENT="${HOME}/agent-launch-scripts/launch-agent.sh"
+REGISTRY="${AGENT_REGISTRY:-${SCRIPT_DIR}/agents.json}"
+LAUNCH_AGENT="${SCRIPT_DIR}/launch-agent.sh"
 AGENT_FACTORY="${HOME}/ai_projects/agent-factory"
 
 shell_quote() {

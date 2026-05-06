@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Agent Remote Management Script
 
-APP_DIR="/Users/richardadair/agent-launch-scripts/remote-app"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$SCRIPT_DIR/remote-app"
 ELECTRON_APP="$APP_DIR/node_modules/electron/dist/Electron.app"
 ELECTRON_BIN="$ELECTRON_APP/Contents/MacOS/Electron"
+AGENTREMOTE_ELECTRON_PATTERN="Electron\\.app/Contents/MacOS/Electron .*/agent-launch-scripts/remote-app"
 
 case "$1" in
   stop)
     echo "Stopping Agent Remote..."
-    pkill -f "$ELECTRON_BIN"
+    pkill -f "$AGENTREMOTE_ELECTRON_PATTERN"
     pkill -f "node ./node_modules/.bin/electron ."
     ;;
   toggle)
@@ -32,7 +34,7 @@ case "$1" in
     # when its noninteractive parent shell goes away, while `open` hands the GUI
     # app off to LaunchServices and leaves one durable AgentRemote process.
     echo "Launching Electron Agent Remote..."
-    pkill -f "$ELECTRON_BIN" 2>/dev/null
+    pkill -f "$AGENTREMOTE_ELECTRON_PATTERN" 2>/dev/null
     pkill -f "node ./node_modules/.bin/electron ." 2>/dev/null
     sleep 0.3
     open -na "$ELECTRON_APP" --args "$APP_DIR"
