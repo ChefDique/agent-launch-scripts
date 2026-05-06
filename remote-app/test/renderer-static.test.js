@@ -41,9 +41,23 @@ test('right-click settings routes to the shared add/edit form', () => {
 
 test('agent pets are per-agent and use the Codex pet roster instead of a hard-coded companion', () => {
   assert.match(html, /id="agent-pet-layer"/);
+  assert.match(html, /id="pet-picker"/);
   assert.match(html, /className = 'pet-toggle'/);
   assert.match(html, /list-codex-pets/);
-  assert.match(html, /agentRemoteVisiblePets/);
+  assert.match(html, /load-agent-pet-state/);
+  assert.match(html, /show-agent-pet/);
+  assert.match(html, /hide-agent-pet/);
+  assert.doesNotMatch(html, /agentRemoteVisiblePets/);
   assert.doesNotMatch(html, /id="codex-pet"/);
   assert.equal(fs.existsSync(path.join(__dirname, '..', 'assets', 'pets', 'goku')), false);
+});
+
+test('floating pet window has draggable sprite, mini log, close, and reply controls', () => {
+  const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
+  assert.match(petWindow, /id="sprite"/);
+  assert.match(petWindow, /id="log"/);
+  assert.match(petWindow, /id="close"/);
+  assert.match(petWindow, /id="reply"/);
+  assert.match(petWindow, /pet-send-message/);
+  assert.match(petWindow, /chat-tail-init/);
 });

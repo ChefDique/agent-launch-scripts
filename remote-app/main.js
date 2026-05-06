@@ -28,6 +28,7 @@ const DEFAULT_ACRM_ENV_PATH = path.join(os.homedir(), 'ai_projects', 'CorporateH
 const AVATAR_EXTENSIONS = ['svg', 'gif', 'png', 'jpg', 'jpeg', 'webp'];
 const USER_CODEX_PETS_DIR = path.join(os.homedir(), '.codex', 'pets');
 const BUNDLED_PETS_DIR = path.join(ASSETS_DIR, 'pets');
+const PET_WINDOW_FILE = path.join(__dirname, 'pet-window.html');
 
 // Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
@@ -50,6 +51,9 @@ const WORKAREA_BOTTOM_SAFETY = 4;
 const TOGGLE_ACCELERATOR = 'Cmd+Shift+Space';
 
 let mainWindow;
+const petWindows = new Map();
+const petWindowConfigs = new Map();
+let isQuitting = false;
 
 // Best-effort append to remote-app/out.log. Used so registration warnings
 // (e.g. accelerator already taken) survive across launches without depending
@@ -121,6 +125,214 @@ function loadCodexPetRoster() {
     pets.push(pet);
   }
   return pets;
+}
+
+function petStatePath() {
+  return path.join(app.getPath('userData'), 'pet-state.json');
+}
+
+function emptyPetState() {
+  return { visible: {}, selections: {}, bounds: {} };
+}
+
+function readPetState() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(petStatePath(), 'utf8'));
+    return {
+      visible: parsed && typeof parsed.visible === 'object' ? parsed.visible : {},
+      selections: parsed && typeof parsed.selections === 'object' ? parsed.selections : {},
+      bounds: parsed && typeof parsed.bounds === 'object' ? parsed.bounds : {}
+    };
+  } catch {
+    return emptyPetState();
+  }
+}
+
+function writePetState(state) {
+  const next = {
+    visible: state && typeof state.visible === 'object' ? state.visible : {},
+    selections: state && typeof state.selections === 'object' ? state.selections : {},
+    bounds: state && typeof state.bounds === 'object' ? state.bounds : {}
+  };
+  fs.mkdirSync(path.dirname(petStatePath()), { recursive: true });
+  fs.writeFileSync(petStatePath(), JSON.stringify(next, null, 2) + '\n', 'utf8');
+  return next;
+}
+
+function normalizePetId(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function agentById(agentId) {
+  const wanted = String(agentId || '');
+  return loadAgents().find(a => a.id === wanted) || null;
+}
+
+function petById(petId) {
+  const wanted = normalizePetId(petId);
+  return loadCodexPetRoster().find(p => normalizePetId(p.id) === wanted) || null;
+}
+
+function defaultPetForAgent(agent) {
+  const pets = loadCodexPetRoster();
+  if (!agent || pets.length === 0) return null;
+  const byId = new Map(pets.map(p => [normalizePetId(p.id), p]));
+  const candidates = [
+    agent.id,
+    agent.displayName,
+    agent.id === 'xavier' ? 'professor-xavier' : '',
+    agent.id === 'codex' ? 'codeberg' : '',
+    agent.id === 'tmux-masta' ? 'openclaw' : '',
+    agent.runtime === 'openclaw' ? 'openclaw' : '',
+    agent.runtime === 'hermes' ? 'hermes' : ''
+  ].map(value => normalizePetId(value).replace(/[^a-z0-9]+/g, '-')).filter(Boolean);
+  for (const candidate of candidates) {
+    if (byId.has(candidate)) return byId.get(candidate);
+  }
+  for (const fallback of ['openclaw', 'codeberg', 'neo']) {
+    if (byId.has(fallback)) return byId.get(fallback);
+  }
+  return pets.find(p => normalizePetId(p.id) !== 'goku') || pets[0] || null;
+}
+
+function defaultPetBounds(agentId) {
+  const display = screen.getPrimaryDisplay();
+  const work = display.workArea;
+  let x = work.x + Math.round(work.width / 2) - 150;
+  let y = work.y + 80;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const mainBounds = mainWindow.getBounds();
+    x = mainBounds.x + Math.max(0, Math.round(mainBounds.width / 2) - 150);
+    y = Math.max(work.y + 16, mainBounds.y - 130);
+  }
+  const offset = Math.max(0, Array.from(petWindows.keys()).indexOf(agentId)) * 26;
+  return { x: x + offset, y: y + offset, width: 300, height: 250 };
+}
+
+function persistPetBounds(agentId, bounds) {
+  const state = readPetState();
+  state.bounds[agentId] = {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height
+  };
+  try { writePetState(state); }
+  catch (err) { logToOutLog(`[pet] persist bounds failed for ${agentId}: ${err.message}`); }
+}
+
+function notifyPetWindows(channel, ...args) {
+  for (const win of petWindows.values()) {
+    if (!win || win.isDestroyed()) continue;
+    try { win.webContents.send(channel, ...args); }
+    catch { /* renderer not ready */ }
+  }
+}
+
+function notifyMainPetState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.webContents.send('agent-pet-state-changed', readPetState()); }
+  catch { /* renderer not ready */ }
+}
+
+function hideAgentPetWindow(agentId, { persist = true } = {}) {
+  const id = String(agentId || '');
+  if (!id) return { ok: false, error: 'agent id required' };
+  const win = petWindows.get(id);
+  if (persist) {
+    const state = readPetState();
+    delete state.visible[id];
+    try { writePetState(state); } catch (err) { return { ok: false, error: err.message }; }
+  }
+  if (win && !win.isDestroyed()) win.close();
+  petWindows.delete(id);
+  petWindowConfigs.delete(id);
+  if (persist) notifyMainPetState();
+  return { ok: true, state: readPetState() };
+}
+
+function showAgentPetWindow(agentId, petId) {
+  const agent = agentById(agentId);
+  if (!agent) return { ok: false, error: `unknown agent: ${agentId}` };
+  const pet = petById(petId) || defaultPetForAgent(agent);
+  if (!pet) return { ok: false, error: `unknown pet: ${petId}` };
+
+  const state = readPetState();
+  state.visible[agent.id] = true;
+  state.selections[agent.id] = pet.id;
+  try { writePetState(state); } catch (err) { return { ok: false, error: err.message }; }
+
+  const config = {
+    agent: {
+      id: agent.id,
+      displayName: agent.displayName || agent.id,
+      tmuxTarget: agent.tmuxTarget,
+      themeColor: agent.themeColor || '#e07c4c'
+    },
+    pet
+  };
+  petWindowConfigs.set(agent.id, config);
+
+  const existing = petWindows.get(agent.id);
+  if (existing && !existing.isDestroyed()) {
+    existing.webContents.send('pet-config-updated', config);
+    notifyMainPetState();
+    return { ok: true, state: readPetState() };
+  }
+
+  const savedBounds = state.bounds[agent.id];
+  const bounds = savedBounds && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)
+    ? { width: 300, height: 250, ...savedBounds }
+    : defaultPetBounds(agent.id);
+  const win = new BrowserWindow({
+    width: bounds.width || 300,
+    height: bounds.height || 250,
+    x: bounds.x,
+    y: bounds.y,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    hasShadow: false,
+    skipTaskbar: true,
+    title: `AgentRemote Pet ${agent.displayName || agent.id}`,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+      backgroundThrottling: false
+    }
+  });
+  petWindows.set(agent.id, win);
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.loadFile(PET_WINDOW_FILE, { query: { agentId: agent.id } });
+  win.once('ready-to-show', () => {
+    if (!win.isDestroyed()) win.showInactive();
+  });
+  win.on('moved', () => {
+    if (!win.isDestroyed()) persistPetBounds(agent.id, win.getBounds());
+  });
+  win.on('closed', () => {
+    petWindows.delete(agent.id);
+    petWindowConfigs.delete(agent.id);
+    if (isQuitting) return;
+    const next = readPetState();
+    delete next.visible[agent.id];
+    try { writePetState(next); } catch {}
+    notifyMainPetState();
+  });
+  notifyMainPetState();
+  return { ok: true, state: readPetState() };
+}
+
+function restoreVisiblePetWindows() {
+  const state = readPetState();
+  for (const [agentId, visible] of Object.entries(state.visible || {})) {
+    if (!visible) continue;
+    const selectedPetId = state.selections ? state.selections[agentId] : '';
+    const res = showAgentPetWindow(agentId, selectedPetId);
+    if (!res.ok) logToOutLog(`[pet] restore failed for ${agentId}: ${res.error}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -437,13 +649,17 @@ app.whenReady().then(() => {
   registerSignalToggle();
   watchToggleFile();
   startChatWatcher();
+  restoreVisiblePetWindows();
 });
 app.on('window-all-closed', () => { app.quit(); });
 // globalShortcut bindings are process-wide and survive renderer crashes —
 // Electron explicitly requires unregisterAll() before quit so the OS
 // releases the accelerator. Without this, a leftover binding can persist
 // until the entire process tree is reaped.
-app.on('will-quit', () => { globalShortcut.unregisterAll(); });
+app.on('will-quit', () => {
+  isQuitting = true;
+  globalShortcut.unregisterAll();
+});
 
 // ---------------------------------------------------------------------------
 // Global show/hide toggle
@@ -569,6 +785,53 @@ ipcMain.handle('list-codex-pets', () => {
   } catch (err) {
     return { ok: false, error: err.message, pets: [] };
   }
+});
+
+ipcMain.handle('load-agent-pet-state', () => {
+  try {
+    return { ok: true, state: readPetState() };
+  } catch (err) {
+    return { ok: false, error: err.message, state: emptyPetState() };
+  }
+});
+
+ipcMain.handle('show-agent-pet', (_event, payload = {}) => {
+  return showAgentPetWindow(payload.agentId, payload.petId);
+});
+
+ipcMain.handle('hide-agent-pet', (_event, payload = {}) => {
+  return hideAgentPetWindow(payload.agentId);
+});
+
+ipcMain.handle('pet-window-init-data', (_event, payload = {}) => {
+  const id = String(payload.agentId || '');
+  const config = petWindowConfigs.get(id);
+  if (!config) return { ok: false, error: `no pet config for ${id}` };
+  return { ok: true, config };
+});
+
+ipcMain.handle('pet-send-message', async (_event, payload = {}) => {
+  const agent = agentById(payload.agentId);
+  if (!agent) return { ok: false, sent: 0, error: `unknown agent: ${payload.agentId}` };
+  return broadcastMessage({
+    message: payload.message,
+    selectedAgents: [agent],
+    isAll: false
+  });
+});
+
+ipcMain.handle('pet-close-window', (_event, payload = {}) => {
+  return hideAgentPetWindow(payload.agentId);
+});
+
+ipcMain.on('pet-set-mood', (_event, payload = {}) => {
+  const id = String(payload.agentId || '');
+  const win = petWindows.get(id);
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send('pet-mood', {
+    mood: payload.mood || 'idle',
+    ms: Number.isFinite(payload.ms) ? payload.ms : 0
+  });
 });
 ipcMain.handle('list-armory-agents', () => fetchArmoryAgents());
 
@@ -1836,6 +2099,7 @@ function startChatWatcher() {
           try { mainWindow.webContents.send('chat-tail-changed'); }
           catch { /* renderer not ready yet — heartbeat fallback covers it */ }
         }
+        notifyPetWindows('chat-tail-changed');
       }, 50);
     });
     chatWatcher.on('error', (err) => {
@@ -1846,6 +2110,7 @@ function startChatWatcher() {
   }
 }
 app.on('before-quit', () => {
+  isQuitting = true;
   if (chatWatchDebounce) { clearTimeout(chatWatchDebounce); chatWatchDebounce = null; }
   if (chatWatcher) { try { chatWatcher.close(); } catch { /* already closed */ } chatWatcher = null; }
   // Tear down all live pipe-pane registrations so we don't leave zombie

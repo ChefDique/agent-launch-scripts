@@ -87,10 +87,6 @@
       padding: 24px 14px 14px;
       -webkit-app-region: drag;
     }
-    body.has-agent-pets {
-      padding-top: 78px;
-    }
-
     /* v2.4: radial menu now opens BELOW the tile (into the dead space under
        the panel), so the panel never moves and we no longer need a body
        anchor flip during open. The window grows DOWNWARD via setContentSize;
@@ -445,6 +441,71 @@
     .pet-toggle:active {
       transform: translateY(0);
       transition-duration: 0.08s;
+    }
+    .pet-picker {
+      position: fixed;
+      z-index: 42;
+      min-width: 174px;
+      max-width: 220px;
+      max-height: 240px;
+      overflow: auto;
+      padding: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 13px;
+      background: linear-gradient(180deg, rgba(20, 20, 30, 0.94), rgba(8, 8, 14, 0.92));
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(28px) saturate(140%);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-4px) scale(0.98);
+      transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+      -webkit-app-region: no-drag;
+    }
+    .pet-picker.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+    .pet-picker-title {
+      padding: 2px 5px 7px;
+      color: var(--text-muted);
+      font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+    .pet-picker-row {
+      width: 100%;
+      min-height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 7px;
+      cursor: pointer;
+      font-size: 11px;
+      text-align: left;
+    }
+    .pet-picker-row:hover {
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .pet-picker-row.active {
+      color: var(--accent);
+      background: rgba(224, 124, 76, 0.11);
+    }
+    .pet-picker-row.hide {
+      margin-top: 5px;
+      color: rgba(255, 255, 255, 0.58);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0 0 8px 8px;
+    }
+    .pet-picker-row .mark {
+      color: var(--text-muted);
+      font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+      font-size: 9px;
     }
     /* Edit mode hides keycap badges so they don't compete with the × badge. */
     body.editing .fkey-badge { opacity: 0; }
@@ -3625,6 +3686,7 @@
          so existing dismiss handlers (outside-click / Escape / blur) cover it. -->
     <div class="radial-settings" id="radial-settings" aria-hidden="true"></div>
   </div>
+  <div class="pet-picker" id="pet-picker" aria-hidden="true"></div>
 
   <!-- Bebber's gooey SVG filter. Lives in a 0×0 SVG so it doesn't affect
        layout. The pipeline:
@@ -3694,6 +3756,8 @@
     let codexPets = [];
     let codexPetsById = new Map();
     let visiblePets = {};
+    let selectedPets = {};
+    let petPickerOpenForId = null;
     let petMoodAgentId = null;
 
     // Spawn-layout mode — affects the Deploy button. One of:
@@ -3908,29 +3972,31 @@
       container.textContent = (agent && (agent.displayName || agent.id) || '?').slice(0, 1).toUpperCase();
     }
 
-    const PET_VISIBILITY_STORAGE_KEY = 'agentRemoteVisiblePets';
-
-    function loadVisiblePetState() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(PET_VISIBILITY_STORAGE_KEY) || '{}');
-        visiblePets = parsed && typeof parsed === 'object' ? parsed : {};
-      } catch {
-        visiblePets = {};
-      }
-    }
-
-    function persistVisiblePetState() {
-      try { localStorage.setItem(PET_VISIBILITY_STORAGE_KEY, JSON.stringify(visiblePets)); }
-      catch { /* localStorage can be unavailable in sandboxed contexts */ }
-    }
-
     async function loadCodexPetRoster() {
       let result = null;
       try { result = await ipcRenderer.invoke('list-codex-pets'); }
       catch { result = null; }
       codexPets = (result && result.ok && Array.isArray(result.pets)) ? result.pets : [];
       codexPetsById = new Map(codexPets.map(p => [String(p.id).toLowerCase(), p]));
-      loadVisiblePetState();
+      try {
+        const stateResult = await ipcRenderer.invoke('load-agent-pet-state');
+        if (stateResult && stateResult.ok) applyAgentPetState(stateResult.state);
+      } catch {
+        applyAgentPetState({});
+      }
+    }
+
+    function applyAgentPetState(state = {}) {
+      visiblePets = state && typeof state.visible === 'object' ? state.visible : {};
+      selectedPets = state && typeof state.selections === 'object' ? state.selections : {};
+      document.querySelectorAll('.pet-toggle').forEach(btn => {
+        const id = btn.dataset.agentId;
+        const visible = isAgentPetVisible(id);
+        btn.classList.toggle('active', visible);
+        btn.title = `${visible ? 'Pet active' : 'Pick pet'}`;
+        btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+      });
+      renderAgentPets();
     }
 
     function normalizePetToken(value) {
@@ -3939,6 +4005,10 @@
 
     function petForAgent(agent) {
       if (!agent || codexPets.length === 0) return null;
+      const selected = selectedPets[agent.id];
+      if (selected && codexPetsById.has(String(selected).toLowerCase())) {
+        return codexPetsById.get(String(selected).toLowerCase());
+      }
       const exactCandidates = [
         agent.id,
         agent.displayName,
@@ -3961,19 +4031,113 @@
       return !!visiblePets[id];
     }
 
-    function setAgentPetVisible(id, visible) {
+    async function setAgentPetVisible(id, visible, petId = '') {
       if (!agents[id]) return;
-      if (visible) visiblePets[id] = true;
-      else delete visiblePets[id];
-      persistVisiblePetState();
+      const pet = petId ? codexPetsById.get(String(petId).toLowerCase()) : petForAgent(agents[id]);
+      let res = null;
+      if (visible) {
+        if (!pet) return;
+        res = await ipcRenderer.invoke('show-agent-pet', { agentId: id, petId: pet.id });
+      } else {
+        res = await ipcRenderer.invoke('hide-agent-pet', { agentId: id });
+      }
+      if (!res || !res.ok) {
+        flashTileError(document.getElementById(`btn-${id}`), res && res.error ? res.error : 'pet action failed');
+        return;
+      }
+      applyAgentPetState(res.state || {});
       const btn = document.querySelector(`.pet-toggle[data-agent-id="${CSS.escape(id)}"]`);
       if (btn) {
         btn.classList.toggle('active', visible);
-        btn.title = `${visible ? 'Hide' : 'Show'} pet`;
+        btn.title = `${visible ? 'Pet active' : 'Pick pet'}`;
         btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
       }
-      renderAgentPets();
-      syncWindowSize();
+    }
+
+    function closePetPicker() {
+      const picker = document.getElementById('pet-picker');
+      if (!picker) return;
+      picker.classList.remove('open');
+      picker.setAttribute('aria-hidden', 'true');
+      picker.innerHTML = '';
+      petPickerOpenForId = null;
+      document.removeEventListener('mousedown', petPickerOutsideHandler, true);
+      document.removeEventListener('keydown', petPickerKeyHandler, true);
+    }
+
+    function petPickerOutsideHandler(ev) {
+      const picker = document.getElementById('pet-picker');
+      if (picker && picker.contains(ev.target)) return;
+      if (ev.target && ev.target.closest && ev.target.closest('.pet-toggle')) return;
+      closePetPicker();
+    }
+
+    function petPickerKeyHandler(ev) {
+      if (ev.key !== 'Escape') return;
+      ev.preventDefault();
+      closePetPicker();
+    }
+
+    function openPetPicker(agent, anchor) {
+      const picker = document.getElementById('pet-picker');
+      if (!picker || !agent) return;
+      if (petPickerOpenForId === agent.id) {
+        closePetPicker();
+        return;
+      }
+      closePetPicker();
+      petPickerOpenForId = agent.id;
+      picker.innerHTML = '';
+      const title = document.createElement('div');
+      title.className = 'pet-picker-title';
+      title.textContent = `Pet for ${labelTextFor(agent)}`;
+      picker.appendChild(title);
+
+      codexPets.forEach(pet => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'pet-picker-row';
+        const active = isAgentPetVisible(agent.id) && String(selectedPets[agent.id] || '').toLowerCase() === String(pet.id).toLowerCase();
+        row.classList.toggle('active', active);
+        const name = document.createElement('span');
+        name.textContent = pet.displayName || pet.id;
+        const mark = document.createElement('span');
+        mark.className = 'mark';
+        mark.textContent = active ? 'ON' : pet.source;
+        row.appendChild(name);
+        row.appendChild(mark);
+        row.addEventListener('click', async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          await setAgentPetVisible(agent.id, true, pet.id);
+          closePetPicker();
+        });
+        picker.appendChild(row);
+      });
+
+      if (isAgentPetVisible(agent.id)) {
+        const hide = document.createElement('button');
+        hide.type = 'button';
+        hide.className = 'pet-picker-row hide';
+        hide.textContent = 'Hide floating pet';
+        hide.addEventListener('click', async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          await setAgentPetVisible(agent.id, false);
+          closePetPicker();
+        });
+        picker.appendChild(hide);
+      }
+
+      const rect = anchor.getBoundingClientRect();
+      const left = Math.max(8, Math.min(window.innerWidth - 188, rect.left - 16));
+      const top = Math.max(8, Math.min(window.innerHeight - 248, rect.bottom + 6));
+      picker.style.left = `${Math.round(left)}px`;
+      picker.style.top = `${Math.round(top)}px`;
+      picker.classList.add('open');
+      picker.setAttribute('aria-hidden', 'false');
+      document.addEventListener('mousedown', petPickerOutsideHandler, true);
+      document.addEventListener('keydown', petPickerKeyHandler, true);
     }
 
     function renderPetToggle(agent) {
@@ -3982,9 +4146,9 @@
       btn.type = 'button';
       btn.className = 'pet-toggle' + (isAgentPetVisible(agent.id) ? ' active' : '');
       btn.dataset.agentId = agent.id;
-      btn.textContent = '⌄';
+      btn.textContent = 'v';
       btn.title = pet
-        ? `${isAgentPetVisible(agent.id) ? 'Hide' : 'Show'} ${pet.displayName || 'pet'}`
+        ? `${isAgentPetVisible(agent.id) ? 'Pet active' : 'Pick pet'}`
         : 'No Codex pet available';
       btn.setAttribute('aria-label', btn.title);
       btn.setAttribute('aria-pressed', isAgentPetVisible(agent.id) ? 'true' : 'false');
@@ -3993,7 +4157,7 @@
         ev.preventDefault();
         ev.stopPropagation();
         if (!petForAgent(agent)) return;
-        setAgentPetVisible(agent.id, !isAgentPetVisible(agent.id));
+        openPetPicker(agent, btn);
       });
       return btn;
     }
@@ -4004,23 +4168,7 @@
       layer.innerHTML = '';
       const visibleIds = agentOrder.filter(id => isAgentPetVisible(id) && agents[id]);
       document.body.classList.toggle('has-agent-pets', visibleIds.length > 0);
-      visibleIds.forEach(id => {
-        const agent = agents[id];
-        const pet = petForAgent(agent);
-        if (!pet) return;
-        const el = document.createElement('div');
-        el.className = 'agent-pet';
-        el.dataset.agentId = id;
-        el.dataset.petId = pet.id;
-        el.style.setProperty('--pet-sheet', `url("${pet.sheetUrl}")`);
-        const sprite = document.createElement('span');
-        sprite.className = 'agent-pet-sprite';
-        sprite.setAttribute('role', 'presentation');
-        el.appendChild(sprite);
-        layer.appendChild(el);
-      });
       updatePetMoodTarget();
-      requestAnimationFrame(positionAgentPets);
     }
 
     function positionAgentPets() {
@@ -6514,6 +6662,7 @@
       }
       petMoodAgentId = agentId || null;
       updatePetMoodTarget();
+      ipcRenderer.send('pet-set-mood', { agentId: petMoodAgentId, mood: mood || 'idle', ms });
       if (mood && mood !== 'idle') document.body.classList.add(`pet-${mood}`);
       if (ms > 0) {
         petMoodTimer = setTimeout(() => {
@@ -7773,6 +7922,10 @@
     ipcRenderer.on('chat-tail-changed', () => {
       if (!isChatOverlayOpen()) return;
       chatTailRefresh();
+    });
+
+    ipcRenderer.on('agent-pet-state-changed', (_event, state) => {
+      applyAgentPetState(state || {});
     });
 
     window.addEventListener('keydown', (ev) => {
