@@ -2,21 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Codex config cleanup: disabled Claude-origin plugins and set a Codex-native status line equivalent.
+**Last working on:** Codex config cleanup: disabled Claude-origin plugins, set Codex-native status line, and restored `/done` plus `/chores` skill exposure.
 
-**State at last pause (2026-05-05T14:42:03-0700):**
+**State at last pause (2026-05-05T17:48:58-0700):**
 - Updated `/Users/richardadair/.codex/config.toml` outside this repo so `claude-mem@thedotmack`, `quantitative-trading@claude-code-workflows`, and all configured `claude-plugins-official` plugins are disabled.
 - Kept OpenAI/Codex-native plugin entries enabled, including `superpowers@openai-curated`, `github@openai-curated`, `browser-use@openai-bundled`, and `computer-use@openai-bundled`.
 - Confirmed Codex does not support Claude's `statusLine.command` hook; configured the supported `[tui].status_line` list plus `terminal_title` instead.
+- Pinned local cleanup skills in `/Users/richardadair/.codex/config.toml`: `/Users/richardadair/.agents/skills/chores/SKILL.md` and `/Users/richardadair/.agents/skills/done/SKILL.md`, both `enabled = true`.
 - Verification passed: parsed `/Users/richardadair/.codex/config.toml` with `tomllib`, checked Claude-origin plugin entries are `False`, and fetched the official Codex config schema to confirm `[tui].status_line` is array-based.
-- Repo code was not changed during the config cleanup; branch is `main` and remains ahead of `origin/main`.
+- Repo code was not changed during the config cleanup; prior handoff commit `a8feecf` was pushed and branch is aligned with `origin/main` before this `/done` handoff update.
 - Current Codex session appears to be running under the desktop/app-server harness, not a proven tmux restart loop; do not blindly `kill $PPID` from this harness.
 
-**Next verifiable step:** Start a fresh Codex session and confirm the exposed skill/plugin list no longer includes the disabled Claude-origin plugin duplicates, then visually confirm the Codex TUI status line shows model, cwd, git branch, context, tokens, limits, session, and task progress.
+**Next verifiable step:** Start a fresh Codex session and confirm the exposed skill/plugin list no longer includes disabled Claude-origin plugin duplicates and does include `/done` plus `/chores`; then visually confirm the Codex TUI status line shows model, cwd, git branch, context, tokens, limits, session, and task progress.
 
 **If that step fails:** Inspect `/Users/richardadair/.codex/config.toml`, especially `[plugins]` and `[tui]`; if Claude-origin skills still appear, restart the Codex app/server process so plugin exposure reloads from config.
 
-**Pending uncommitted diff:** none after the `/done` handoff commit.
+**Pending uncommitted diff:** none after this `/done` handoff commit.
 
 ---
 
@@ -45,5 +46,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-05-SESSION_3: AgentRemote tmux pane management baseline fixed: `MULTI` now preserves draggable `ittab`, split sessions can normalize to per-window panes, and kill/restart/attach/broadcast/xterm now resolve panes through shared sidecar-first identity — commits: `d46016d`, `29e4761` — gated on Richard: verify right-click kill on live `%44`
 - 2026-05-05-SESSION_4: Codex-first runtime support and durable docs handoff: `launch-agent.sh` now dispatches Codex/Claude/Hermes/OpenClaw by registry runtime, all local fleet entries default to Codex, ACRM `ALS-011` is `review_pending`, and `context.md` records the Codex-first/ACRM operating contract — commits: `c18f5a4`, `bfd8d95`, `6de1a43` — gated on Richard: none
 - 2026-05-05-SESSION_5: Global Codex config cleanup disabled Claude-origin plugins and configured the supported Codex TUI status line equivalent; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
+- 2026-05-05-SESSION_6: `/done` and `/chores` local skills pinned explicitly in Codex config after slash-command exposure confusion; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
