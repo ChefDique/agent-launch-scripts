@@ -118,7 +118,8 @@
       "approval_policy": "never",
       "rename_to": "CODEX",
       "startup_slash": "/gogo",
-      "avatar": "codex.svg"
+      "avatar": "codex.svg",
+      "hidden": true
     },
     {
       "id": "openclaw",
