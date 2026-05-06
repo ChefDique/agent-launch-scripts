@@ -75,7 +75,8 @@
 
     /* Reusable for any element that wants the humanist-sans pairing —
        names, captions, anything that's not chat/code text. */
-    .ui-sans, .agent-label, .pill, .util-btn, .form-row label, .form-error {
+    .ui-sans, .agent-label, .pill, .util-btn, .form-row label, .form-error,
+    .harness-label, .armory-import-btn, .armory-panel {
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
     }
 
@@ -85,6 +86,9 @@
       align-items: center;
       padding: 24px 14px 14px;
       -webkit-app-region: drag;
+    }
+    body.has-agent-pets {
+      padding-top: 78px;
     }
 
     /* v2.4: radial menu now opens BELOW the tile (into the dead space under
@@ -157,6 +161,14 @@
       gap: 4px;
       width: 60px;
       -webkit-app-region: no-drag;
+    }
+    .tile-top-controls {
+      width: 46px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0;
     }
 
     /* v2.7: label can spill ~5px past the tile each side (max-width 70 vs
@@ -386,12 +398,53 @@
         0 1px 2px rgba(0, 0, 0, 0.5);
       pointer-events: none;
       user-select: none;
-      margin-bottom: 2px;
       transition:
         color 0.18s var(--ease),
         transform 0.18s var(--ease),
         box-shadow 0.18s var(--ease),
         opacity 0.18s var(--ease);
+    }
+    .pet-toggle {
+      width: 17px;
+      height: 17px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      background: rgba(8, 8, 14, 0.64);
+      color: rgba(255, 255, 255, 0.52);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.58;
+      transition:
+        opacity 0.16s var(--ease),
+        color 0.16s var(--ease),
+        border-color 0.16s var(--ease),
+        background 0.16s var(--ease),
+        box-shadow 0.2s var(--ease),
+        transform 0.14s var(--ease);
+      -webkit-app-region: no-drag;
+    }
+    .pet-toggle:hover {
+      opacity: 1;
+      color: var(--text-primary);
+      border-color: var(--border-medium);
+      background: rgba(255, 255, 255, 0.07);
+      transform: translateY(-1px);
+    }
+    .pet-toggle.active {
+      opacity: 1;
+      color: var(--accent);
+      border-color: var(--accent);
+      background: rgba(224, 124, 76, 0.10);
+      box-shadow: 0 0 12px rgba(224, 124, 76, 0.34);
+    }
+    .pet-toggle:active {
+      transform: translateY(0);
+      transition-duration: 0.08s;
     }
     /* Edit mode hides keycap badges so they don't compete with the × badge. */
     body.editing .fkey-badge { opacity: 0; }
@@ -638,8 +691,11 @@
       border: 1px dashed var(--border-medium);
       background: transparent;
       color: var(--text-muted);
-      font-size: 22px;
-      font-weight: 300;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.55px;
+      line-height: 1.08;
+      text-transform: uppercase;
       cursor: pointer;
       /* Polish: scoped from `all 0.25s` → enumerated props at 0.16s for
          crisp hover feedback, longer 0.22s for the box-shadow accent
@@ -655,9 +711,22 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      text-align: center;
     }
     .add-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(224, 124, 76, 0.08); transform: translateY(-2px); }
     .add-btn:active { transform: translateY(0); transition-duration: 0.08s; }
+    .add-agent-tile .fkey-badge,
+    .hidden-agent-tile .fkey-badge {
+      visibility: hidden;
+    }
+    .add-btn .add-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .add-btn .add-plus {
+      color: var(--accent);
+    }
 
     /* Empty-state CTA shown when no agents are visible in the dock. */
     .dock-empty-cta {
@@ -681,14 +750,138 @@
     }
     .dock-empty-cta .cta-link:hover { opacity: 0.8; }
 
-    /* "··· N" show-hidden button — sits at the trailing edge of the dock. */
-    .show-hidden-btn {
-      font-size: 10px;
-      letter-spacing: 0.5px;
-      color: var(--text-muted);
-      opacity: 0.7;
+    /* Shared HUD scrollbar treatment for panels that can grow taller than the
+       window. Avoids the native white scrollbar inside dark glass surfaces. */
+    .add-form,
+    .armory-panel,
+    .deploy-roster,
+    .hidden-panel,
+    .radial-settings,
+    .chat-overlay .chat-log {
+      scrollbar-color: rgba(224, 124, 76, 0.5) rgba(255, 255, 255, 0.035);
+      scrollbar-width: thin;
     }
-    .show-hidden-btn:hover { opacity: 1; color: var(--text-primary); }
+    .add-form::-webkit-scrollbar,
+    .armory-panel::-webkit-scrollbar,
+    .deploy-roster::-webkit-scrollbar,
+    .hidden-panel::-webkit-scrollbar,
+    .radial-settings::-webkit-scrollbar,
+    .chat-overlay .chat-log::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .add-form::-webkit-scrollbar-track,
+    .armory-panel::-webkit-scrollbar-track,
+    .deploy-roster::-webkit-scrollbar-track,
+    .hidden-panel::-webkit-scrollbar-track,
+    .radial-settings::-webkit-scrollbar-track,
+    .chat-overlay .chat-log::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.035);
+      border-radius: 999px;
+      margin: 6px;
+    }
+    .add-form::-webkit-scrollbar-thumb,
+    .armory-panel::-webkit-scrollbar-thumb,
+    .deploy-roster::-webkit-scrollbar-thumb,
+    .hidden-panel::-webkit-scrollbar-thumb,
+    .radial-settings::-webkit-scrollbar-thumb,
+    .chat-overlay .chat-log::-webkit-scrollbar-thumb {
+      background:
+        linear-gradient(180deg, rgba(224, 124, 76, 0.72), rgba(16, 163, 127, 0.38));
+      border: 2px solid rgba(8, 8, 14, 0.72);
+      border-radius: 999px;
+      background-clip: padding-box;
+      box-shadow: 0 0 10px rgba(224, 124, 76, 0.22);
+    }
+    .add-form::-webkit-scrollbar-thumb:hover,
+    .armory-panel::-webkit-scrollbar-thumb:hover,
+    .deploy-roster::-webkit-scrollbar-thumb:hover,
+    .hidden-panel::-webkit-scrollbar-thumb:hover,
+    .radial-settings::-webkit-scrollbar-thumb:hover,
+    .chat-overlay .chat-log::-webkit-scrollbar-thumb:hover {
+      background:
+        linear-gradient(180deg, rgba(255, 146, 90, 0.82), rgba(44, 247, 197, 0.48));
+      background-clip: padding-box;
+    }
+    .add-form::-webkit-scrollbar-corner,
+    .armory-panel::-webkit-scrollbar-corner,
+    .deploy-roster::-webkit-scrollbar-corner,
+    .hidden-panel::-webkit-scrollbar-corner,
+    .radial-settings::-webkit-scrollbar-corner,
+    .chat-overlay .chat-log::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    .popup-close {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition:
+        background 0.16s var(--ease),
+        border-color 0.16s var(--ease),
+        color 0.16s var(--ease),
+        transform 0.12s var(--ease);
+      z-index: 3;
+      -webkit-app-region: no-drag;
+    }
+    .popup-close svg {
+      width: 11px;
+      height: 11px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      transition: transform 0.16s var(--ease);
+    }
+    .popup-close:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: var(--border-medium);
+      color: var(--text-primary);
+    }
+    .popup-close:hover svg { transform: scale(1.12); }
+    .popup-close:active { transform: translateY(1px); }
+
+    /* Hidden-agent restore button — sits at the trailing edge of the dock. */
+    .show-hidden-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-color: rgba(255, 255, 255, 0.09);
+      background: rgba(255, 255, 255, 0.025);
+      color: var(--text-muted);
+      font-size: 9px;
+      letter-spacing: 0.65px;
+      white-space: nowrap;
+      opacity: 0.82;
+    }
+    .show-hidden-btn::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+      opacity: 0.78;
+    }
+    .show-hidden-btn:hover {
+      opacity: 1;
+      color: var(--text-primary);
+      border-color: var(--accent);
+      background: rgba(224, 124, 76, 0.075);
+    }
 
     /* Hidden-agent popover — small floating panel listing hidden agents. */
     .hidden-panel {
@@ -698,12 +891,15 @@
       border-radius: 10px;
       padding: 8px 10px;
       min-width: 160px;
+      max-height: 260px;
+      overflow-y: auto;
       z-index: 9000;
       box-shadow: 0 8px 32px rgba(0,0,0,0.6);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
     }
     .hidden-panel-title {
+      padding-right: 24px;
       font-size: 9px;
       letter-spacing: 0.8px;
       text-transform: uppercase;
@@ -1035,13 +1231,21 @@
        --------------------------------------------------------------------- */
     .add-form {
       display: none;
+      position: relative;
       flex-direction: column;
       gap: 8px;
-      padding: 12px;
+      padding: 34px 12px 12px;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-soft);
       border-radius: 12px;
       -webkit-app-region: no-drag;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+    }
+    .add-form .popup-close {
+      top: 8px;
+      right: 8px;
     }
     body.adding .add-form { display: flex; }
 
@@ -1071,6 +1275,166 @@
       transition: border-color 0.2s var(--ease);
     }
     .form-row input:focus, .form-row select:focus { border-color: var(--accent); }
+    .form-row.form-row-harness {
+      align-items: flex-start;
+    }
+    .form-row.form-row-harness > label {
+      padding-top: 20px;
+    }
+    .form-row.form-row-toggle {
+      min-height: 28px;
+    }
+    .form-toggle {
+      flex: 1;
+      width: auto !important;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--text-primary) !important;
+      text-transform: none !important;
+      letter-spacing: 0.2px !important;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .form-toggle input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .form-toggle .track {
+      width: 34px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-soft);
+      position: relative;
+      flex: 0 0 auto;
+      transition: background 0.16s var(--ease), border-color 0.16s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .form-toggle .track::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      transition: transform 0.18s var(--ease), background 0.18s var(--ease);
+    }
+    .form-toggle input:checked + .track {
+      background: rgba(52, 208, 88, 0.32);
+      border-color: rgba(52, 208, 88, 0.55);
+      box-shadow: 0 0 14px rgba(52, 208, 88, 0.22);
+    }
+    .form-toggle input:checked + .track::after {
+      transform: translateX(16px);
+      background: rgba(255, 255, 255, 0.95);
+    }
+    .form-toggle .toggle-copy {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.45px;
+    }
+    .runtime-hidden-input {
+      display: none;
+    }
+    .harness-picker {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(58px, 1fr));
+      gap: 8px;
+      min-width: 0;
+    }
+    .harness-card {
+      --harness-color: var(--accent);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      min-width: 0;
+      min-height: 74px;
+      padding: 8px 5px 7px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-muted);
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition:
+        border-color 0.16s var(--ease),
+        color 0.16s var(--ease),
+        background 0.16s var(--ease),
+        box-shadow 0.22s var(--ease),
+        transform 0.12s var(--ease);
+    }
+    .harness-card:hover {
+      color: var(--text-primary);
+      border-color: rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateY(-1px);
+    }
+    .harness-card.selected {
+      color: var(--text-primary);
+      border-color: var(--harness-color);
+      background:
+        radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--harness-color) 20%, transparent), transparent 58%),
+        rgba(255, 255, 255, 0.055);
+      box-shadow:
+        0 0 20px color-mix(in srgb, var(--harness-color) 44%, transparent),
+        inset 0 0 0 1px color-mix(in srgb, var(--harness-color) 55%, transparent);
+    }
+    .harness-card:active { transform: translateY(0); transition-duration: 0.06s; }
+    .harness-logo-wrap {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: saturate(0.92) brightness(0.92);
+      transition: filter 0.16s var(--ease), transform 0.16s var(--ease);
+    }
+    .harness-card.selected .harness-logo-wrap {
+      filter: saturate(1.12) brightness(1.08);
+      transform: translateY(-1px);
+    }
+    .harness-logo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+    .harness-label {
+      max-width: 100%;
+      color: inherit;
+      font-size: 9px;
+      font-weight: 600;
+      line-height: 1.1;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.45px;
+      overflow-wrap: anywhere;
+    }
+    .harness-picker.compact {
+      grid-template-columns: repeat(4, minmax(44px, 1fr));
+      gap: 6px;
+    }
+    .harness-picker.compact .harness-card {
+      min-height: 58px;
+      padding: 6px 3px;
+      border-radius: 8px;
+    }
+    .harness-picker.compact .harness-logo-wrap {
+      width: 26px;
+      height: 26px;
+    }
+    .harness-picker.compact .harness-label {
+      font-size: 8px;
+      letter-spacing: 0.3px;
+    }
     /* Color picker — constrain dimensions and strip default browser chrome */
     .form-row input[type="color"] {
       flex: 0 0 44px;
@@ -1090,6 +1454,108 @@
       cursor: pointer;
     }
     .form-row .pick-btn:hover { color: var(--text-primary); border-color: var(--border-medium); }
+
+    .armory-import-btn {
+      margin-right: auto;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-soft);
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 7px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition:
+        color 0.14s var(--ease),
+        border-color 0.14s var(--ease),
+        background 0.14s var(--ease),
+        box-shadow 0.2s var(--ease);
+    }
+    .armory-import-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-medium);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .armory-import-btn.active {
+      color: var(--accent);
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px rgba(224, 124, 76, 0.25);
+    }
+    .armory-panel {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 9px;
+      border: 1px solid var(--border-soft);
+      border-radius: 10px;
+      background: rgba(8, 8, 14, 0.46);
+      scrollbar-gutter: stable;
+    }
+    .armory-panel.open { display: flex; }
+    .armory-status {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+      line-height: 1.35;
+    }
+    .armory-group-title {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 0.75px;
+      text-transform: uppercase;
+      padding: 2px 0;
+    }
+    .armory-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 7px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+    .armory-name {
+      min-width: 0;
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .armory-meta {
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: 9.5px;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .armory-row button {
+      border: 1px solid var(--border-medium);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 5px 8px;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .armory-row button:hover { border-color: var(--accent); color: var(--accent); }
+    .armory-row button[disabled] {
+      opacity: 0.48;
+      cursor: default;
+      border-color: var(--border-soft);
+      color: var(--text-muted);
+    }
 
     .form-actions {
       display: flex;
@@ -1312,11 +1778,6 @@
       border: 1px solid var(--border-soft);
       border-radius: 12px;
       background: rgba(255, 255, 255, 0.02);
-    }
-    .deploy-roster::-webkit-scrollbar { width: 6px; }
-    .deploy-roster::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 999px;
     }
     .deploy-roster-row {
       display: flex;
@@ -1950,10 +2411,26 @@
       color: var(--text-muted);
       margin-bottom: 2px;
     }
+    .radial-settings .settings-header {
+      min-height: 24px;
+      padding-right: 28px;
+      display: flex;
+      align-items: center;
+    }
+    .radial-settings .popup-close {
+      top: 8px;
+      right: 8px;
+    }
     .radial-settings .settings-row {
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+    .radial-settings .settings-row.settings-row-harness {
+      align-items: flex-start;
+    }
+    .radial-settings .settings-row.settings-row-harness label {
+      padding-top: 21px;
     }
     .radial-settings .settings-row label {
       flex: 0 0 80px;
@@ -2181,6 +2658,17 @@
       border-bottom: 1px solid var(--border-soft);
       background: rgba(255, 255, 255, 0.012);
     }
+    .chat-overlay .chat-top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .chat-overlay .popup-close {
+      position: static;
+      flex: 0 0 auto;
+      background: rgba(255, 255, 255, 0.025);
+    }
     .chat-overlay .chat-topbar .channel-name {
       display: flex;
       align-items: baseline;
@@ -2300,16 +2788,6 @@
       gap: 4px;
       background: transparent;
     }
-    .chat-overlay .chat-log::-webkit-scrollbar { width: 8px; height: 8px; }
-    .chat-overlay .chat-log::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.10);
-      border-radius: 4px;
-    }
-    .chat-overlay .chat-log::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.20);
-    }
-    .chat-overlay .chat-log::-webkit-scrollbar-track { background: transparent; }
-
     /* Day separator: thin centered rule with a label in the middle. Sits
        above its day's first message group, breathing 8px above and below. */
     .chat-overlay .chat-day-sep {
@@ -2722,24 +3200,30 @@
       box-shadow: 0 10px 40px rgba(0,0,0,0.6) !important;
     }
 
-    /* Codex pet: companion layer perched over the HUD. It is pure
-       presentation and pointer-events:none so it never steals clicks, drag,
-       or key focus from the remote. The mood-state contract below is driven
-       by setPetMood() in the voice/send flow. */
-    .codex-pet {
-      position: absolute;
-      top: -18px;
-      right: -16px;
-      width: 96px;
-      height: 104px;
+    /* Agent pets: per-agent companion layer perched above the dock. It is pure
+       presentation and pointer-events:none so pets never steal clicks, drag,
+       or key focus from the remote. Individual buttons in the tile top row
+       spawn/close the matching Codex pet sheet. */
+    .agent-pet-layer {
+      position: fixed;
+      inset: 0;
       z-index: 24;
       pointer-events: none;
+    }
+    .agent-pet {
+      position: fixed;
+      left: var(--pet-left, 0px);
+      top: var(--pet-top, 0px);
+      width: 96px;
+      height: 104px;
+      pointer-events: none;
       transform-origin: 56% 65%;
+      transform: scale(0.72);
       animation: pet-float 4.8s var(--ease) infinite;
       filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.5));
       opacity: 0.98;
     }
-    .codex-pet::before {
+    .agent-pet::before {
       content: '';
       position: absolute;
       inset: 23px 8px 3px;
@@ -2749,7 +3233,7 @@
       opacity: 0.72;
       transform: translateY(12px) scaleX(0.9);
     }
-    .codex-pet-sprite {
+    .agent-pet-sprite {
       --pet-y: 0px;
       --pet-to-x: -576px;
       --pet-step: steps(6);
@@ -2757,54 +3241,54 @@
       width: 100%;
       height: 100%;
       display: block;
-      background-image: var(--pet-sheet, url('assets/pets/goku/spritesheet.webp'));
+      background-image: var(--pet-sheet);
       background-repeat: no-repeat;
       background-size: 768px 936px;
       background-position: 0 var(--pet-y);
       animation: openclaw-row 1.25s var(--pet-step) infinite;
       image-rendering: auto;
     }
-    body.pet-recording .codex-pet,
-    body.voice-recording .codex-pet {
+    body.pet-recording .agent-pet.pet-mood-target,
+    body.voice-recording .agent-pet.pet-mood-target {
       animation-duration: 2.2s;
-      transform: translateY(-2px) rotate(-3deg) scale(1.04);
+      transform: translateY(-2px) rotate(-3deg) scale(0.76);
     }
-    body.pet-recording .codex-pet-sprite,
-    body.voice-recording .codex-pet-sprite {
+    body.pet-recording .agent-pet.pet-mood-target .agent-pet-sprite,
+    body.voice-recording .agent-pet.pet-mood-target .agent-pet-sprite {
       --pet-y: -312px;
       --pet-to-x: -384px;
       --pet-step: steps(4);
       animation-duration: 0.72s;
     }
-    body.pet-transcribing .codex-pet {
+    body.pet-transcribing .agent-pet.pet-mood-target {
       animation-duration: 1.6s;
     }
-    body.pet-transcribing .codex-pet-sprite {
+    body.pet-transcribing .agent-pet.pet-mood-target .agent-pet-sprite {
       --pet-y: -832px;
       --pet-to-x: -576px;
       --pet-step: steps(6);
       animation-duration: 1.1s;
     }
-    body.pet-sent .codex-pet {
-      transform: translateY(-5px) rotate(4deg) scale(1.07);
+    body.pet-sent .agent-pet.pet-mood-target {
+      transform: translateY(-5px) rotate(4deg) scale(0.78);
       transition: transform 0.22s var(--ease);
     }
-    body.pet-sent .codex-pet-sprite {
+    body.pet-sent .agent-pet.pet-mood-target .agent-pet-sprite {
       --pet-y: -416px;
       --pet-to-x: -480px;
       --pet-step: steps(5);
       animation-duration: 0.8s;
     }
-    body.pet-error .codex-pet {
+    body.pet-error .agent-pet.pet-mood-target {
       animation: pet-error 0.28s ease-out 2;
     }
-    body.pet-error .codex-pet-sprite {
+    body.pet-error .agent-pet.pet-mood-target .agent-pet-sprite {
       --pet-y: -520px;
       --pet-to-x: -768px;
       --pet-step: steps(8);
       animation-duration: 0.95s;
     }
-    body.term-open:not(.pet-recording):not(.pet-transcribing):not(.pet-sent):not(.pet-error):not(.voice-recording) .codex-pet-sprite {
+    body.term-open:not(.pet-recording):not(.pet-transcribing):not(.pet-sent):not(.pet-error):not(.voice-recording) .agent-pet-sprite {
       --pet-y: -832px;
       --pet-to-x: -576px;
       --pet-step: steps(6);
@@ -2816,13 +3300,13 @@
       }
     }
     @keyframes pet-float {
-      0%, 100% { transform: translateY(0) rotate(-1deg); }
-      50% { transform: translateY(-4px) rotate(1.5deg); }
+      0%, 100% { transform: translateY(0) rotate(-1deg) scale(0.72); }
+      50% { transform: translateY(-4px) rotate(1.5deg) scale(0.72); }
     }
     @keyframes pet-error {
-      0%, 100% { transform: translateX(0) rotate(-1deg); }
-      30% { transform: translateX(-3px) rotate(-5deg); }
-      70% { transform: translateX(3px) rotate(5deg); }
+      0%, 100% { transform: translateX(0) rotate(-1deg) scale(0.72); }
+      30% { transform: translateX(-3px) rotate(-5deg) scale(0.72); }
+      70% { transform: translateX(3px) rotate(5deg) scale(0.72); }
     }
 
     /* -------------------------------------------------------------------------
@@ -2899,6 +3383,11 @@
 
     <!-- Add agent form (hidden unless body.adding) -->
     <div class="add-form" id="add-form">
+      <button class="popup-close" id="f-close" type="button" aria-label="Close add agent form" title="Close">
+        <svg viewBox="0 0 14 14" aria-hidden="true">
+          <path d="M2 2 L12 12 M12 2 L2 12" />
+        </svg>
+      </button>
       <div class="form-row">
         <label>id</label>
         <input id="f-id" placeholder="lowercase, no spaces" />
@@ -2912,14 +3401,18 @@
         <input id="f-cwd" placeholder="~/path/to/project" />
         <button class="pick-btn" id="f-cwd-pick">Pick</button>
       </div>
-      <div class="form-row">
-        <label>runtime</label>
-        <select id="f-runtime">
-          <option value="codex" selected>Codex</option>
-          <option value="claude">Claude</option>
-          <option value="hermes">Hermes</option>
-          <option value="openclaw">OpenClaw</option>
-        </select>
+      <div class="form-row form-row-harness">
+        <label>harness</label>
+        <input class="runtime-hidden-input" id="f-runtime" value="codex" readonly />
+        <div class="harness-picker" id="f-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
+      </div>
+      <div class="form-row form-row-toggle">
+        <label>auto</label>
+        <label class="form-toggle">
+          <input type="checkbox" id="f-autorestart" checked />
+          <span class="track"></span>
+          <span class="toggle-copy">Auto-restart</span>
+        </label>
       </div>
       <div class="form-row">
         <label>color</label>
@@ -2931,11 +3424,13 @@
       </div>
       <div class="form-row">
         <label>avatar</label>
-        <input id="f-avatar" placeholder="optional .svg path" readonly />
+        <input id="f-avatar" placeholder="optional image or gif path" readonly />
         <button class="pick-btn" id="f-avatar-pick">Pick</button>
       </div>
       <div class="form-error" id="f-error"></div>
+      <div class="armory-panel" id="armory-panel" aria-live="polite"></div>
       <div class="form-actions">
+        <button class="armory-import-btn" id="armory-import-btn" type="button">Import from Armory</button>
         <button id="f-cancel">Cancel</button>
         <button class="submit" id="f-submit">Create</button>
       </div>
@@ -3000,9 +3495,7 @@
     </div>
   </div>
 
-  <div class="codex-pet" id="codex-pet" data-pet="goku" aria-hidden="true">
-    <span class="codex-pet-sprite" role="presentation"></span>
-  </div>
+  <div class="agent-pet-layer" id="agent-pet-layer" aria-hidden="true"></div>
 
   <!-- Team-chat overlay — Cmd+T to toggle. Native chat surface that reads/
        writes ~/.message-agent/channels/team/messages.jsonl directly via IPC.
@@ -3021,8 +3514,15 @@
         <span class="name">team</span>
         <span class="sub">richard + agents</span>
       </div>
-      <div class="presence" id="chat-presence" aria-label="Agent presence">
-        <!-- Pips and member count populated by renderChatPresence() -->
+      <div class="chat-top-actions">
+        <div class="presence" id="chat-presence" aria-label="Agent presence">
+          <!-- Pips and member count populated by renderChatPresence() -->
+        </div>
+        <button class="popup-close" id="chat-close-btn" type="button" aria-label="Close team chat" title="Close">
+          <svg viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M2 2 L12 12 M12 2 L2 12" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -3160,6 +3660,11 @@
       LAYOUT_MODES,
       layoutModeToDeployLayout
     } = require('./layout-policy');
+    const {
+      HARNESS_OPTIONS,
+      harnessOptionFor,
+      normalizeRuntime
+    } = require('./harness-options');
 
     // Auto-focus the chat input whenever main fires the shortcut-driven
     // summon. Richard wants summon → type immediately, no extra click.
@@ -3181,6 +3686,15 @@
     let agentOrder = [];         // visible agent ids in registry order
     let hiddenAgentOrder = [];   // ids with hidden:true (kept in registry, not in dock)
     let statusTimer = null;
+    let addFormRuntime = 'codex';
+    let agentFormMode = 'add';
+    let editingAgentId = null;
+    let armoryPanelOpen = false;
+    let armoryLastPayload = null;
+    let codexPets = [];
+    let codexPetsById = new Map();
+    let visiblePets = {};
+    let petMoodAgentId = null;
 
     // Spawn-layout mode — affects the Deploy button. One of:
     //   panes    → single chq window split horizontally (default, today's behavior)
@@ -3220,9 +3734,13 @@
         const panel = document.getElementById('panel');
         if (!panel) return;
         const rect = panel.getBoundingClientRect();
-        // Body has 14px padding all around; window content size needs that too.
-        const w = Math.ceil(rect.width) + 28;
-        const h = Math.ceil(rect.height) + 28;
+        const bodyStyle = getComputedStyle(document.body);
+        const padTop = parseFloat(bodyStyle.paddingTop) || 0;
+        const padBottom = parseFloat(bodyStyle.paddingBottom) || 0;
+        const padLeft = parseFloat(bodyStyle.paddingLeft) || 0;
+        const padRight = parseFloat(bodyStyle.paddingRight) || 0;
+        const w = Math.ceil(rect.width + padLeft + padRight);
+        const h = Math.ceil(rect.height + padTop + padBottom);
         ipcRenderer.send('resize-window', { width: w, height: h });
       };
       measure();
@@ -3278,6 +3796,7 @@
       });
 
       renderDock();
+      renderAgentPets();
       updateRecipientSummary();
       syncWindowSize();
       pollStatusOnce();
@@ -3301,6 +3820,234 @@
       return String(s).replace(/[&<>"']/g, c => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       }[c]));
+    }
+
+    function renderHarnessPicker(container, selectedRuntime, onSelect, options = {}) {
+      if (!container) return;
+      const compact = !!options.compact;
+      const selected = normalizeRuntime(selectedRuntime);
+      container.classList.toggle('compact', compact);
+      container.innerHTML = '';
+      HARNESS_OPTIONS.forEach(option => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'harness-card' + (option.id === selected ? ' selected' : '');
+        card.dataset.runtime = option.id;
+        card.setAttribute('role', 'radio');
+        card.setAttribute('aria-checked', option.id === selected ? 'true' : 'false');
+        card.title = `${option.label} harness`;
+        card.style.setProperty('--harness-color', option.themeColor);
+
+        const logo = document.createElement('span');
+        logo.className = 'harness-logo-wrap';
+        const img = document.createElement('img');
+        img.src = `assets/${option.logo}`;
+        img.alt = '';
+        logo.appendChild(img);
+
+        const label = document.createElement('span');
+        label.className = 'harness-label';
+        label.textContent = option.label;
+
+        card.appendChild(logo);
+        card.appendChild(label);
+        card.addEventListener('click', () => {
+          onSelect(option.id);
+        });
+        container.appendChild(card);
+      });
+    }
+
+    function setAddHarnessRuntime(runtime) {
+      addFormRuntime = normalizeRuntime(runtime);
+      const input = document.getElementById('f-runtime');
+      if (input) input.value = addFormRuntime;
+      renderHarnessPicker(
+        document.getElementById('f-harness-picker'),
+        addFormRuntime,
+        setAddHarnessRuntime
+      );
+    }
+
+    function closeIconSvg() {
+      return '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2 L12 12 M12 2 L2 12" /></svg>';
+    }
+
+    function isSvgAvatar(file) {
+      return /\.svg(?:$|\?)/i.test(String(file || ''));
+    }
+
+    function avatarFileForAgent(agent) {
+      if (!agent) return '';
+      return agent.avatar || harnessOptionFor(agent.runtime || 'codex').logo;
+    }
+
+    function renderAvatarAsset(container, file, onLoad) {
+      container.innerHTML = '';
+      if (!file) return false;
+      const el = isSvgAvatar(file) ? document.createElement('object') : document.createElement('img');
+      if (isSvgAvatar(file)) {
+        el.setAttribute('data', `assets/${file}`);
+        el.setAttribute('type', 'image/svg+xml');
+      } else {
+        el.src = `assets/${file}`;
+        el.alt = '';
+        el.decoding = 'async';
+      }
+      if (onLoad) el.addEventListener('load', onLoad);
+      el.style.pointerEvents = 'none';
+      container.appendChild(el);
+      return true;
+    }
+
+    function renderAgentAvatar(container, agent, onLoad) {
+      container.classList.remove('fallback');
+      const file = avatarFileForAgent(agent);
+      if (renderAvatarAsset(container, file, onLoad)) return;
+      container.classList.add('fallback');
+      container.textContent = (agent && (agent.displayName || agent.id) || '?').slice(0, 1).toUpperCase();
+    }
+
+    const PET_VISIBILITY_STORAGE_KEY = 'agentRemoteVisiblePets';
+
+    function loadVisiblePetState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(PET_VISIBILITY_STORAGE_KEY) || '{}');
+        visiblePets = parsed && typeof parsed === 'object' ? parsed : {};
+      } catch {
+        visiblePets = {};
+      }
+    }
+
+    function persistVisiblePetState() {
+      try { localStorage.setItem(PET_VISIBILITY_STORAGE_KEY, JSON.stringify(visiblePets)); }
+      catch { /* localStorage can be unavailable in sandboxed contexts */ }
+    }
+
+    async function loadCodexPetRoster() {
+      let result = null;
+      try { result = await ipcRenderer.invoke('list-codex-pets'); }
+      catch { result = null; }
+      codexPets = (result && result.ok && Array.isArray(result.pets)) ? result.pets : [];
+      codexPetsById = new Map(codexPets.map(p => [String(p.id).toLowerCase(), p]));
+      loadVisiblePetState();
+    }
+
+    function normalizePetToken(value) {
+      return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    function petForAgent(agent) {
+      if (!agent || codexPets.length === 0) return null;
+      const exactCandidates = [
+        agent.id,
+        agent.displayName,
+        agent.id === 'xavier' ? 'professor-xavier' : '',
+        agent.id === 'codex' ? 'codeberg' : '',
+        agent.id === 'tmux-masta' ? 'openclaw' : '',
+        agent.runtime === 'openclaw' ? 'openclaw' : '',
+        agent.runtime === 'hermes' ? 'hermes' : ''
+      ].map(normalizePetToken).filter(Boolean);
+      for (const candidate of exactCandidates) {
+        if (codexPetsById.has(candidate)) return codexPetsById.get(candidate);
+      }
+      for (const fallback of ['openclaw', 'codeberg', 'neo']) {
+        if (codexPetsById.has(fallback)) return codexPetsById.get(fallback);
+      }
+      return codexPets.find(p => normalizePetToken(p.id) !== 'goku') || codexPets[0] || null;
+    }
+
+    function isAgentPetVisible(id) {
+      return !!visiblePets[id];
+    }
+
+    function setAgentPetVisible(id, visible) {
+      if (!agents[id]) return;
+      if (visible) visiblePets[id] = true;
+      else delete visiblePets[id];
+      persistVisiblePetState();
+      const btn = document.querySelector(`.pet-toggle[data-agent-id="${CSS.escape(id)}"]`);
+      if (btn) {
+        btn.classList.toggle('active', visible);
+        btn.title = `${visible ? 'Hide' : 'Show'} pet`;
+        btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+      }
+      renderAgentPets();
+      syncWindowSize();
+    }
+
+    function renderPetToggle(agent) {
+      const pet = petForAgent(agent);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pet-toggle' + (isAgentPetVisible(agent.id) ? ' active' : '');
+      btn.dataset.agentId = agent.id;
+      btn.textContent = '⌄';
+      btn.title = pet
+        ? `${isAgentPetVisible(agent.id) ? 'Hide' : 'Show'} ${pet.displayName || 'pet'}`
+        : 'No Codex pet available';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-pressed', isAgentPetVisible(agent.id) ? 'true' : 'false');
+      btn.disabled = !pet;
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!petForAgent(agent)) return;
+        setAgentPetVisible(agent.id, !isAgentPetVisible(agent.id));
+      });
+      return btn;
+    }
+
+    function renderAgentPets() {
+      const layer = document.getElementById('agent-pet-layer');
+      if (!layer) return;
+      layer.innerHTML = '';
+      const visibleIds = agentOrder.filter(id => isAgentPetVisible(id) && agents[id]);
+      document.body.classList.toggle('has-agent-pets', visibleIds.length > 0);
+      visibleIds.forEach(id => {
+        const agent = agents[id];
+        const pet = petForAgent(agent);
+        if (!pet) return;
+        const el = document.createElement('div');
+        el.className = 'agent-pet';
+        el.dataset.agentId = id;
+        el.dataset.petId = pet.id;
+        el.style.setProperty('--pet-sheet', `url("${pet.sheetUrl}")`);
+        const sprite = document.createElement('span');
+        sprite.className = 'agent-pet-sprite';
+        sprite.setAttribute('role', 'presentation');
+        el.appendChild(sprite);
+        layer.appendChild(el);
+      });
+      updatePetMoodTarget();
+      requestAnimationFrame(positionAgentPets);
+    }
+
+    function positionAgentPets() {
+      document.querySelectorAll('.agent-pet').forEach(el => {
+        const id = el.dataset.agentId;
+        const tile = document.querySelector(`.agent-tile[data-agent-id="${CSS.escape(id)}"]`);
+        if (!tile) return;
+        const r = tile.getBoundingClientRect();
+        const left = Math.max(2, Math.min(window.innerWidth - 70, r.left + r.width / 2 - 48));
+        const top = Math.max(2, r.top - 72);
+        el.style.setProperty('--pet-left', `${Math.round(left)}px`);
+        el.style.setProperty('--pet-top', `${Math.round(top)}px`);
+      });
+    }
+
+    function activePetAnchorFor(id) {
+      if (!id || !isAgentPetVisible(id)) return null;
+      return document.querySelector(`.agent-pet[data-agent-id="${CSS.escape(id)}"]`);
+    }
+
+    function updatePetMoodTarget() {
+      document.querySelectorAll('.agent-pet.pet-mood-target').forEach(el => {
+        el.classList.remove('pet-mood-target');
+      });
+      if (!petMoodAgentId) return;
+      const el = activePetAnchorFor(petMoodAgentId);
+      if (el) el.classList.add('pet-mood-target');
     }
 
     // Convert a hex color like "#00f2ff" to an rgba glow string at 55% alpha.
@@ -3392,16 +4139,7 @@
 
         const avatar = document.createElement('div');
         avatar.className = 'avatar';
-        if (a.avatar) {
-          const obj = document.createElement('object');
-          obj.setAttribute('data', `assets/${a.avatar}`);
-          obj.setAttribute('type', 'image/svg+xml');
-          obj.addEventListener('load', syncWindowSize);
-          avatar.appendChild(obj);
-        } else {
-          avatar.classList.add('fallback');
-          avatar.textContent = (a.displayName || a.id).slice(0, 1).toUpperCase();
-        }
+        renderAgentAvatar(avatar, a, syncWindowSize);
         btn.appendChild(avatar);
 
         const dot = document.createElement('div');
@@ -3459,12 +4197,16 @@
         // voice-record targeting that agent. Only the first 5 dock slots get
         // a badge; F6+ no-op. tagFkeyBadges() populates the label live so
         // drag-reorder updates assignments.
+        const topControls = document.createElement('div');
+        topControls.className = 'tile-top-controls';
         const fkey = document.createElement('div');
         fkey.className = 'fkey-badge';
         fkey.id = `fkey-${id}`;
         fkey.textContent = '';     // populated by tagFkeyBadges()
         fkey.title = `Tap F-key to select · hold to dictate`;
-        tile.appendChild(fkey);
+        topControls.appendChild(fkey);
+        topControls.appendChild(renderPetToggle(a));
+        tile.appendChild(topControls);
 
         tile.appendChild(btn);
 
@@ -3494,23 +4236,44 @@
         dock.appendChild(empty);
       }
 
-      // Add (+) button at the end of the dock.
+      // Add-agent button at the end of the dock. It uses the same tile
+      // scaffold as agent avatars so the dashed control aligns to the icon row.
+      const addWrap = document.createElement('div');
+      addWrap.className = 'agent-tile add-agent-tile';
+      const addTopControls = document.createElement('div');
+      addTopControls.className = 'tile-top-controls';
+      const addKeycap = document.createElement('div');
+      addKeycap.className = 'fkey-badge';
+      addKeycap.textContent = '0';
+      addTopControls.appendChild(addKeycap);
       const add = document.createElement('button');
       add.className = 'add-btn';
       add.title = 'Add agent to registry';
-      add.textContent = '+';
+      add.innerHTML = '<span class="add-copy"><span><span class="add-plus">+</span> ADD</span><span>AGENT</span></span>';
       add.addEventListener('click', toggleAddForm);
-      dock.appendChild(add);
+      addWrap.appendChild(addTopControls);
+      addWrap.appendChild(add);
+      dock.appendChild(addWrap);
 
       // "Show hidden" button — only rendered when at least one agent has hidden:true.
       // Opens the hidden-agent popover where each entry has an "Unhide" button.
       if (hiddenAgentOrder.length > 0) {
+        const hiddenWrap = document.createElement('div');
+        hiddenWrap.className = 'agent-tile hidden-agent-tile';
+        const hiddenTopControls = document.createElement('div');
+        hiddenTopControls.className = 'tile-top-controls';
+        const hiddenKeycap = document.createElement('div');
+        hiddenKeycap.className = 'fkey-badge';
+        hiddenKeycap.textContent = '0';
+        hiddenTopControls.appendChild(hiddenKeycap);
         const showHiddenBtn = document.createElement('button');
         showHiddenBtn.className = 'show-hidden-btn util-btn';
         showHiddenBtn.title = `${hiddenAgentOrder.length} hidden agent${hiddenAgentOrder.length > 1 ? 's' : ''} — click to restore`;
-        showHiddenBtn.textContent = `··· ${hiddenAgentOrder.length}`;
+        showHiddenBtn.textContent = `${hiddenAgentOrder.length} hidden`;
         showHiddenBtn.addEventListener('click', () => openHiddenPanel(showHiddenBtn));
-        dock.appendChild(showHiddenBtn);
+        hiddenWrap.appendChild(hiddenTopControls);
+        hiddenWrap.appendChild(showHiddenBtn);
+        dock.appendChild(hiddenWrap);
       }
 
       // Tag F-key badges by current dock position. Called here so it runs
@@ -3916,11 +4679,12 @@
           icon: '⚙',
           verb: 'Settings',
           detail: '',
-          // Toggle the inline panel; keep the radial open while it's up.
-          action: (orbEl) => toggleSettingsPanel(id, orbEl),
+          // Settings now reuses the full add/edit form so right-click editing
+          // has the same harness/avatar/Armory surface as creating an agent.
+          action: () => openEditAgentForm(id),
           danger: false,
           settings: true,
-          keepOpenOnClick: true,
+          keepOpenOnClick: false,
           title: 'Auto-restart toggle + startup commands'
         },
         {
@@ -3931,7 +4695,7 @@
           action: () => doHideFromBar(id, tileBtn),
           danger: false,
           requiresRunning: false,
-          title: 'Remove from bar (keep in registry — restore via "··· N" button)'
+          title: 'Remove from bar (keep in registry — restore via hidden restore button)'
         },
         {
           icon: '🗑',
@@ -4316,14 +5080,16 @@
       if (!agent) return;
       const layer = document.getElementById('radial-settings');
       layer.dataset.agentId = id;
-      const runtimeOptions = ['codex', 'claude', 'hermes', 'openclaw']
-        .map(r => `<option value="${r}" ${((agent.runtime || 'codex') === r) ? 'selected' : ''}>${r}</option>`)
-        .join('');
       layer.innerHTML = `
-        <div class="settings-title">${escapeHtml(agent.displayName || id)} · settings</div>
-        <div class="settings-row">
-          <label for="set-runtime">Runtime</label>
-          <select id="set-runtime">${runtimeOptions}</select>
+        <div class="settings-header">
+          <div class="settings-title">${escapeHtml(agent.displayName || id)} · settings</div>
+          <button class="popup-close" id="settings-close-btn" type="button" aria-label="Close settings" title="Close">
+            ${closeIconSvg()}
+          </button>
+        </div>
+        <div class="settings-row settings-row-harness">
+          <label>Harness</label>
+          <div class="harness-picker compact" id="set-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
         </div>
         <div class="toggle-row">
           <div class="toggle-meta">
@@ -4443,6 +5209,15 @@
         layer.classList.add('visible');
       }));
 
+      const settingsClose = layer.querySelector('#settings-close-btn');
+      if (settingsClose) {
+        settingsClose.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          layer.classList.remove('visible');
+          if (gearOrbEl) gearOrbEl.classList.remove('open');
+        });
+      }
+
       // ---- Wire up the toggle ----
       const toggle = layer.querySelector('#set-autorestart');
       toggle.addEventListener('change', async () => {
@@ -4458,20 +5233,22 @@
         }
       });
 
-      const runtimeSelect = layer.querySelector('#set-runtime');
-      runtimeSelect.addEventListener('change', async () => {
-        const next = runtimeSelect.value;
+      const harnessPicker = layer.querySelector('#set-harness-picker');
+      const saveRuntime = async (runtime) => {
+        const next = runtime;
         const prev = agent.runtime || 'codex';
         agent.runtime = next;
+        renderHarnessPicker(harnessPicker, next, saveRuntime, { compact: true });
         const res = await ipcRenderer.invoke('update-agent', { id, patch: { runtime: next } });
         if (res.ok) {
           await loadAndRender();
         } else {
           agent.runtime = prev;
-          runtimeSelect.value = prev;
+          renderHarnessPicker(harnessPicker, prev, saveRuntime, { compact: true });
           flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
         }
-      });
+      };
+      renderHarnessPicker(harnessPicker, agent.runtime || 'codex', saveRuntime, { compact: true });
 
       // (ALS-010, 2026-05-03) The detach-window / detach-split button
       // wiring used to live here. Both behaviours were collapsed into the
@@ -4782,15 +5559,7 @@
 
         const av = document.createElement('div');
         av.className = 'row-avatar';
-        if (a.avatar) {
-          const obj = document.createElement('object');
-          obj.setAttribute('data', `assets/${a.avatar}`);
-          obj.setAttribute('type', 'image/svg+xml');
-          av.appendChild(obj);
-        } else {
-          av.classList.add('fallback');
-          av.textContent = (a.displayName || a.id).slice(0, 1).toUpperCase();
-        }
+        renderAgentAvatar(av, a);
         row.appendChild(av);
 
         const text = document.createElement('div');
@@ -5088,11 +5857,65 @@
     // Add / Remove agent
     // ---------------------------------------------------------------------
     function toggleAddForm() {
-      document.body.classList.toggle('adding');
+      if (document.body.classList.contains('adding') && agentFormMode === 'add') closeAddForm();
+      else openAddForm();
+    }
+
+    function setAgentFormMode(mode, id = null) {
+      agentFormMode = mode === 'edit' ? 'edit' : 'add';
+      editingAgentId = agentFormMode === 'edit' ? id : null;
+      const idInput = document.getElementById('f-id');
+      const submit = document.getElementById('f-submit');
+      const importBtn = document.getElementById('armory-import-btn');
+      if (idInput) idInput.readOnly = agentFormMode === 'edit';
+      if (submit) submit.textContent = agentFormMode === 'edit' ? 'Save' : 'Create';
+      if (importBtn) importBtn.style.display = agentFormMode === 'edit' ? 'none' : '';
+    }
+
+    function resetAgentForm() {
+      ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('f-slash').value = '/gogo';
+      document.getElementById('f-color').value = '#00f2ff';
+      document.getElementById('f-autorestart').checked = true;
+      document.getElementById('f-error').textContent = '';
+      setAddHarnessRuntime('codex');
+      pickedAvatarPath = null;
+    }
+
+    function openAddForm() {
+      setAgentFormMode('add');
+      resetAgentForm();
+      document.body.classList.add('adding');
       syncWindowSize();
-      if (document.body.classList.contains('adding')) {
-        document.getElementById('f-id').focus();
-      }
+      requestAnimationFrame(() => document.getElementById('f-id').focus());
+    }
+
+    function openEditAgentForm(id) {
+      const agent = agents[id];
+      if (!agent) return;
+      closeRadialMenu();
+      setAgentFormMode('edit', id);
+      closeArmoryPanel();
+      pickedAvatarPath = null;
+      document.getElementById('f-error').textContent = '';
+      document.getElementById('f-id').value = agent.id || id;
+      document.getElementById('f-name').value = agent.displayName || '';
+      document.getElementById('f-cwd').value = agent.cwd || '';
+      document.getElementById('f-avatar').value = agent.avatar || '';
+      document.getElementById('f-slash').value = agent.startupSlash || '';
+      document.getElementById('f-color').value = agent.themeColor || '#00f2ff';
+      document.getElementById('f-autorestart').checked = agent.autoRestart !== false;
+      setAddHarnessRuntime(agent.runtime || 'codex');
+      document.body.classList.add('adding');
+      syncWindowSize();
+      requestAnimationFrame(() => document.getElementById('f-name').focus());
+    }
+
+    function closeAddForm() {
+      document.body.classList.remove('adding');
+      closeArmoryPanel();
+      setAgentFormMode('add');
+      syncWindowSize();
     }
 
     async function pickCwd() {
@@ -5102,12 +5925,146 @@
 
     let pickedAvatarPath = null;
     async function pickAvatar() {
-      const file = await ipcRenderer.invoke('pick-svg');
+      const file = await ipcRenderer.invoke('pick-avatar');
       if (file) {
         pickedAvatarPath = file;
         const parts = file.split('/');
         document.getElementById('f-avatar').value = parts[parts.length - 1];
       }
+    }
+
+    function armoryPanelEl() {
+      return document.getElementById('armory-panel');
+    }
+
+    function closeArmoryPanel() {
+      armoryPanelOpen = false;
+      const panel = armoryPanelEl();
+      if (panel) {
+        panel.classList.remove('open');
+        panel.innerHTML = '';
+      }
+      const btn = document.getElementById('armory-import-btn');
+      if (btn) btn.classList.remove('active');
+      syncWindowSize();
+    }
+
+    function armoryMeta(parts) {
+      return parts.filter(Boolean).join(' · ');
+    }
+
+    function inferHarnessFromArmory(agent) {
+      const haystack = [
+        agent.model,
+        agent.category,
+        agent.role,
+        agent.department,
+        agent.badge,
+        agent.description
+      ].filter(Boolean).join(' ').toLowerCase();
+      const match = HARNESS_OPTIONS.find(option => haystack.includes(option.id));
+      return match ? match.id : addFormRuntime;
+    }
+
+    function fillAddFormFromArmory(agent) {
+      document.getElementById('f-id').value = agent.id || '';
+      document.getElementById('f-name').value = agent.displayName || agent.slug || agent.id || '';
+      if (agent.color && /^#[0-9a-fA-F]{6}$/.test(agent.color)) {
+        document.getElementById('f-color').value = agent.color;
+      }
+      const option = harnessOptionFor(inferHarnessFromArmory(agent));
+      setAddHarnessRuntime(option.id);
+      closeArmoryPanel();
+      document.getElementById('f-cwd').focus();
+    }
+
+    function renderArmoryRows(panel, title, rows, localOnly = false) {
+      if (!rows.length) return;
+      const titleEl = document.createElement('div');
+      titleEl.className = 'armory-group-title';
+      titleEl.textContent = title;
+      panel.appendChild(titleEl);
+      rows.forEach(agent => {
+        const row = document.createElement('div');
+        row.className = 'armory-row';
+
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'armory-name';
+        name.textContent = agent.displayName || agent.name || agent.id;
+        const meta = document.createElement('div');
+        meta.className = 'armory-meta';
+        meta.textContent = localOnly
+          ? armoryMeta([agent.runtime || 'codex', agent.cwd || '', agent.hidden ? 'hidden' : 'in bar'])
+          : armoryMeta([agent.department, agent.role, agent.model, agent.localState === 'hidden' ? 'hidden locally' : '']);
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const action = document.createElement('button');
+        if (localOnly || agent.localState === 'hidden') {
+          action.textContent = 'Show';
+          action.title = `Restore ${agent.displayName || agent.id} to the bar`;
+          action.addEventListener('click', async () => {
+            const result = await ipcRenderer.invoke('unhide-agent', agent.id);
+            if (!result.ok) {
+              action.textContent = 'Failed';
+              return;
+            }
+            closeArmoryPanel();
+            await loadAndRender();
+          });
+        } else if (agent.localState === 'visible') {
+          action.textContent = 'Added';
+          action.disabled = true;
+        } else {
+          action.textContent = 'Use';
+          action.title = `Fill the form from ${agent.displayName || agent.slug}`;
+          action.addEventListener('click', () => fillAddFormFromArmory(agent));
+        }
+
+        row.appendChild(info);
+        row.appendChild(action);
+        panel.appendChild(row);
+      });
+    }
+
+    async function toggleArmoryImport() {
+      const panel = armoryPanelEl();
+      const btn = document.getElementById('armory-import-btn');
+      if (!panel || !btn) return;
+      if (armoryPanelOpen) {
+        closeArmoryPanel();
+        return;
+      }
+
+      armoryPanelOpen = true;
+      btn.classList.add('active');
+      panel.classList.add('open');
+      panel.innerHTML = '<div class="armory-status">Loading Armory roster…</div>';
+      syncWindowSize();
+
+      const result = await ipcRenderer.invoke('list-armory-agents');
+      armoryLastPayload = result;
+      if (!armoryPanelOpen) return;
+
+      panel.innerHTML = '';
+      if (!result || !result.ok) {
+        const status = document.createElement('div');
+        status.className = 'armory-status';
+        status.textContent = result && result.error
+          ? `Armory unavailable: ${result.error}`
+          : 'Armory unavailable.';
+        panel.appendChild(status);
+      }
+
+      const hiddenLocal = ((result && result.localAgents) || []).filter(agent => agent.hidden);
+      renderArmoryRows(panel, 'Hidden favorites', hiddenLocal, true);
+      renderArmoryRows(panel, 'Armory agents', ((result && result.armoryAgents) || []), false);
+
+      if (!panel.children.length) {
+        panel.innerHTML = '<div class="armory-status">No Armory agents found.</div>';
+      }
+      syncWindowSize();
     }
 
     async function submitAdd() {
@@ -5121,18 +6078,19 @@
         color: 'cyan',           // /color slash-command default for new agents
         themeColor,              // hex string persisted to agents.json theme_color
         startupSlash: document.getElementById('f-slash').value.trim(),
-        avatarSrc: pickedAvatarPath
+        avatarSrc: pickedAvatarPath,
+        autoRestart: document.getElementById('f-autorestart').checked
       };
-      payload.runtime = document.getElementById('f-runtime').value;
-      const result = await ipcRenderer.invoke('add-agent', payload);
+      payload.runtime = addFormRuntime;
+      const result = agentFormMode === 'edit'
+        ? await ipcRenderer.invoke('update-agent-form', payload)
+        : await ipcRenderer.invoke('add-agent', payload);
       if (!result.ok) { errEl.textContent = result.error || 'unknown error'; return; }
       // Reset form, close, reload.
-      ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('f-slash').value = '/gogo';
-      document.getElementById('f-color').value = '#00f2ff';
-      document.getElementById('f-runtime').value = 'codex';
-      pickedAvatarPath = null;
+      resetAgentForm();
       document.body.classList.remove('adding');
+      closeArmoryPanel();
+      setAgentFormMode('add');
       await loadAndRender();
     }
 
@@ -5157,7 +6115,7 @@
       await loadAndRender();
     }
 
-    // Hidden-agent popover — a simple inline list anchored to the "... N"
+    // Hidden-agent popover — a simple inline list anchored to the hidden-count
     // button in the dock. Each row shows the agent's display name + an Unhide
     // button. Clicking outside or pressing Escape closes it.
     let _hiddenPanelEl = null;
@@ -5172,6 +6130,20 @@
       panel.className = 'hidden-panel';
       panel.setAttribute('role', 'dialog');
       panel.setAttribute('aria-label', 'Hidden agents');
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'popup-close';
+      closeBtn.type = 'button';
+      closeBtn.title = 'Close';
+      closeBtn.setAttribute('aria-label', 'Close hidden agents');
+      closeBtn.innerHTML = closeIconSvg();
+      closeBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        panel.remove();
+        _hiddenPanelEl = null;
+        syncWindowSize();
+      });
+      panel.appendChild(closeBtn);
 
       const title = document.createElement('div');
       title.className = 'hidden-panel-title';
@@ -5207,6 +6179,23 @@
       panel.style.position = 'fixed';
       panel.style.top = `${r.bottom + 6}px`;
       panel.style.left = `${r.left}px`;
+      const panelRect = panel.getBoundingClientRect();
+      const neededWidth = Math.ceil(r.left + panelRect.width + 12);
+      const neededHeight = Math.ceil(r.bottom + 6 + panelRect.height + 12);
+      if (neededWidth > window.innerWidth || neededHeight > window.innerHeight) {
+        ipcRenderer.send('resize-window', {
+          width: Math.max(window.innerWidth, neededWidth),
+          height: Math.max(window.innerHeight, neededHeight)
+        });
+      }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!_hiddenPanelEl) return;
+        const nextRect = panel.getBoundingClientRect();
+        const left = Math.max(12, Math.min(window.innerWidth - nextRect.width - 12, r.left));
+        const top = Math.max(12, Math.min(window.innerHeight - nextRect.height - 12, r.bottom + 6));
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+      }));
 
       // Dismiss on outside click or Escape.
       const onOutside = (ev) => {
@@ -5366,8 +6355,11 @@
     document.getElementById('deploy-btn').addEventListener('click', deploy);
     document.getElementById('f-cwd-pick').addEventListener('click', pickCwd);
     document.getElementById('f-avatar-pick').addEventListener('click', pickAvatar);
-    document.getElementById('f-cancel').addEventListener('click', () => { document.body.classList.remove('adding'); syncWindowSize(); });
+    document.getElementById('armory-import-btn').addEventListener('click', toggleArmoryImport);
+    document.getElementById('f-close').addEventListener('click', closeAddForm);
+    document.getElementById('f-cancel').addEventListener('click', closeAddForm);
     document.getElementById('f-submit').addEventListener('click', submitAdd);
+    setAddHarnessRuntime('codex');
 
     // v2.5: wire the layout-mode segmented control. Reads localStorage on
     // boot for the persisted choice; clicks update layoutMode and persist.
@@ -5378,8 +6370,14 @@
     // both route through openDeployPreview → confirmDeploy).
     wireDeployPreview();
 
-    loadAndRender().then(startStatusPolling);
-    window.addEventListener('resize', syncWindowSize);
+    loadCodexPetRoster()
+      .catch(() => {})
+      .then(() => loadAndRender())
+      .then(startStatusPolling);
+    window.addEventListener('resize', () => {
+      syncWindowSize();
+      positionAgentPets();
+    });
 
     // ---------------------------------------------------------------------
     // Cmd+1..9 → attach to the Nth agent in the dock display order.
@@ -5503,60 +6501,25 @@
     const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
     function isSpeechAvailable() { return !!SpeechRecognitionCtor; }
 
-    // ---- Codex pet roster + mood ----
-    // Companion pets are independent from agent buttons. They are a small,
-    // premade Codex pet roster for the HUD chrome, not the agent identity layer.
-    const PET_ROSTER = [
-      { id: 'goku', displayName: 'Goku', sheet: 'assets/pets/goku/spritesheet.webp' },
-      { id: 'nimbus', displayName: 'Nimbus', sheet: 'assets/pets/nimbus/spritesheet.webp' },
-      { id: 'gaara', displayName: 'Gaara', sheet: 'assets/pets/gaara/spritesheet.webp' },
-      { id: 'codeberg', displayName: 'Codeberg', sheet: 'assets/pets/codeberg/spritesheet.webp' },
-      { id: 'neo', displayName: 'Neo', sheet: 'assets/pets/neo/spritesheet.webp' }
-    ];
-    const PET_ROSTER_BY_ID = new Map(PET_ROSTER.map(p => [p.id, p]));
-    const PET_STORAGE_KEY = 'agentRemotePetId';
-
-    function applyCompanionPet(id, { persist = true } = {}) {
-      const pet = PET_ROSTER_BY_ID.get(id) || PET_ROSTER[0];
-      const el = document.getElementById('codex-pet');
-      if (!el || !pet) return null;
-      el.dataset.pet = pet.id;
-      el.style.setProperty('--pet-sheet', `url("${pet.sheet}")`);
-      if (persist) {
-        try { localStorage.setItem(PET_STORAGE_KEY, pet.id); } catch { /* sandboxed */ }
-      }
-      return pet;
-    }
-
-    function initCompanionPet() {
-      let stored = '';
-      try { stored = localStorage.getItem(PET_STORAGE_KEY) || ''; } catch { /* sandboxed */ }
-      applyCompanionPet(stored || 'goku', { persist: false });
-    }
-
-    window.agentRemotePet = {
-      roster: PET_ROSTER.map(({ id, displayName }) => ({ id, displayName })),
-      set: (id) => applyCompanionPet(id),
-      next: () => {
-        const current = document.getElementById('codex-pet')?.dataset.pet || PET_ROSTER[0].id;
-        const idx = PET_ROSTER.findIndex(p => p.id === current);
-        return applyCompanionPet(PET_ROSTER[(idx + 1) % PET_ROSTER.length].id);
-      }
-    };
-    initCompanionPet();
-
+    // ---- Codex pet mood ----
+    // Visibility is per-agent and driven by the tile pet buttons. Mood follows
+    // the active voice target so only that agent's pet reacts while text streams.
     const PET_MOOD_CLASSES = ['pet-recording', 'pet-transcribing', 'pet-sent', 'pet-error'];
     let petMoodTimer = null;
-    function setPetMood(mood, ms = 0) {
+    function setPetMood(mood, ms = 0, agentId = voiceRec.activeId) {
       PET_MOOD_CLASSES.forEach(c => document.body.classList.remove(c));
       if (petMoodTimer) {
         clearTimeout(petMoodTimer);
         petMoodTimer = null;
       }
+      petMoodAgentId = agentId || null;
+      updatePetMoodTarget();
       if (mood && mood !== 'idle') document.body.classList.add(`pet-${mood}`);
       if (ms > 0) {
         petMoodTimer = setTimeout(() => {
           PET_MOOD_CLASSES.forEach(c => document.body.classList.remove(c));
+          petMoodAgentId = null;
+          updatePetMoodTarget();
           petMoodTimer = null;
         }, ms);
       }
@@ -5564,9 +6527,9 @@
 
     // ---- Toast ----
     let voiceToastTimer = null;
-    function showVoiceToast({ kind, target, snippet, ms = 2500 }) {
-      if (kind === 'error') setPetMood('error', Math.min(ms, 1800));
-      else if (kind === 'ok') setPetMood('sent', Math.min(ms, 1400));
+    function showVoiceToast({ kind, target, snippet, ms = 2500, agentId = null }) {
+      if (kind === 'error') setPetMood('error', Math.min(ms, 1800), agentId);
+      else if (kind === 'ok') setPetMood('sent', Math.min(ms, 1400), agentId);
       let el = document.getElementById('voice-toast');
       if (!el) {
         el = document.createElement('div');
@@ -5603,9 +6566,12 @@
     }
     function positionTranscriptBubble(tileEl) {
       const el = ensureTranscriptEl();
-      const r = tileEl.getBoundingClientRect();
-      // Anchor above the tile, centered. Clamp to viewport so a left-edge
-      // tile doesn't push the bubble off-screen.
+      positionAgentPets();
+      const petAnchor = activePetAnchorFor(voiceRec.activeId);
+      const r = (petAnchor || tileEl).getBoundingClientRect();
+      // Anchor above the visible pet when one is spawned; otherwise fall back
+      // to the tile. Clamp to viewport so a left-edge tile doesn't push the
+      // bubble off-screen.
       const winW = window.innerWidth;
       const desiredW = Math.min(320, winW - 24);
       let left = r.left + r.width / 2 - desiredW / 2;
@@ -5765,6 +6731,7 @@
           kind: 'error',
           target: 'Mic access denied',
           snippet: 'hold-to-talk disabled — grant in System Settings',
+          agentId: id,
           ms: 4500
         });
         return;
@@ -5949,6 +6916,7 @@
           kind: 'error',
           target: `${targetName} is offline`,
           snippet: 'message discarded',
+          agentId: wasId,
           ms: 3000
         });
         return;
@@ -5965,6 +6933,7 @@
           kind: 'error',
           target: `${targetName} send failed`,
           snippet: result && result.error ? result.error : 'no matching pane',
+          agentId: wasId,
           ms: 3500
         });
         return;
@@ -5973,6 +6942,7 @@
         kind: 'ok',
         target: `${targetName} · sent`,
         snippet: composed,
+        agentId: wasId,
         ms: 2500
       });
     }
@@ -6323,19 +7293,8 @@
       const wrap = document.createElement('div');
       wrap.className = sizeClassName;
       const agentId = chatAgentIdForFrom(from);
-      // Prefer an avatar from the registry if known; otherwise monogram.
-      let avatarFile = null;
-      if (agentId && typeof agents !== 'undefined' && agents && agents[agentId] && agents[agentId].avatar) {
-        avatarFile = agents[agentId].avatar;
-      }
-      if (avatarFile) {
-        const obj = document.createElement('object');
-        obj.setAttribute('data', `assets/${avatarFile}`);
-        obj.setAttribute('type', 'image/svg+xml');
-        // Click should fall through to the bubble row (no drag/drop on the
-        // svg itself).
-        obj.style.pointerEvents = 'none';
-        wrap.appendChild(obj);
+      if (agentId && typeof agents !== 'undefined' && agents && agents[agentId]) {
+        renderAgentAvatar(wrap, agents[agentId]);
       } else {
         // Monogram: first letter of `from`, white on per-agent color.
         const ch = (from || '?').slice(0, 1).toUpperCase();
@@ -6807,6 +7766,8 @@
         chatSendMessage();
       });
       btn.addEventListener('click', () => chatSendMessage());
+      const closeBtn = document.getElementById('chat-close-btn');
+      if (closeBtn) closeBtn.addEventListener('click', closeChatOverlay);
     })();
 
     ipcRenderer.on('chat-tail-changed', () => {

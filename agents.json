@@ -129,6 +129,20 @@
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "avatar": "tmux-masta.svg"
+    },
+    {
+      "id": "gaara",
+      "display_name": "GAARA",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/ai_projects/content-creation",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "theme_color": "#ff0000",
+      "avatar": "gaara.svg"
     }
   ]
 }

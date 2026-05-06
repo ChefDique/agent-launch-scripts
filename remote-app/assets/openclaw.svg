@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenClaw">
+  <defs>
+    <linearGradient id="openclawBody" x1="14" y1="8" x2="48" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff4d4d"/>
+      <stop offset="0.54" stop-color="#ef3338"/>
+      <stop offset="1" stop-color="#b91f23"/>
+    </linearGradient>
+    <linearGradient id="openclawClaw" x1="6" y1="22" x2="56" y2="45" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff5b5b"/>
+      <stop offset="1" stop-color="#c82127"/>
+    </linearGradient>
+    <filter id="openclawGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <style>
+    .openclaw-body { animation: openclaw-bob 2.5s ease-in-out infinite; transform-origin: 32px 36px; }
+    .openclaw-left-claw { animation: openclaw-left-claw 1.9s ease-in-out infinite; transform-origin: 14px 35px; }
+    .openclaw-right-claw { animation: openclaw-right-claw 1.9s ease-in-out infinite; transform-origin: 50px 35px; }
+    .openclaw-antenna-left { animation: openclaw-antenna-left 2.1s ease-in-out infinite; transform-origin: 24px 17px; }
+    .openclaw-antenna-right { animation: openclaw-antenna-right 2.1s ease-in-out infinite; transform-origin: 40px 17px; }
+    .openclaw-pupil { animation: openclaw-eye 1.8s ease-in-out infinite; }
+    @keyframes openclaw-bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+    @keyframes openclaw-left-claw {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-6deg); }
+    }
+    @keyframes openclaw-right-claw {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(6deg); }
+    }
+    @keyframes openclaw-antenna-left {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-7deg); }
+    }
+    @keyframes openclaw-antenna-right {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(7deg); }
+    }
+    @keyframes openclaw-eye {
+      0%, 100% { opacity: 0.78; }
+      50% { opacity: 1; }
+    }
+  </style>
+  <g class="openclaw-body" filter="url(#openclawGlow)">
+    <path class="openclaw-antenna-left" d="M23 18 C18 11 12 10 8 13" fill="none" stroke="#ff5b62" stroke-width="4" stroke-linecap="round"/>
+    <path class="openclaw-antenna-right" d="M41 18 C46 11 52 10 56 13" fill="none" stroke="#ff5b62" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="32" cy="35" r="25" fill="url(#openclawBody)"/>
+    <path class="openclaw-left-claw" d="M8 31 C2 32 0 38 4 45 C8 52 15 49 17 40 C19 31 15 29 8 31Z" fill="url(#openclawClaw)"/>
+    <path class="openclaw-right-claw" d="M56 31 C62 32 64 38 60 45 C56 52 49 49 47 40 C45 31 49 29 56 31Z" fill="url(#openclawClaw)"/>
+    <rect x="24" y="53" width="8" height="9" rx="1" fill="#c82327"/>
+    <rect x="36" y="53" width="8" height="9" rx="1" fill="#c82327"/>
+    <circle cx="24" cy="29" r="5.7" fill="#05070e"/>
+    <circle cx="42" cy="29" r="5.7" fill="#05070e"/>
+    <circle class="openclaw-pupil" cx="25.1" cy="28.9" r="2.5" fill="#16e7d0"/>
+    <circle class="openclaw-pupil" cx="43.1" cy="28.9" r="2.5" fill="#16e7d0"/>
+  </g>
+</svg>

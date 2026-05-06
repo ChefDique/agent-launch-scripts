@@ -5,8 +5,11 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 const { normalizeSpawnLayout, tmuxAttachCommand } = require('./layout-policy');
 const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
+const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
+const { computeWindowBounds } = require('./window-geometry');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -21,6 +24,10 @@ const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
 const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
+const DEFAULT_ACRM_ENV_PATH = path.join(os.homedir(), 'ai_projects', 'CorporateHQ', 'ACRM', '.env.local');
+const AVATAR_EXTENSIONS = ['svg', 'gif', 'png', 'jpg', 'jpeg', 'webp'];
+const USER_CODEX_PETS_DIR = path.join(os.homedir(), '.codex', 'pets');
+const BUNDLED_PETS_DIR = path.join(ASSETS_DIR, 'pets');
 
 // Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
@@ -52,6 +59,68 @@ function logToOutLog(line) {
     const ts = new Date().toISOString();
     fs.appendFileSync(OUT_LOG, `[${ts}] ${line}\n`, 'utf8');
   } catch { /* no-op: logging must not break the app */ }
+}
+
+function bundledAvatarForId(id) {
+  const clean = String(id || '').trim();
+  if (!clean) return '';
+  for (const ext of AVATAR_EXTENSIONS) {
+    const filename = `${clean}.${ext}`;
+    if (fs.existsSync(path.join(ASSETS_DIR, filename))) return filename;
+  }
+  return '';
+}
+
+function avatarExtension(filePath) {
+  const ext = path.extname(String(filePath || '')).replace(/^\./, '').toLowerCase();
+  return AVATAR_EXTENSIONS.includes(ext) ? ext : '';
+}
+
+function loadCodexPetsFromDir(dir, source) {
+  try {
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => {
+        const petDir = path.join(dir, entry.name);
+        const manifestPath = path.join(petDir, 'pet.json');
+        if (!fs.existsSync(manifestPath)) return null;
+        let manifest = {};
+        try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); }
+        catch { return null; }
+        const petId = String(manifest.id || entry.name || '').trim();
+        if (!/^[a-z0-9][a-z0-9_-]*$/i.test(petId)) return null;
+        const sheetName = String(manifest.spritesheetPath || 'spritesheet.webp');
+        const sheetPath = path.join(petDir, sheetName);
+        if (!fs.existsSync(sheetPath)) return null;
+        return {
+          id: petId,
+          displayName: String(manifest.displayName || petId),
+          description: String(manifest.description || ''),
+          sheetUrl: pathToFileURL(sheetPath).href,
+          source
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  } catch {
+    return [];
+  }
+}
+
+function loadCodexPetRoster() {
+  const seen = new Set();
+  const pets = [];
+  for (const pet of [
+    ...loadCodexPetsFromDir(USER_CODEX_PETS_DIR, 'codex'),
+    ...loadCodexPetsFromDir(BUNDLED_PETS_DIR, 'bundled')
+  ]) {
+    const key = pet.id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pets.push(pet);
+  }
+  return pets;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +167,7 @@ function loadAgents() {
         // "user set nothing and main filled in XAVIER".
         renameTo: a.rename_to || '',
         startupSlash: a.startup_slash || '',
-        avatar: a.avatar || `${a.id}.svg`,
+        avatar: a.avatar || bundledAvatarForId(a.id),
         // hidden: true means "kept in registry but hidden from the dock bar".
         // Set via the "Remove from bar" radial action; cleared via "Show hidden".
         hidden: !!a.hidden
@@ -107,6 +176,120 @@ function loadAgents() {
   } catch (err) {
     console.error(`[remote] failed to read registry ${REGISTRY_PATH}: ${err.message}`);
     return [];
+  }
+}
+
+function parseEnvFile(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const env = {};
+    raw.split(/\r?\n/).forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const idx = trimmed.indexOf('=');
+      if (idx <= 0) return;
+      const key = trimmed.slice(0, idx).trim();
+      let value = trimmed.slice(idx + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      env[key] = value;
+    });
+    return env;
+  } catch {
+    return {};
+  }
+}
+
+function resolveArmoryConfig() {
+  const envPath = process.env.AGENTREMOTE_ACRM_ENV || DEFAULT_ACRM_ENV_PATH;
+  const fileEnv = parseEnvFile(envPath);
+  const supabaseUrl = process.env.SUPABASE_URL
+    || process.env.NEXT_PUBLIC_SUPABASE_URL
+    || fileEnv.SUPABASE_URL
+    || fileEnv.NEXT_PUBLIC_SUPABASE_URL
+    || '';
+  const supabaseKey = process.env.SUPABASE_ANON_KEY
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    || fileEnv.SUPABASE_ANON_KEY
+    || fileEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    || '';
+  if (!supabaseUrl || !supabaseKey) {
+    return { ok: false, error: `Armory Supabase config missing; checked ${envPath}` };
+  }
+  return { ok: true, supabaseUrl: supabaseUrl.replace(/\/+$/, ''), supabaseKey };
+}
+
+function safeAgentId(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
+
+function normalizeArmoryAgent(row, localById) {
+  const slug = safeAgentId(row.slug || row.name);
+  const local = localById.get(slug) || null;
+  return {
+    id: slug,
+    slug: row.slug || slug,
+    displayName: row.name || row.slug || slug,
+    description: row.description || '',
+    category: row.category || '',
+    department: row.department || '',
+    role: row.role || '',
+    model: row.model || '',
+    badge: row.badge || '',
+    color: row.color || '',
+    avatarUrl: row.avatar_url || '',
+    isExecutive: !!row.is_executive,
+    excludedFromPicker: !!row.excluded_from_picker,
+    localState: local ? (local.hidden ? 'hidden' : 'visible') : 'available'
+  };
+}
+
+async function fetchArmoryAgents() {
+  const localAgents = loadAgents().map(a => ({
+    id: a.id,
+    displayName: a.displayName || a.id,
+    runtime: a.runtime || 'codex',
+    cwd: a.cwd || '',
+    hidden: !!a.hidden,
+    avatar: a.avatar || ''
+  }));
+  const localById = new Map(localAgents.map(agent => [agent.id, agent]));
+  const config = resolveArmoryConfig();
+  if (!config.ok) {
+    return { ok: false, error: config.error, localAgents, armoryAgents: [] };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+  const select = 'slug,name,description,category,department,role,model,badge,color,is_executive,avatar_url,excluded_from_picker,is_active';
+  const url = `${config.supabaseUrl}/rest/v1/agent_registry?select=${select}&is_active=eq.true&excluded_from_picker=eq.false&order=name.asc`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        apikey: config.supabaseKey,
+        Authorization: `Bearer ${config.supabaseKey}`
+      },
+      signal: controller.signal
+    });
+    const text = await response.text();
+    if (!response.ok) {
+      throw new Error(`Armory request failed ${response.status}: ${text.slice(0, 180)}`);
+    }
+    const rows = JSON.parse(text);
+    const armoryAgents = Array.isArray(rows)
+      ? rows.map(row => normalizeArmoryAgent(row, localById)).filter(row => row.id)
+      : [];
+    return { ok: true, localAgents, armoryAgents };
+  } catch (err) {
+    return { ok: false, error: err.message, localAgents, armoryAgents: [] };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -380,6 +563,15 @@ function showAtCursorDisplay() {
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-agents', () => loadAgents());
 
+ipcMain.handle('list-codex-pets', () => {
+  try {
+    return { ok: true, pets: loadCodexPetRoster() };
+  } catch (err) {
+    return { ok: false, error: err.message, pets: [] };
+  }
+});
+ipcMain.handle('list-armory-agents', () => fetchArmoryAgents());
+
 // Resize the BrowserWindow to fit the rendered DOM. Renderer measures itself
 // then sends {width, height}. Cap to a sensible max so the window can't
 // accidentally explode if a CSS bug returns an absurd height; ALSO cap
@@ -404,25 +596,21 @@ ipcMain.handle('get-agents', () => loadAgents());
 ipcMain.on('resize-window', (event, { width, height }) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  const wRaw = Math.max(380, Math.min(1200, Math.round(width || 620)));
-  const hRaw = Math.max(180, Math.min(900, Math.round(height || 240)));
-
-  // Cap height so cur.y + height stays within display.workArea.bottom. If
-  // the display lookup fails (rare multi-monitor edge case), skip the cap
-  // and let macOS handle clamping.
-  let h = hRaw;
+  const current = mainWindow.getBounds();
   try {
-    const cur = mainWindow.getBounds();
-    const refPoint = { x: cur.x + Math.round(cur.width / 2), y: cur.y };
+    const refPoint = { x: current.x + Math.round(current.width / 2), y: current.y + Math.round(current.height / 2) };
     const display = screen.getDisplayNearestPoint(refPoint);
-    const maxBottom = display.workArea.y + display.workArea.height - WORKAREA_BOTTOM_SAFETY;
-    const maxHeight = Math.max(180, maxBottom - cur.y);
-    h = Math.min(hRaw, maxHeight);
+    const bounds = computeWindowBounds(current, { width, height }, display.workArea, {
+      safety: WORKAREA_BOTTOM_SAFETY
+    });
+    mainWindow.setBounds(bounds, false);
   } catch (err) {
-    logToOutLog(`resize-window: bottom-cap lookup failed (${err.message}); using uncapped height`);
+    logToOutLog(`resize-window: display geometry failed (${err.message}); resizing without reposition`);
+    const bounds = computeWindowBounds(current, { width, height }, null, {
+      safety: WORKAREA_BOTTOM_SAFETY
+    });
+    mainWindow.setBounds({ ...current, width: bounds.width, height: bounds.height }, false);
   }
-
-  mainWindow.setContentSize(wRaw, h, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -738,7 +926,7 @@ ipcMain.on('spawn-agents', (event, payload) => {
 });
 
 // ---------------------------------------------------------------------------
-// Add-agent IPC — append a registry entry + copy avatar SVG into assets/
+// Add-agent IPC — append a registry entry + copy an optional avatar image into assets/
 // ---------------------------------------------------------------------------
 // Inputs come from the in-app Add Agent form. The renderer has already done
 // shape validation (id present, no conflicts) but we re-validate here because
@@ -760,8 +948,10 @@ ipcMain.handle('add-agent', async (event, payload) => {
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
       ? '/gogo'
       : String(payload.startupSlash).trim();
-    const runtime = String(payload.runtime || 'codex').trim().toLowerCase();
-    if (!['codex', 'claude', 'hermes', 'openclaw'].includes(runtime)) {
+    const autoRestart = payload.autoRestart === false ? false : true;
+    const rawRuntime = String(payload.runtime || 'codex').trim().toLowerCase();
+    const runtime = normalizeRuntime(rawRuntime);
+    if (rawRuntime && !HARNESS_RUNTIME_IDS.includes(rawRuntime)) {
       throw new Error('runtime must be codex, claude, hermes, or openclaw');
     }
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
@@ -770,11 +960,13 @@ ipcMain.handle('add-agent', async (event, payload) => {
     const existing = loadAgents();
     if (existing.some(a => a.id === id)) throw new Error(`agent id "${id}" already exists`);
 
-    // Copy avatar if provided. If not, the button will fall back to the
-    // first letter of the display name (handled in the renderer).
+    // Copy avatar if provided. If not, the renderer falls back to the selected
+    // harness mascot.
     let avatarFilename = null;
     if (avatarSrc && fs.existsSync(avatarSrc)) {
-      avatarFilename = `${id}.svg`;
+      const ext = avatarExtension(avatarSrc);
+      if (!ext) throw new Error('avatar must be svg, gif, png, jpg, jpeg, or webp');
+      avatarFilename = `${id}.${ext}`;
       fs.copyFileSync(avatarSrc, path.join(ASSETS_DIR, avatarFilename));
     }
 
@@ -795,6 +987,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
         entry.approval_policy = 'never';
       }
       if (themeColor) entry.theme_color = themeColor;
+      if (!autoRestart) entry.auto_restart = false;
       if (avatarFilename) entry.avatar = avatarFilename;
       data.agents.push(entry);
     });
@@ -840,9 +1033,9 @@ ipcMain.handle('reorder-agents', async (event, ids) => {
   }
 });
 
-// Remove-agent IPC — strip from agents.json. SVG stays in remote-app/assets/
+// Remove-agent IPC — strip from agents.json. Avatar assets stay in remote-app/assets/
 // so re-adding an agent finds the avatar still there (an earlier auto-archive
-// to deprecated/assets/ silently vanished avatars on re-add). SVG cleanup is
+// to deprecated/assets/ silently vanished avatars on re-add). Asset cleanup is
 // a separate concern — handle it manually or via a future "prune unused" cmd.
 //
 // We also don't touch the agent's actual project dir or its running tmux pane.
@@ -942,7 +1135,7 @@ const UPDATABLE_FIELDS = {
   theme_color:   v => (/^#[0-9a-fA-F]{3,8}$/.test(String(v || '').trim()) ? String(v).trim() : null),
   runtime:       v => {
     const runtime = String(v || '').trim().toLowerCase();
-    return ['codex', 'claude', 'hermes', 'openclaw'].includes(runtime) ? runtime : null;
+    return HARNESS_RUNTIME_IDS.includes(runtime) ? runtime : null;
   },
   model:         v => String(v || '').trim(),
   reasoning_effort: v => String(v || '').trim(),
@@ -951,6 +1144,63 @@ const UPDATABLE_FIELDS = {
   rename_to:     v => String(v || '').trim(),
   startup_slash: v => String(v || '').trim()
 };
+
+ipcMain.handle('update-agent-form', async (event, payload = {}) => {
+  try {
+    const safeId = String(payload.id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
+    const displayName = String(payload.displayName || '').trim();
+    if (!displayName) throw new Error('display_name required');
+    const cwd = String(payload.cwd || '').trim();
+    if (!cwd) throw new Error('cwd required');
+    const rawRuntime = String(payload.runtime || 'codex').trim().toLowerCase();
+    const runtime = normalizeRuntime(rawRuntime);
+    if (rawRuntime && !HARNESS_RUNTIME_IDS.includes(rawRuntime)) {
+      throw new Error('runtime must be codex, claude, hermes, or openclaw');
+    }
+    const themeColor = payload.themeColor && /^#[0-9a-fA-F]{3,8}$/.test(String(payload.themeColor))
+      ? String(payload.themeColor).trim()
+      : null;
+    const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
+      ? ''
+      : String(payload.startupSlash).trim();
+    const autoRestart = payload.autoRestart === false ? false : true;
+    const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
+    let avatarFilename = null;
+    if (avatarSrc && fs.existsSync(avatarSrc)) {
+      const ext = avatarExtension(avatarSrc);
+      if (!ext) throw new Error('avatar must be svg, gif, png, jpg, jpeg, or webp');
+      avatarFilename = `${safeId}.${ext}`;
+      fs.copyFileSync(avatarSrc, path.join(ASSETS_DIR, avatarFilename));
+    }
+
+    let updatedEntry = null;
+    writeRegistry(data => {
+      const entry = (data.agents || []).find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent "${safeId}" not in registry`);
+      entry.display_name = displayName;
+      entry.cwd = cwd;
+      entry.runtime = runtime;
+      entry.startup_slash = startupSlash;
+      if (themeColor) entry.theme_color = themeColor;
+      else delete entry.theme_color;
+      if (autoRestart) delete entry.auto_restart;
+      else entry.auto_restart = false;
+      if (avatarFilename) entry.avatar = avatarFilename;
+      if (runtime === 'codex') {
+        if (!entry.model) entry.model = 'gpt-5.5';
+        if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
+        if (!entry.sandbox) entry.sandbox = 'danger-full-access';
+        if (!entry.approval_policy) entry.approval_policy = 'never';
+      }
+      updatedEntry = entry;
+    });
+    return { ok: true, entry: updatedEntry };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
   try {
     const safeId = String(id || '').trim().toLowerCase();
@@ -988,14 +1238,22 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
 });
 
 // File pickers for the Add Agent form.
-ipcMain.handle('pick-svg', async () => {
+async function pickAvatarFile() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Pick avatar SVG',
-    filters: [{ name: 'SVG', extensions: ['svg'] }],
+    title: 'Pick agent avatar',
+    filters: [
+      { name: 'Images and GIFs', extensions: AVATAR_EXTENSIONS },
+      { name: 'SVG', extensions: ['svg'] },
+      { name: 'GIF', extensions: ['gif'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }
+    ],
     properties: ['openFile']
   });
   return result.canceled ? null : result.filePaths[0];
-});
+}
+
+ipcMain.handle('pick-avatar', pickAvatarFile);
+ipcMain.handle('pick-svg', pickAvatarFile);
 
 ipcMain.handle('pick-cwd', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
