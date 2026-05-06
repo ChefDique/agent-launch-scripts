@@ -16,8 +16,9 @@ Run all of these in parallel, then present status:
 ```bash
 git status --short --branch
 git log --oneline -10
+jq -r '"AgentRemote package version: " + .version' remote-app/package.json
 jq '.agents | length, [.agents[].id], [.agents[] | {id, runtime, model, allow_claude_runtime}]' agents.json
-pgrep -fl "Electron.*remote-app" | head -3
+ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app" || true
 tail -5 remote-app/out.log
 tmux ls 2>/dev/null | head -5
 find .claude/skills -maxdepth 2 -name SKILL.md -print 2>/dev/null
@@ -41,7 +42,7 @@ If `claude-peers` MCP is available in the current harness, use it only as an opt
 
 Cover, in order:
 1. Most recent commit + uncommitted state
-2. AgentRemote: running yes/no, last shortcut event from out.log
+2. AgentRemote: package version, running yes/no, live process checkout path, last shortcut event from out.log
 3. Fleet/runtime: active tmux sessions, any live Claude process, and whether `agents.json` is Codex-first
 4. Peer visibility: MCP roster if available, otherwise local-only status
 5. End with `startup ingest: ~X% context`
@@ -60,6 +61,8 @@ If a parallel-track action is independent, name it as a one-line addendum.
 - Build argv arrays per runtime. Do not assemble Codex, Claude, Hermes, OpenClaw, or tmux command strings.
 - Agent display names, pane titles, and registry `tmux_target` values are load-bearing for detection and targeting.
 - For process checks, verify actual executables and tmux panes. Avoid optimistic status.
+- For AgentRemote app work, bump `remote-app/package.json` and `remote-app/package-lock.json` by SemVer before commit. Default to patch for fixes/UX affordances, minor for new user-facing capability, major only for breaking registry/runtime contracts.
+- AgentRemote must display its `v<semver> <branch>@<sha>` badge in the HUD. At startup, compare the visible/running process path with the canonical checkout and treat stale `.codex/worktrees/...` app processes as blockers until cleaned or intentionally kept.
 - Do not touch peer fleet repos (`~/ai_projects/CorporateHQ`, `~/ai_projects/research-and-development`, `~/ai_projects/trading`, `~/ai_projects/swarmy`) except through their owners, dispatched work, or explicit Richard direction.
 
 ## When the session is mid-arc

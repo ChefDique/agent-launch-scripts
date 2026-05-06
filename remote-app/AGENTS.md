@@ -40,6 +40,7 @@ bash ../launch-remote.sh
 - Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another TMUX-MASTA lane; classify them explicitly and merge them into the current understanding.
 - Launch AgentRemote after UI or IPC changes.
 - Verify the running Electron process points at `/Users/richardadair/agent-launch-scripts/remote-app`, not a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.
+- Bump `package.json` and `package-lock.json` by SemVer for app changes, then verify the HUD build badge can identify version, branch, commit, dirty state, and checkout path.
 - Verify tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
 - At session end, run `bash ../scripts/session-end-cleanup.sh` unless Richard explicitly asked to keep AgentRemote running; this prevents stale worktree Electron apps and stale Chromium caches from surviving into the next lane.
 

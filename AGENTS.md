@@ -53,6 +53,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Treat dirty state as shared operational evidence, not a mystery. Review and classify every dirty file before and after work. If changes came from AgentRemote usage, another TMUX-MASTA lane, or app-generated registry/avatar edits, say that explicitly and either integrate them or leave a concrete reason for deferring.
 - For launcher edits, run targeted shell checks such as `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`.
 - For Electron edits, use `bash launch-remote.sh`; do not start duplicate AgentRemote instances.
+- For AgentRemote app edits, bump `remote-app/package.json` and `remote-app/package-lock.json` using SemVer before commit. The HUD must show `v<semver> <branch>@<sha>` so stale worktree apps are visually identifiable.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
 - Commit completed work units with clear messages. Push only when Richard asks.
 

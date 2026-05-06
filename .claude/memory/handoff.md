@@ -2,20 +2,23 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Non-pet TMUX-MASTA fixes: restored `/gogo`, simplified Deploy to one movable window per agent, fixed tmux send ordering, and made launch scripts worktree-local.
+**Last working on:** AgentRemote reliability/versioning closeout after stale worktree app confusion: floating pets shipped, stale worktree launcher bug fixed, session-end cleanup hook added, and build identity/version discipline added.
 
-**State at last pause (2026-05-06T02:56:32-0700):**
-- Commit `2624436` exists on branch `codex/tmux-gogo-launch-fixes`: AgentRemote Deploy exposes only `EACH` (`CHQ_LAYOUT=ittab`), `broadcast-message` sends text and submit in one ordered tmux command sequence, agent IDs can be edited only while not running, and `chq-tmux.sh` / `launch-remote.sh` resolve paths from their own worktree.
-- Global `/gogo` was restored outside this repo at `/Users/richardadair/.agents/skills/gogo/SKILL.md` and pinned in `/Users/richardadair/.codex/config.toml`; it now delegates to repo-local CHQ/R&D/trading-style `gogo` skills before falling back to the generic startup checklist.
-- Verification passed: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, `cd remote-app && npm test`, `git diff --check`, and a live tmux smoke proving `ittab` creates separate tmux windows with one pane each.
-- AgentRemote was relaunched from `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts/remote-app` and duplicate main-checkout Electron processes were reaped. Current live process at closeout was PID `6161`.
-- The main checkout `/Users/richardadair/agent-launch-scripts` still has pre-existing dirty asset/registry changes (`agents.json`, `gaara.svg` delete, `gaara.gif`, `gara.gif`, `goku.gif`). Do not overwrite or clean those without Richard.
+**State at handoff capture (2026-05-06T11:04:00-0700):**
+- Main checkout is `/Users/richardadair/agent-launch-scripts` on `main`; it was clean before the final version-badge commit, with local commits ahead of `origin/main`.
+- Shipped commits already on `main`: `76b13f1` floating pet windows, `940afd2` pet polish, `5bed011` app-generated registry/avatar updates, `df691c5` stale worktree launch fix, `6377c64` Codex visibility state, and `5598ba6` AgentRemote session cleanup hook.
+- Critical incident root cause: Richard reloaded an AgentRemote process that was actually running from `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts/remote-app` on branch `codex/tmux-gogo-launch-fixes`, not the canonical main checkout. `launch-remote.sh` now kills main/worktree AgentRemote Electron instances before launching canonical main.
+- New session-end contract: run `bash scripts/session-end-cleanup.sh` after any session that launched/restarted/tested AgentRemote unless Richard explicitly asks to keep it running. The hook stops stale AgentRemote apps across main/worktrees, clears Chromium caches, preserves `Local Storage/` and `pet-state.json`, prints git status/worktrees/processes, and must be cited in final status if anything remains.
+- Dirty tree policy is now in `AGENTS.md`, `CLAUDE.md`, and `remote-app/AGENTS.md`: dirty files are shared operational evidence. Classify app-generated registry/avatar state or other-lane state every time; do not dismiss it as unrelated mystery user work.
+- Versioning work in progress at capture: `remote-app/package.json` and lockfile bumped `1.0.0 -> 1.0.1`; `main.js` adds `app-build-info`; `index.html` shows subtle bottom-corner `v<semver> <branch>@<sha>` badge with branch/commit/dirty/path tooltip; repo-local `.claude/skills/gogo/SKILL.md` now checks package version and live Electron process path.
+- Versioning rules added: AgentRemote app work must bump SemVer before commit (patch for fixes/UX affordances, minor for new user-facing capability, major for breaking runtime/registry contracts). `/gogo` must report package version and live checkout path and treat stale `.codex/worktrees/...` apps as blockers unless intentionally kept.
+- Verification passed before handoff commit: `cd remote-app && npm test`, `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `node --check remote-app/main.js`, and `git diff --check`.
 
-**Next verifiable step:** Decide how to land `codex/tmux-gogo-launch-fixes` from the detached worktree, then manually exercise AgentRemote Deploy: select two agents, Deploy, confirm iTerm shows one movable control-mode window per agent, and Send submits immediately instead of leaving text in the chat inbox.
+**Next verifiable step for fresh session:** Confirm the final version-badge commit is present and pushed, then start AgentRemote from canonical main with `bash launch-remote.sh` and visually confirm the bottom-right HUD badge shows `v1.0.1 main@<sha>` and not a `.codex/worktrees` branch/path in the tooltip.
 
-**If that step fails:** Check `remote-app/out.log`, `/tmp/agent-remote-panes.json`, `tmux show-option -t chq -v -q '@chq_layout'`, `tmux list-windows -t chq`, and whether an existing non-control-mode tmux client is attached. Use `bash launch-remote.sh` from this branch to avoid accidentally launching the dirty main checkout.
+**If that step fails:** Check the live process path with `ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app"`, run `bash scripts/session-end-cleanup.sh`, then relaunch with `bash launch-remote.sh`. Check `remote-app/out.log` for renderer errors.
 
-**Pending uncommitted diff:** none in this worktree after the `/done` handoff commit; global Codex config/skill edits are outside this repo.
+**Pending uncommitted diff at capture:** version-badge files plus this handoff were being committed/pushed as the final closeout. If a fresh session sees any dirty state, review it first and classify it; do not ignore it.
 
 ---
 

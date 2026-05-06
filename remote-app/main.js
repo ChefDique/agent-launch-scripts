@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, session, dialog, globalShortcut, screen } = require('electron');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -10,6 +10,7 @@ const { normalizeSpawnLayout, tmuxAttachCommand } = require('./layout-policy');
 const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
+const APP_PACKAGE = require('./package.json');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -78,6 +79,33 @@ function bundledAvatarForId(id) {
 function avatarExtension(filePath) {
   const ext = path.extname(String(filePath || '')).replace(/^\./, '').toLowerCase();
   return AVATAR_EXTENSIONS.includes(ext) ? ext : '';
+}
+
+function gitValue(args, fallback = '') {
+  try {
+    return execFileSync('git', ['-C', REPO_ROOT, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 1500
+    }).trim() || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function appBuildInfo() {
+  const branch = gitValue(['branch', '--show-current'], 'unknown');
+  const commit = gitValue(['rev-parse', '--short', 'HEAD'], 'nogit');
+  const dirty = !!gitValue(['status', '--short'], '');
+  return {
+    version: APP_PACKAGE.version || app.getVersion(),
+    branch,
+    commit,
+    dirty,
+    repoRoot: REPO_ROOT,
+    appPath: __dirname,
+    display: `v${APP_PACKAGE.version || app.getVersion()} ${branch}@${commit}${dirty ? '*' : ''}`
+  };
 }
 
 function loadCodexPetsFromDir(dir, source) {
@@ -777,6 +805,7 @@ function showAtCursorDisplay() {
 // Registry IPC — renderer asks for the agent list at boot AND after add/remove
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-agents', () => loadAgents());
+ipcMain.handle('app-build-info', () => appBuildInfo());
 
 ipcMain.handle('list-codex-pets', () => {
   try {

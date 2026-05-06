@@ -126,6 +126,29 @@
       z-index: 0;
     }
     .panel > * { position: relative; z-index: 1; }
+    .build-badge {
+      position: absolute;
+      right: 10px;
+      bottom: 4px;
+      z-index: 8;
+      max-width: 220px;
+      border: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.34);
+      font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+      font-size: 8.5px;
+      line-height: 1;
+      letter-spacing: 0.02em;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: help;
+      -webkit-app-region: no-drag;
+    }
+    .build-badge:hover {
+      color: rgba(255, 255, 255, 0.72);
+    }
 
     /* ---------------------------------------------------------------------
        Top row: agent dock
@@ -3439,6 +3462,7 @@
   <div class="panel-stack">
   <div class="rainbow-rim"></div>
   <div class="panel" id="panel">
+    <button class="build-badge" id="build-badge" type="button" title="AgentRemote build">v?.?.?</button>
     <!-- Row 1: agent dock -->
     <div class="dock" id="dock"></div>
 
@@ -3740,6 +3764,25 @@
         setTimeout(() => input.focus(), 0);
       }
     });
+
+    async function loadBuildBadge() {
+      const badge = document.getElementById('build-badge');
+      if (!badge) return;
+      try {
+        const info = await ipcRenderer.invoke('app-build-info');
+        if (!info) return;
+        badge.textContent = info.display || `v${info.version || '?'}`;
+        badge.title = [
+          `AgentRemote ${info.version || ''}`.trim(),
+          `branch: ${info.branch || 'unknown'}`,
+          `commit: ${info.commit || 'unknown'}${info.dirty ? ' (dirty)' : ''}`,
+          `path: ${info.appPath || info.repoRoot || ''}`
+        ].filter(Boolean).join('\n');
+      } catch {
+        badge.textContent = 'v?.?.?';
+        badge.title = 'AgentRemote build unavailable';
+      }
+    }
 
     // ---------------------------------------------------------------------
     // State
@@ -6508,6 +6551,7 @@
     // v2.8: wire the deploy-preview overlay (button click and D shortcut
     // both route through openDeployPreview → confirmDeploy).
     wireDeployPreview();
+    loadBuildBadge();
 
     loadCodexPetRoster()
       .catch(() => {})
