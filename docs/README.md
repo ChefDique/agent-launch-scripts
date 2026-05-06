@@ -13,6 +13,7 @@ This directory is the durable knowledge base for `agent-launch-scripts`. Keep `A
 7. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
 8. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
 9. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
+10. `references/2026-05-06-codex-skill-command-visibility-report.md` — Codex lifecycle skill visibility report for Lucius/R&D.
 
 ## Directory Contract
 

@@ -2,21 +2,23 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote floating pet chat still needs the Codex-style compact/expandable bubble; Richard's latest screenshots show the current custom frame is still visibly wrong.
+**Last working on:** Codex lifecycle skill visibility incident closed: `/gogo` YAML was fixed, `/done` stale path was corrected, and a Lucius/R&D report was written.
 
-**State at last pause (2026-05-06T12:53:43-0700):**
-- `main` is clean but ahead of `origin/main` by local commit `50d8de5` (`Fix AgentRemote pet chat send and chrome`); package version is `1.0.5`.
-- That commit fixed tmux send submission by sending literal text and then delayed `C-m`, made pet windows resizable, added pet mood IPC, and mapped Codex 8x9 sprite atlas rows including move reactions.
-- Verification already run before closeout: `npm test` in `remote-app` passed, `git diff --check` passed, a controlled tmux smoke showed send submits the message, AgentRemote relaunched from the canonical checkout, and `bash scripts/session-end-cleanup.sh --keep-agentremote` preserved the live HUD.
-- Richard then supplied comparison screenshots: our pet chat still shows an oversized raw-path/title frame with always-visible input; the Codex Goku pet uses a compact rounded message bubble below the pet, title/status dot, hover affordances, vertical expand, and a Reply pill.
-- AgentRemote remains running intentionally from `/Users/richardadair/agent-launch-scripts/remote-app` after cleanup with `--keep-agentremote`.
+**State at last pause (2026-05-06T14:15:54-0700):**
+- Root cause for missing `gogo` was live Codex loader evidence, not missing config: `/Users/richardadair/.agents/skills/gogo/SKILL.md` had invalid YAML from an unquoted colon in `description`.
+- Fixed global shared skills outside this repo: quoted `gogo` frontmatter description and corrected `/Users/richardadair/.agents/skills/done/SKILL.md` to reference `/Users/richardadair/.agents/skills/chores/SKILL.md` instead of stale uppercase `~/.Codex`.
+- Verified with strict YAML parsing and `codex debug prompt-input 'test skill load'`; `gogo`, `chores`, and `done` are now model-visible skills.
+- Report written at `docs/references/2026-05-06-codex-skill-command-visibility-report.md` and indexed in `docs/README.md`.
+- Live `claude-peers` delivery to Lucius was not possible: `codex mcp list` showed `claude-peers` disabled, and `bun /Users/richardadair/.claude/mcp-servers/claude-peers/cli.ts status` showed broker ok with `0` peers.
+- Durable Lucius handoff was written and committed in R&D at `/Users/richardadair/ai_projects/research-and-development/memory/coord/2026-05-06-tmux-masta-to-lucius-codex-skill-command-visibility.md` (`521bfc2`).
+- Main repo still has app-generated or user AgentRemote registry/avatar edits not made by this report work: `agents.json` changes `tmux-masta` color and avatar, plus new `remote-app/assets/tmux-masta.gif`.
 - Remaining worktree: `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts` on `codex/tmux-gogo-launch-fixes`, clean, with unique commit `2624436` not merged into current `main`.
 
-**Next verifiable step:** Start by editing `remote-app/pet-window.html` into a Codex-style compact chat bubble: no raw path/title bar in compact mode, no always-visible composer, filtered snippet text, hover/click expand control, Reply pill that expands and focuses input, and expanded vertical transcript/composer.
+**Next verifiable step:** If Richard continues the skill-visibility thread, add a shared-skill compatibility lint/check for `~/.agents/skills/*/SKILL.md`. Otherwise resume the prior product cursor: edit `remote-app/pet-window.html` into a Codex-style compact chat bubble.
 
-**If that step fails:** Inspect the Codex pet UI contract from the local app/runtime or the `hatch-pet` references, then relaunch with `bash launch-remote.sh`, take a fresh screenshot, and compare against Richard's Goku screenshots before claiming fixed.
+**If that step fails:** For skills, start from `codex debug prompt-input` plus `/Users/richardadair/.codex/log/codex-tui.log`; separate file existence, config pinning, YAML load, prompt visibility, and slash-picker UI. For pet UI, inspect the Codex pet UI contract from the local app/runtime or `hatch-pet` references.
 
-**Pending uncommitted diff:** none in main at closeout; unpushed local commit `50d8de5` remains on `main`.
+**Pending uncommitted diff:** `agents.json` and `remote-app/assets/tmux-masta.gif` are intentionally left uncommitted as non-report AgentRemote registry/avatar edits.
 
 ---
 
@@ -50,5 +52,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-06-SESSION_2: TMUX-MASTA non-pet fixes shipped in a worktree: generic `/gogo` restored/pinned, AgentRemote Deploy simplified to one movable tmux/iTerm window per agent, send ordering fixed, ID edits allowed for stopped agents, and launch scripts made worktree-local — commits: `2624436` plus `/done` handoff commit — gated on Richard: decide landing path for `codex/tmux-gogo-launch-fixes`
 - 2026-05-06-SESSION_3: AgentRemote reliability/versioning closeout shipped: floating pets, registry/avatar state, stale-worktree launcher fix, session-end cleanup hook, dirty-state rules, SemVer badge `v1.0.1`, `/gogo` version/process checks, and pushed `main` through `ac52cfe` — gated on Richard: none
 - 2026-05-06-SESSION_4: AgentRemote pet send/mood/chrome iteration committed locally: tmux send now submits with delayed `C-m`, pet windows resize, Codex sprite atlas rows react to move/send/review/error states, and package is `v1.0.5`; Richard's screenshot review shows the bubble UI still needs Codex-style compact/expand/reply behavior next — commits: `50d8de5` local only plus `/done` handoff commit — gated on Richard: none
+- 2026-05-06-SESSION_5: Codex lifecycle skill visibility incident closed: global shared `gogo` YAML and `done` stale path fixed, prompt-input verified `gogo`/`chores`/`done`, Lucius report written and R&D coord note delivered because `claude-peers` had zero peers — commits: `1c1b12b`, R&D `521bfc2` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
