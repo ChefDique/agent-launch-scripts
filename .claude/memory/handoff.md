@@ -2,23 +2,20 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote reliability/versioning closeout after stale worktree app confusion: floating pets shipped, stale worktree launcher bug fixed, session-end cleanup hook added, and build identity/version discipline added.
+**Last working on:** None — AgentRemote reliability/versioning closeout is committed, pushed, and cleaned up.
 
-**State at handoff capture (2026-05-06T11:04:00-0700):**
-- Main checkout is `/Users/richardadair/agent-launch-scripts` on `main`; it was clean before the final version-badge commit, with local commits ahead of `origin/main`.
-- Shipped commits already on `main`: `76b13f1` floating pet windows, `940afd2` pet polish, `5bed011` app-generated registry/avatar updates, `df691c5` stale worktree launch fix, `6377c64` Codex visibility state, and `5598ba6` AgentRemote session cleanup hook.
-- Critical incident root cause: Richard reloaded an AgentRemote process that was actually running from `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts/remote-app` on branch `codex/tmux-gogo-launch-fixes`, not the canonical main checkout. `launch-remote.sh` now kills main/worktree AgentRemote Electron instances before launching canonical main.
-- New session-end contract: run `bash scripts/session-end-cleanup.sh` after any session that launched/restarted/tested AgentRemote unless Richard explicitly asks to keep it running. The hook stops stale AgentRemote apps across main/worktrees, clears Chromium caches, preserves `Local Storage/` and `pet-state.json`, prints git status/worktrees/processes, and must be cited in final status if anything remains.
-- Dirty tree policy is now in `AGENTS.md`, `CLAUDE.md`, and `remote-app/AGENTS.md`: dirty files are shared operational evidence. Classify app-generated registry/avatar state or other-lane state every time; do not dismiss it as unrelated mystery user work.
-- Versioning work in progress at capture: `remote-app/package.json` and lockfile bumped `1.0.0 -> 1.0.1`; `main.js` adds `app-build-info`; `index.html` shows subtle bottom-corner `v<semver> <branch>@<sha>` badge with branch/commit/dirty/path tooltip; repo-local `.claude/skills/gogo/SKILL.md` now checks package version and live Electron process path.
-- Versioning rules added: AgentRemote app work must bump SemVer before commit (patch for fixes/UX affordances, minor for new user-facing capability, major for breaking runtime/registry contracts). `/gogo` must report package version and live checkout path and treat stale `.codex/worktrees/...` apps as blockers unless intentionally kept.
-- Verification passed before handoff commit: `cd remote-app && npm test`, `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `node --check remote-app/main.js`, and `git diff --check`.
+**State at last pause (2026-05-06T12:02:06-0700):**
+- `main` is clean and synced with `origin/main` at `ac52cfe` (`Show AgentRemote build identity`).
+- AgentRemote package version is `1.0.1`; the HUD has a subtle build badge showing `v<semver> <branch>@<sha>` with branch/commit/dirty/path details in the tooltip.
+- `/gogo`, `AGENTS.md`, `CLAUDE.md`, and `remote-app/AGENTS.md` now require version/process-path checks, SemVer bumps for AgentRemote app edits, dirty-state classification, and session-end cleanup.
+- `bash scripts/session-end-cleanup.sh` has run successfully: no AgentRemote Electron processes remain, and AgentRemote Chromium caches were cleared while preserving `Local Storage/` / pet state.
+- Remaining worktree: `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts` on `codex/tmux-gogo-launch-fixes`, clean, no live process, with unique commit `2624436` not merged into current `main`.
 
-**Next verifiable step for fresh session:** Confirm the final version-badge commit is present and pushed, then start AgentRemote from canonical main with `bash launch-remote.sh` and visually confirm the bottom-right HUD badge shows `v1.0.1 main@<sha>` and not a `.codex/worktrees` branch/path in the tooltip.
+**Next verifiable step:** Fresh session should run `/gogo`, confirm `git status --short --branch` is clean, then launch AgentRemote with `bash launch-remote.sh` and visually confirm the HUD badge says `v1.0.1 main@ac52cfe` or newer from `/Users/richardadair/agent-launch-scripts/remote-app`.
 
-**If that step fails:** Check the live process path with `ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app"`, run `bash scripts/session-end-cleanup.sh`, then relaunch with `bash launch-remote.sh`. Check `remote-app/out.log` for renderer errors.
+**If that step fails:** Run `bash scripts/session-end-cleanup.sh`, inspect live Electron paths with `ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app"`, then relaunch with `bash launch-remote.sh`; check `remote-app/out.log` for renderer errors.
 
-**Pending uncommitted diff at capture:** version-badge files plus this handoff were being committed/pushed as the final closeout. If a fresh session sees any dirty state, review it first and classify it; do not ignore it.
+**Pending uncommitted diff:** none in main at closeout.
 
 ---
 
@@ -50,5 +47,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-05-SESSION_6: `/done` and `/chores` local skills pinned explicitly in Codex config after slash-command exposure confusion; repo change is handoff-only — commits: `/done` handoff commit — gated on Richard: none
 - 2026-05-06-SESSION: AgentRemote harness/avatar/settings/Armory/pet HUD polish shipped and pushed; next thread scoped to floating undockable pet windows with streaming/reply-capable chat bubbles while preserving HUD free-move behavior — commits: `fbf20e1` pushed plus `/done` handoff commit — gated on Richard: none
 - 2026-05-06-SESSION_2: TMUX-MASTA non-pet fixes shipped in a worktree: generic `/gogo` restored/pinned, AgentRemote Deploy simplified to one movable tmux/iTerm window per agent, send ordering fixed, ID edits allowed for stopped agents, and launch scripts made worktree-local — commits: `2624436` plus `/done` handoff commit — gated on Richard: decide landing path for `codex/tmux-gogo-launch-fixes`
+- 2026-05-06-SESSION_3: AgentRemote reliability/versioning closeout shipped: floating pets, registry/avatar state, stale-worktree launcher fix, session-end cleanup hook, dirty-state rules, SemVer badge `v1.0.1`, `/gogo` version/process checks, and pushed `main` through `ac52cfe` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
