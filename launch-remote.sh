@@ -4,12 +4,27 @@
 APP_DIR="/Users/richardadair/agent-launch-scripts/remote-app"
 ELECTRON_APP="$APP_DIR/node_modules/electron/dist/Electron.app"
 ELECTRON_BIN="$ELECTRON_APP/Contents/MacOS/Electron"
+AGENTREMOTE_APP_PATTERN="/agent-launch-scripts/remote-app"
+
+stop_agentremote_processes() {
+  # Stop AgentRemote instances from the canonical checkout AND Codex worktrees.
+  # Prior versions only killed the exact canonical Electron binary path, which
+  # left stale worktree-launched HUDs visible and made renderer reloads appear
+  # to ignore fresh code.
+  pkill -f "$ELECTRON_BIN" 2>/dev/null
+  pkill -f "node ./node_modules/.bin/electron ." 2>/dev/null
+  pkill -f "$AGENTREMOTE_APP_PATTERN/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .*${AGENTREMOTE_APP_PATTERN}$" 2>/dev/null
+  pkill -f "Electron Helper.*--app-path=.*$AGENTREMOTE_APP_PATTERN" 2>/dev/null
+}
+
+agentremote_pid() {
+  pgrep -f "$AGENTREMOTE_APP_PATTERN/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .*${AGENTREMOTE_APP_PATTERN}$" || true
+}
 
 case "$1" in
   stop)
     echo "Stopping Agent Remote..."
-    pkill -f "$ELECTRON_BIN"
-    pkill -f "node ./node_modules/.bin/electron ."
+    stop_agentremote_processes
     ;;
   toggle)
     # Toggle show/hide via SIGUSR1. Works regardless of whether the OS
@@ -17,7 +32,7 @@ case "$1" in
     # Electron binary (which is required for the globalShortcut to fire).
     # If SIGUSR1 is unavailable (e.g. rare platform issue), falls back to
     # touching the .toggle sentinel file that main.js watches.
-    PID=$(pgrep -f "$ELECTRON_BIN")
+    PID=$(agentremote_pid)
     if [ -z "$PID" ]; then
       echo "Agent Remote is not running. Start it first with: bash launch-remote.sh"
       exit 1
@@ -32,8 +47,7 @@ case "$1" in
     # when its noninteractive parent shell goes away, while `open` hands the GUI
     # app off to LaunchServices and leaves one durable AgentRemote process.
     echo "Launching Electron Agent Remote..."
-    pkill -f "$ELECTRON_BIN" 2>/dev/null
-    pkill -f "node ./node_modules/.bin/electron ." 2>/dev/null
+    stop_agentremote_processes
     sleep 0.3
     open -na "$ELECTRON_APP" --args "$APP_DIR"
     ;;

@@ -37,7 +37,9 @@ bash ../launch-remote.sh
 ## Checklist
 
 - Read `../AGENTS.md`, `../docs/README.md`, and `../docs/exec-plans/active/agentremote-v1-pivot-plan.md`.
+- Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another TMUX-MASTA lane; classify them explicitly and merge them into the current understanding.
 - Launch AgentRemote after UI or IPC changes.
+- Verify the running Electron process points at `/Users/richardadair/agent-launch-scripts/remote-app`, not a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.
 - Verify tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
 
 ## Examples
