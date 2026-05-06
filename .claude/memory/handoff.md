@@ -2,20 +2,21 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** None — AgentRemote reliability/versioning closeout is committed, pushed, and cleaned up.
+**Last working on:** AgentRemote floating pet chat still needs the Codex-style compact/expandable bubble; Richard's latest screenshots show the current custom frame is still visibly wrong.
 
-**State at last pause (2026-05-06T12:02:06-0700):**
-- `main` is clean and synced with `origin/main` at `ac52cfe` (`Show AgentRemote build identity`).
-- AgentRemote package version is `1.0.1`; the HUD has a subtle build badge showing `v<semver> <branch>@<sha>` with branch/commit/dirty/path details in the tooltip.
-- `/gogo`, `AGENTS.md`, `CLAUDE.md`, and `remote-app/AGENTS.md` now require version/process-path checks, SemVer bumps for AgentRemote app edits, dirty-state classification, and session-end cleanup.
-- `bash scripts/session-end-cleanup.sh` has run successfully: no AgentRemote Electron processes remain, and AgentRemote Chromium caches were cleared while preserving `Local Storage/` / pet state.
-- Remaining worktree: `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts` on `codex/tmux-gogo-launch-fixes`, clean, no live process, with unique commit `2624436` not merged into current `main`.
+**State at last pause (2026-05-06T12:53:43-0700):**
+- `main` is clean but ahead of `origin/main` by local commit `50d8de5` (`Fix AgentRemote pet chat send and chrome`); package version is `1.0.5`.
+- That commit fixed tmux send submission by sending literal text and then delayed `C-m`, made pet windows resizable, added pet mood IPC, and mapped Codex 8x9 sprite atlas rows including move reactions.
+- Verification already run before closeout: `npm test` in `remote-app` passed, `git diff --check` passed, a controlled tmux smoke showed send submits the message, AgentRemote relaunched from the canonical checkout, and `bash scripts/session-end-cleanup.sh --keep-agentremote` preserved the live HUD.
+- Richard then supplied comparison screenshots: our pet chat still shows an oversized raw-path/title frame with always-visible input; the Codex Goku pet uses a compact rounded message bubble below the pet, title/status dot, hover affordances, vertical expand, and a Reply pill.
+- AgentRemote remains running intentionally from `/Users/richardadair/agent-launch-scripts/remote-app` after cleanup with `--keep-agentremote`.
+- Remaining worktree: `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts` on `codex/tmux-gogo-launch-fixes`, clean, with unique commit `2624436` not merged into current `main`.
 
-**Next verifiable step:** Fresh session should run `/gogo`, confirm `git status --short --branch` is clean, then launch AgentRemote with `bash launch-remote.sh` and visually confirm the HUD badge says `v1.0.1 main@ac52cfe` or newer from `/Users/richardadair/agent-launch-scripts/remote-app`.
+**Next verifiable step:** Start by editing `remote-app/pet-window.html` into a Codex-style compact chat bubble: no raw path/title bar in compact mode, no always-visible composer, filtered snippet text, hover/click expand control, Reply pill that expands and focuses input, and expanded vertical transcript/composer.
 
-**If that step fails:** Run `bash scripts/session-end-cleanup.sh`, inspect live Electron paths with `ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app"`, then relaunch with `bash launch-remote.sh`; check `remote-app/out.log` for renderer errors.
+**If that step fails:** Inspect the Codex pet UI contract from the local app/runtime or the `hatch-pet` references, then relaunch with `bash launch-remote.sh`, take a fresh screenshot, and compare against Richard's Goku screenshots before claiming fixed.
 
-**Pending uncommitted diff:** none in main at closeout.
+**Pending uncommitted diff:** none in main at closeout; unpushed local commit `50d8de5` remains on `main`.
 
 ---
 
@@ -48,5 +49,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-06-SESSION: AgentRemote harness/avatar/settings/Armory/pet HUD polish shipped and pushed; next thread scoped to floating undockable pet windows with streaming/reply-capable chat bubbles while preserving HUD free-move behavior — commits: `fbf20e1` pushed plus `/done` handoff commit — gated on Richard: none
 - 2026-05-06-SESSION_2: TMUX-MASTA non-pet fixes shipped in a worktree: generic `/gogo` restored/pinned, AgentRemote Deploy simplified to one movable tmux/iTerm window per agent, send ordering fixed, ID edits allowed for stopped agents, and launch scripts made worktree-local — commits: `2624436` plus `/done` handoff commit — gated on Richard: decide landing path for `codex/tmux-gogo-launch-fixes`
 - 2026-05-06-SESSION_3: AgentRemote reliability/versioning closeout shipped: floating pets, registry/avatar state, stale-worktree launcher fix, session-end cleanup hook, dirty-state rules, SemVer badge `v1.0.1`, `/gogo` version/process checks, and pushed `main` through `ac52cfe` — gated on Richard: none
+- 2026-05-06-SESSION_4: AgentRemote pet send/mood/chrome iteration committed locally: tmux send now submits with delayed `C-m`, pet windows resize, Codex sprite atlas rows react to move/send/review/error states, and package is `v1.0.5`; Richard's screenshot review shows the bubble UI still needs Codex-style compact/expand/reply behavior next — commits: `50d8de5` local only plus `/done` handoff commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
