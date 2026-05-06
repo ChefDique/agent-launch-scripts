@@ -65,6 +65,7 @@ To spawn the local team from this repo, use `bash chq-tmux.sh start xavier luciu
 
 - Root stack is Bash scripts plus an Electron subproject; there is no root package manager or CI.
 - Preserve user/local work. Check `git status --short --branch` before editing.
+- Treat dirty state as shared operational evidence, not a mystery. Review and classify every dirty file before and after work. If changes came from AgentRemote usage, another TMUX-MASTA lane, or app-generated registry/avatar edits, say that explicitly and either integrate them or leave a concrete reason for deferring.
 - For launcher edits, run targeted shell checks such as `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`.
 - For Electron edits, use `bash launch-remote.sh`; do not start duplicate AgentRemote instances.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
@@ -81,10 +82,9 @@ To spawn the local team from this repo, use `bash chq-tmux.sh start xavier luciu
 
 ## Session-End Housekeeping
 
-- Check for duplicate AgentRemote processes:
-  `pgrep -fl "Electron\\.app/Contents/MacOS/Electron \\." | grep remote-app`
-- Clear AgentRemote Chromium caches, leaving `Local Storage/` intact.
-- Check `git status --short --branch`, `git branch --merged main`, and `git worktree list`.
+- Before ending a session that launched, restarted, or tested AgentRemote, run `bash scripts/session-end-cleanup.sh` unless Richard explicitly asks to keep AgentRemote running. Use `--keep-agentremote` only when preserving the live HUD is intentional.
+- The cleanup script is the model-agnostic closeout hook. It stops stale AgentRemote Electron processes from the canonical checkout and Codex worktrees, clears AgentRemote Chromium caches while preserving `Local Storage/` and `pet-state.json`, prints `git status`, lists worktrees, and reports any remaining AgentRemote processes.
+- Do not leave app processes, worktree-launched HUDs, or unexplained dirty state behind at final response. If anything must remain running or dirty, say exactly what it is, why it remains, and how to clean it.
 - If running under Codex Desktop/app-server instead of a tmux loop, do not kill `$PPID` during `/done`.
 
 ## Do Not

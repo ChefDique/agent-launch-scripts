@@ -15,6 +15,7 @@ stop_agentremote_processes() {
   pkill -f "node ./node_modules/.bin/electron ." 2>/dev/null
   pkill -f "$AGENTREMOTE_APP_PATTERN/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .*${AGENTREMOTE_APP_PATTERN}$" 2>/dev/null
   pkill -f "Electron Helper.*--app-path=.*$AGENTREMOTE_APP_PATTERN" 2>/dev/null
+  return 0
 }
 
 agentremote_pid() {

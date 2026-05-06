@@ -41,6 +41,7 @@ bash ../launch-remote.sh
 - Launch AgentRemote after UI or IPC changes.
 - Verify the running Electron process points at `/Users/richardadair/agent-launch-scripts/remote-app`, not a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.
 - Verify tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
+- At session end, run `bash ../scripts/session-end-cleanup.sh` unless Richard explicitly asked to keep AgentRemote running; this prevents stale worktree Electron apps and stale Chromium caches from surviving into the next lane.
 
 ## Examples
 

@@ -56,6 +56,12 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
 - Commit completed work units with clear messages. Push only when Richard asks.
 
+## Session-End Cleanup
+
+- Before ending a session that launched, restarted, or tested AgentRemote, run `bash scripts/session-end-cleanup.sh` unless Richard explicitly asks to keep AgentRemote running. Use `--keep-agentremote` only when preserving the live HUD is intentional.
+- The cleanup script is the model-agnostic closeout hook. It stops stale AgentRemote Electron processes from the canonical checkout and Codex worktrees, clears AgentRemote Chromium caches while preserving `Local Storage/` and `pet-state.json`, prints `git status`, lists worktrees, and reports any remaining AgentRemote processes.
+- Do not leave app processes, worktree-launched HUDs, or unexplained dirty state behind at final response. If anything must remain running or dirty, say exactly what it is, why it remains, and how to clean it.
+
 ## Critical Patterns
 
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.

@@ -14,6 +14,7 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 | `bash launch-agent.sh <id>` | Launch a single configured agent. |
 | `bash launch-remote.sh` | Start AgentRemote after killing a prior instance. |
 | `bash launch-remote.sh stop` | Stop AgentRemote. |
+| `bash scripts/session-end-cleanup.sh` | Session closeout cleanup: stop stale AgentRemote instances across main/worktrees, clear Chromium caches, and report git/worktree/process state. |
 | `bash scripts/cron-poke.sh <agent> "message"` | Scheduled tmux send-keys helper. |
 
 ## Load-Bearing Invariants
@@ -38,6 +39,16 @@ Use the Electron duplicate check before and after launch work:
 ```bash
 pgrep -fl "Electron\\.app/Contents/MacOS/Electron \\." | grep remote-app
 ```
+
+Use the session cleanup script before ending any session that launched,
+restarted, or tested AgentRemote:
+
+```bash
+bash scripts/session-end-cleanup.sh
+```
+
+Use `--keep-agentremote` only when the live HUD should intentionally stay
+running after handoff.
 
 ## Deferred Decisions
 
