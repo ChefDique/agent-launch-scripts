@@ -63,6 +63,8 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /id="reply"/);
   assert.match(petWindow, /chat-expanded/);
   assert.match(petWindow, /chat-collapsed/);
+  assert.match(petWindow, /body\.chat-expanded \.sprite-wrap/);
+  assert.match(petWindow, /min-height: min\(126px, calc\(100vh - 112px\)\)/);
   assert.match(petWindow, /chat-meta/);
   assert.match(petWindow, /overflow-wrap: anywhere/);
   assert.match(petWindow, /resize-grip/);
