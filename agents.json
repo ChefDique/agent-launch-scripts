@@ -87,27 +87,31 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
     },
     {
-      "id": "claude",
-      "display_name": "Claude",
-      "runtime": "codex",
-      "cwd": "~/agent-launch-scripts",
-      "color": "orange",
-      "theme_color": "#e07c4c",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "rename_to": "TMUX-MASTA",
+      "id": "gara",
+      "display_name": "GARRA",
+      "runtime": "openclaw",
+      "cwd": "/Users/richardadair/agent-launch-scripts",
+      "color": "cyan",
       "startup_slash": "/gogo",
-      "avatar": "claude.svg",
-      "hidden": true
+      "theme_color": "#ad0000",
+      "avatar": "gara.gif"
+    },
+    {
+      "id": "goku",
+      "display_name": "GOKU",
+      "runtime": "hermes",
+      "cwd": "/Users/richardadair/ai_projects/AgentRemote_AtlasIslands",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "theme_color": "#00f2ff",
+      "avatar": "goku.gif"
     },
     {
       "id": "codex",
       "display_name": "Codex",
       "runtime": "codex",
       "cwd": "~/agent-launch-scripts",
-      "theme_color": "#10a37f",
+      "theme_color": "#0affc2",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
@@ -117,32 +121,35 @@
       "avatar": "codex.svg"
     },
     {
+      "id": "openclaw",
+      "display_name": "OPENCLAW",
+      "runtime": "openclaw",
+      "cwd": "/Users/richardadair/ai_projects/content-creation",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "theme_color": "#ff0000"
+    },
+    {
+      "id": "hermes",
+      "display_name": "HERMES",
+      "runtime": "hermes",
+      "cwd": "/Users/richardadair/ai_projects",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "theme_color": "#e3ff0f"
+    },
+    {
       "id": "tmux-masta",
       "display_name": "TMUX-MASTA",
       "runtime": "codex",
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#ff7b00",
+      "theme_color": "#ff8800",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "avatar": "tmux-masta.svg"
-    },
-    {
-      "id": "gaara",
-      "display_name": "GAARA",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/content-creation",
-      "color": "cyan",
-      "startup_slash": "/gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "theme_color": "#ff0000",
-      "avatar": "gaara.svg"
+      "approval_policy": "never"
     }
   ]
 }
