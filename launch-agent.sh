@@ -104,6 +104,10 @@ while IFS=$'\t' read -r k v; do
   export "$k=$v"
 done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)\t\(.value)"' <<< "$ENTRY")
 
+if [[ "$RUNTIME" == "codex" && -x "${SCRIPT_DIR}/scripts/codex-mcp-cleanup.sh" ]]; then
+  "${SCRIPT_DIR}/scripts/codex-mcp-cleanup.sh" || echo "[launch-agent] codex MCP cleanup returned non-zero (continuing)" >&2
+fi
+
 build_runtime_command() {
   local runtime="$1"
   case "$runtime" in
