@@ -63,6 +63,9 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /id="reply"/);
   assert.match(petWindow, /chat-expanded/);
   assert.match(petWindow, /chat-collapsed/);
+  assert.match(petWindow, /function agentAliases\(\)/);
+  assert.match(petWindow, /function messageMentionsAgent\(message, aliases\)/);
+  assert.doesNotMatch(petWindow, /from === 'richard'/);
   assert.match(petWindow, /body\.chat-expanded \.sprite-wrap/);
   assert.match(petWindow, /min-height: min\(252px, calc\(100vh - 160px\)\)/);
   assert.match(petWindow, /chat-meta/);

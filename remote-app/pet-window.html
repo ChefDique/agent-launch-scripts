@@ -495,19 +495,40 @@
     const expandKey = `agentremote.pet.${agentId || 'unknown'}.chatExpanded`;
 
     function normalizeSender(value) {
-      const raw = String(value || '').toLowerCase();
+      const raw = String(value || '').toLowerCase().replace(/^@+/, '').trim();
       if (raw.startsWith('claude-')) return raw.slice(7);
       if (raw === 'overlordswarmy') return 'swarmy';
       return raw;
+    }
+
+    function agentAliases() {
+      if (!config || !config.agent) return [];
+      return Array.from(new Set([
+        normalizeSender(config.agent.id),
+        normalizeSender(config.agent.displayName),
+        normalizeSender(config.agent.tmuxTarget),
+        normalizeSender(String(config.agent.displayName || '').replace(/\s+/g, '-')),
+        normalizeSender(String(config.agent.displayName || '').replace(/\s+/g, ''))
+      ].filter(Boolean)));
+    }
+
+    function messageMentionsAgent(message, aliases) {
+      const text = String(message || '').toLowerCase();
+      return aliases.some((alias) => {
+        if (!alias || alias === 'team' || alias === 'richard') return false;
+        const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`(^|[^a-z0-9_-])@?${escaped}([^a-z0-9_-]|$)`, 'i').test(text);
+      });
     }
 
     function messageBelongsHere(env) {
       if (!env || typeof env !== 'object' || !config) return false;
       const from = normalizeSender(env.from);
       const to = normalizeSender(env.to);
-      const id = normalizeSender(config.agent.id);
-      const label = normalizeSender(config.agent.displayName);
-      return from === 'richard' || from === id || from === label || to === id || to === label;
+      const aliases = agentAliases();
+      if (aliases.includes(from)) return true;
+      if (aliases.includes(to)) return true;
+      return messageMentionsAgent(env.message, aliases);
     }
 
     function scrollToBottom() {
