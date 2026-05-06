@@ -227,15 +227,15 @@ function defaultPetForAgent(agent) {
 function defaultPetBounds(agentId) {
   const display = screen.getPrimaryDisplay();
   const work = display.workArea;
-  let x = work.x + Math.round(work.width / 2) - 160;
+  let x = work.x + Math.round(work.width / 2) - 200;
   let y = work.y + 80;
   if (mainWindow && !mainWindow.isDestroyed()) {
     const mainBounds = mainWindow.getBounds();
-    x = mainBounds.x + Math.max(0, Math.round(mainBounds.width / 2) - 160);
-    y = Math.max(work.y + 16, mainBounds.y - 130);
+    x = mainBounds.x + Math.max(0, Math.round(mainBounds.width / 2) - 200);
+    y = Math.max(work.y + 16, mainBounds.y - 250);
   }
   const offset = Math.max(0, Array.from(petWindows.keys()).indexOf(agentId)) * 26;
-  return { x: x + offset, y: y + offset, width: 320, height: 236 };
+  return { x: x + offset, y: y + offset, width: 400, height: 430 };
 }
 
 function persistPetBounds(agentId, bounds) {
@@ -319,17 +319,17 @@ function showAgentPetWindow(agentId, petId) {
   const bounds = savedBounds && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)
     ? {
         ...savedBounds,
-        width: Math.max(320, Math.min(560, Number(savedBounds.width) || 320)),
-        height: Math.max(238, Math.min(560, Number(savedBounds.height) || 238))
+        width: Math.max(400, Math.min(680, Number(savedBounds.width) || 400)),
+        height: Math.max(430, Math.min(720, Number(savedBounds.height) || 430))
       }
     : defaultPetBounds(agent.id);
   const win = new BrowserWindow({
-    width: bounds.width || 320,
-    height: bounds.height || 236,
-    minWidth: 320,
-    minHeight: 238,
-    maxWidth: 560,
-    maxHeight: 560,
+    width: bounds.width || 400,
+    height: bounds.height || 430,
+    minWidth: 400,
+    minHeight: 430,
+    maxWidth: 680,
+    maxHeight: 720,
     x: bounds.x,
     y: bounds.y,
     frame: false,
@@ -916,6 +916,18 @@ ipcMain.handle('pet-send-message', async (_event, payload = {}) => {
     selectedAgents: [agent],
     isAll: false
   });
+});
+
+ipcMain.handle('pet-resize-window', (_event, payload = {}) => {
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  const win = petWindows.get(agentId);
+  if (!win || win.isDestroyed()) return { ok: false, error: 'pet window not found' };
+  const bounds = win.getBounds();
+  const width = Math.max(400, Math.min(680, Number(payload.width) || bounds.width));
+  const height = Math.max(430, Math.min(720, Number(payload.height) || bounds.height));
+  win.setBounds({ ...bounds, width: Math.round(width), height: Math.round(height) });
+  persistPetBounds(agentId, win.getBounds());
+  return { ok: true, bounds: win.getBounds() };
 });
 
 ipcMain.on('pet-set-mood', (_event, payload = {}) => {

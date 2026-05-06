@@ -64,8 +64,9 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /chat-expanded/);
   assert.match(petWindow, /chat-collapsed/);
   assert.match(petWindow, /body\.chat-expanded \.sprite-wrap/);
-  assert.match(petWindow, /min-height: min\(126px, calc\(100vh - 112px\)\)/);
+  assert.match(petWindow, /min-height: min\(252px, calc\(100vh - 160px\)\)/);
   assert.match(petWindow, /chat-meta/);
+  assert.match(petWindow, /pet-resize-window/);
   assert.match(petWindow, /overflow-wrap: anywhere/);
   assert.match(petWindow, /resize-grip/);
   assert.match(petWindow, /pet-send-message/);
@@ -76,8 +77,9 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
 test('main process pet windows are resizable and broadcasts delay submit after literal text', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(main, /resizable: true/);
-  assert.match(main, /minWidth: 320/);
-  assert.match(main, /height: Math\.max\(238/);
+  assert.match(main, /minWidth: 400/);
+  assert.match(main, /height: Math\.max\(430/);
+  assert.match(main, /pet-resize-window/);
   assert.match(main, /pet-set-mood/);
   assert.match(main, /pet-window-moving/);
   assert.match(main, /send-keys', '-t', coord, '-l', message/);

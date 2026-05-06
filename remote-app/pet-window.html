@@ -30,7 +30,7 @@
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      padding: 8px 8px 10px;
+      padding: 10px 10px 12px;
       -webkit-app-region: drag;
     }
     .pet-shell {
@@ -45,7 +45,7 @@
     }
     .bubble {
       position: relative;
-      width: min(100%, 306px);
+      width: min(100%, 376px);
       min-height: 64px;
       max-height: min(132px, calc(100vh - 118px));
       border: 1px solid var(--border-soft);
@@ -61,6 +61,8 @@
       overflow: hidden;
       opacity: 0.98;
       -webkit-app-region: no-drag;
+      display: flex;
+      flex-direction: column;
       transition:
         max-height 0.2s var(--ease),
         min-height 0.2s var(--ease),
@@ -68,8 +70,8 @@
         box-shadow 0.2s var(--ease);
     }
     body.chat-expanded .bubble {
-      min-height: min(126px, calc(100vh - 112px));
-      max-height: min(172px, calc(100vh - 112px));
+      min-height: min(252px, calc(100vh - 160px));
+      max-height: min(324px, calc(100vh - 160px));
       border-color: color-mix(in srgb, var(--accent) 34%, rgba(255, 255, 255, 0.13));
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.10),
@@ -86,10 +88,10 @@
       z-index: 1;
     }
     .chat-meta {
-      position: absolute;
-      top: 8px;
-      left: 10px;
-      max-width: 112px;
+      max-width: min(100%, 376px);
+      height: 18px;
+      margin-top: -2px;
+      padding: 0 7px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -100,7 +102,6 @@
       letter-spacing: 0.26px;
       text-transform: uppercase;
       pointer-events: none;
-      z-index: 2;
     }
     .live-dot {
       width: 5px;
@@ -112,7 +113,7 @@
     }
     .agent-name {
       min-width: 0;
-      max-width: 96px;
+      max-width: 220px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -169,22 +170,25 @@
       min-height: 36px;
       max-height: min(66px, calc(100vh - 184px));
       overflow: auto;
-      padding: 29px 10px 8px;
+      padding: 29px 14px 8px 10px;
       display: flex;
       flex-direction: column;
       gap: 6px;
+      flex: 1 1 auto;
       font-size: 10.5px;
       line-height: 1.34;
       user-select: text;
       transition: max-height 0.2s var(--ease);
     }
     body.chat-expanded .log {
-      min-height: 42px;
-      max-height: min(58px, calc(100vh - 184px));
-      font-size: 11px;
+      min-height: 158px;
+      max-height: min(236px, calc(100vh - 244px));
+      padding-top: 30px;
+      padding-right: 16px;
+      font-size: 12px;
       line-height: 1.38;
     }
-    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar { width: 5px; }
     .log::-webkit-scrollbar-thumb {
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.18);
@@ -223,7 +227,8 @@
       display: none;
       grid-template-columns: minmax(0, 1fr) 46px;
       gap: 6px;
-      padding: 0 8px 8px;
+      padding: 0 22px 10px 8px;
+      flex: 0 0 auto;
     }
     body.chat-expanded .reply {
       display: grid;
@@ -264,15 +269,27 @@
       filter: grayscale(0.4);
     }
     .resize-grip {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      width: 26px;
+      height: 26px;
+      cursor: nwse-resize;
+      opacity: 0.72;
+      pointer-events: auto;
+      -webkit-app-region: no-drag;
+      z-index: 6;
+    }
+    .resize-grip::after {
+      content: "";
       position: absolute;
-      right: 4px;
-      bottom: 4px;
-      width: 12px;
-      height: 12px;
-      border-right: 1px solid rgba(255, 255, 255, 0.24);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.24);
-      opacity: 0.55;
-      pointer-events: none;
+      right: 6px;
+      bottom: 6px;
+      width: 13px;
+      height: 13px;
+      border-right: 1px solid rgba(255, 255, 255, 0.30);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.30);
+      border-radius: 0 0 3px 0;
     }
     .chat-tab {
       display: none;
@@ -304,6 +321,9 @@
     body.chat-collapsed .bubble {
       display: none;
     }
+    body.chat-collapsed .chat-meta {
+      display: none;
+    }
     body.chat-collapsed .chat-tab {
       display: flex;
     }
@@ -324,8 +344,8 @@
       transition: width 0.2s var(--ease), height 0.2s var(--ease);
     }
     body.chat-expanded .sprite-wrap {
-      width: 92px;
-      height: 84px;
+      width: 112px;
+      height: 122px;
     }
     .sprite-wrap::before {
       content: "";
@@ -357,8 +377,8 @@
       transition: transform 0.2s var(--ease), margin 0.2s var(--ease);
     }
     body.chat-expanded .sprite {
-      margin-top: 0;
-      transform: scale(0.78);
+      margin-top: 6px;
+      transform: scale(1);
       transform-origin: 50% 0;
     }
     body.mood-running-right .sprite {
@@ -430,10 +450,6 @@
   <main class="pet-shell">
     <button class="chat-tab" id="chat-tab" type="button" title="Show chat" aria-label="Show chat">chat</button>
     <section class="bubble" aria-label="Agent pet chat">
-      <div class="chat-meta">
-        <span class="live-dot"></span>
-        <span class="agent-name" id="agent-name">Agent</span>
-      </div>
       <div class="chrome-actions">
         <button class="icon-btn reply-toggle" id="reply-toggle" title="Reply" aria-label="Reply">reply</button>
         <button class="icon-btn collapse-btn" id="collapse" title="Expand chat" aria-label="Expand chat">^</button>
@@ -446,11 +462,15 @@
         <input id="reply-input" type="text" autocomplete="off" spellcheck="false" placeholder="reply" />
         <button id="reply" disabled>Send</button>
       </div>
-      <span class="resize-grip" aria-hidden="true"></span>
     </section>
+    <div class="chat-meta">
+      <span class="live-dot"></span>
+      <span class="agent-name" id="agent-name">Agent</span>
+    </div>
     <div class="sprite-wrap" title="Drag to move">
       <span class="sprite" id="sprite" role="presentation"></span>
     </div>
+    <span class="resize-grip" aria-hidden="true" title="Resize"></span>
   </main>
   <script>
     const { ipcRenderer } = require('electron');
@@ -461,6 +481,7 @@
     let historyLoaded = false;
     let pollHandle = null;
     let moodTimer = null;
+    let resizeDrag = null;
 
     const nameEl = document.getElementById('agent-name');
     const logEl = document.getElementById('log');
@@ -491,6 +512,13 @@
 
     function scrollToBottom() {
       logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function boundedWindowSize(width, height) {
+      return {
+        width: Math.max(400, Math.min(680, Math.round(width))),
+        height: Math.max(430, Math.min(720, Math.round(height)))
+      };
     }
 
     function syncChatControls() {
@@ -560,7 +588,7 @@
     }
 
     function renderMessages(envelopes, append = false) {
-      const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-6);
+      const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-20);
       if (!append) logEl.innerHTML = '';
       if (!filtered.length && !append && logEl.children.length === 0) {
         const empty = document.createElement('div');
@@ -584,7 +612,7 @@
         row.appendChild(body);
         logEl.appendChild(row);
       }
-      while (logEl.children.length > 6) logEl.removeChild(logEl.firstElementChild);
+      while (logEl.children.length > 20) logEl.removeChild(logEl.firstElementChild);
       scrollToBottom();
     }
 
@@ -674,6 +702,33 @@
     });
     closeBtn.addEventListener('click', () => {
       ipcRenderer.invoke('pet-close-window', { agentId });
+    });
+    document.querySelector('.resize-grip').addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const target = ev.currentTarget;
+      target.setPointerCapture(ev.pointerId);
+      resizeDrag = {
+        pointerId: ev.pointerId,
+        startX: ev.screenX,
+        startY: ev.screenY,
+        startWidth: window.outerWidth,
+        startHeight: window.outerHeight
+      };
+      document.body.classList.add('resizing');
+    });
+    window.addEventListener('pointermove', (ev) => {
+      if (!resizeDrag || ev.pointerId !== resizeDrag.pointerId) return;
+      const next = boundedWindowSize(
+        resizeDrag.startWidth + (ev.screenX - resizeDrag.startX),
+        resizeDrag.startHeight + (ev.screenY - resizeDrag.startY)
+      );
+      ipcRenderer.invoke('pet-resize-window', { agentId, ...next });
+    });
+    window.addEventListener('pointerup', (ev) => {
+      if (!resizeDrag || ev.pointerId !== resizeDrag.pointerId) return;
+      resizeDrag = null;
+      document.body.classList.remove('resizing');
     });
     ipcRenderer.on('chat-tail-changed', tailRefresh);
     ipcRenderer.on('pet-config-updated', (_event, next) => {
