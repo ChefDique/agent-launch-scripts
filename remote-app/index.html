@@ -3920,9 +3920,8 @@
       pollStatusOnce();
     }
 
-    // Registry-driven label for tile display. The editable display_name field
-    // in the agent settings form is the user-facing name; id stays the stable
-    // lookup key for launch and IPC.
+    // Registry-driven label for tile display. display_name is the user-facing
+    // name; id stays the stable lookup key for launch and IPC.
     function displayLabelFor(agent) {
       return String(agent.displayName || agent.id || '');
     }
@@ -5213,7 +5212,7 @@
 
     // ---------------------------------------------------------------------
     // Inline settings panel — opens off the gear orb. Hosts the auto_restart
-    // toggle + 3 startup-command text fields (color, rename_to, startup_slash).
+    // toggle plus display name, color, and startup fields.
     //
     // Save semantics:
     //   - toggle  → fire IPC immediately on change
@@ -5267,15 +5266,15 @@
           </label>
         </div>
         <div class="settings-row">
+          <label for="set-display-name">Name</label>
+          <input type="text" id="set-display-name" value="${escapeHtml(agent.displayName || '')}"
+                 placeholder="${escapeHtml(id)}"
+                 autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="settings-row">
           <label for="set-color">Color</label>
           <input type="text" id="set-color" value="${escapeHtml(agent.color || '')}"
                  placeholder="orange" autocomplete="off" spellcheck="false" />
-        </div>
-        <div class="settings-row">
-          <label for="set-rename">Rename to</label>
-          <input type="text" id="set-rename" value="${escapeHtml(agent.renameTo || '')}"
-                 placeholder="${escapeHtml((agent.displayName || id).toUpperCase())}"
-                 autocomplete="off" spellcheck="false" />
         </div>
         <div class="settings-row">
           <label for="set-slash">Startup</label>
@@ -5421,11 +5420,11 @@
       // `tmux break-pane -d` before opening iTerm so the agent fills its
       // own iTerm window. The flashDetachResult helper was removed too.
 
-      // ---- Wire up the three text inputs ----
+      // ---- Wire up the text inputs ----
       // Map renderer-input-id → registry-field name + agent local field name.
       const inputs = [
+        { el: layer.querySelector('#set-display-name'), patchKey: 'display_name',  localKey: 'displayName' },
         { el: layer.querySelector('#set-color'),  patchKey: 'color',         localKey: 'color' },
-        { el: layer.querySelector('#set-rename'), patchKey: 'rename_to',     localKey: 'renameTo' },
         { el: layer.querySelector('#set-slash'),  patchKey: 'startup_slash', localKey: 'startupSlash' }
       ];
       inputs.forEach(({ el, patchKey, localKey }) => {
@@ -5438,8 +5437,8 @@
           // doesn't.
           let bad = false;
           const v = el.value.trim();
+          if (patchKey === 'display_name' && !v) bad = true;
           if (patchKey === 'startup_slash' && v && !/^\/[a-zA-Z][a-zA-Z0-9_-]*/.test(v)) bad = true;
-          if (patchKey === 'rename_to' && v && /\s/.test(v)) bad = true;
           el.classList.toggle('invalid', bad);
         };
 
@@ -5455,8 +5454,12 @@
             const returned = (res.entry && res.entry[patchKey] !== undefined) ? res.entry[patchKey] : v;
             agent[localKey] = returned;
 
-            if (patchKey === 'rename_to') {
-              agent.renameTo = returned;
+            if (patchKey === 'display_name') {
+              const tileLabel = document.getElementById(`label-${id}`);
+              if (tileLabel) tileLabel.textContent = labelTextFor(agent);
+              const tileButton = document.getElementById(`btn-${id}`);
+              if (tileButton) tileButton.title = `${labelTextFor(agent)} — double-click to attach, right-click for actions`;
+              updateRecipientSummary();
             }
             // Brief green pulse to confirm the save landed.
             el.classList.add('saved');
@@ -5798,17 +5801,45 @@
       }, true);
     }
 
-    function confirmDeploy() {
+    async function confirmDeploy() {
       if (!deployPendingIds || deployPendingIds.length === 0) {
         closeDeployPreview();
         return;
       }
       const ids = deployPendingIds.slice();
       const layout = deployPreviewLayout || pillLayoutToOverlayLayout(layoutMode);
-      // Fire and close. main.js whitelists layout and passes it through to
-      // chq-tmux.sh as CHQ_LAYOUT.
-      ipcRenderer.send('spawn-agents', { agents: ids, layout });
-      closeDeployPreview();
+      const confirm = document.getElementById('deploy-confirm');
+      if (confirm) confirm.disabled = true;
+      try {
+        const result = await ipcRenderer.invoke('spawn-agents', { agents: ids, layout });
+        if (!result || !result.ok) {
+          showVoiceToast({
+            kind: 'error',
+            target: 'Deploy failed',
+            snippet: result && result.error ? result.error : 'no deploy result',
+            ms: 4200
+          });
+          return;
+        }
+        showVoiceToast({
+          kind: 'ok',
+          target: result.reusedViewer ? 'viewer already attached' : 'viewer attached',
+          snippet: `${ids.length} agent${ids.length === 1 ? '' : 's'} deployed`,
+          ms: 2200
+        });
+        pollStatusOnce();
+        pollSessionLayoutOnce();
+        closeDeployPreview();
+      } catch (err) {
+        showVoiceToast({
+          kind: 'error',
+          target: 'Deploy failed',
+          snippet: err && err.message ? err.message : String(err),
+          ms: 4200
+        });
+      } finally {
+        if (confirm) confirm.disabled = false;
+      }
     }
 
     // Wire the layout-mode segmented control. Click → set as active, persist,

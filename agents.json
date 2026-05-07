@@ -137,8 +137,8 @@
       "auto_restart": false
     },
     {
-      "id": "gara",
-      "display_name": "GARRA",
+      "id": "gaara",
+      "display_name": "GAARA",
       "runtime": "openclaw",
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
@@ -158,8 +158,7 @@
       "approval_policy": "never",
       "rename_to": "CODEX",
       "startup_slash": "/gogo",
-      "avatar": "codex.svg",
-      "hidden": true
+      "avatar": "codex.svg"
     }
   ]
 }

@@ -13,10 +13,9 @@
 #   1. Look up <id> in agents.json. cwd into the agent's project root.
 #   2. Run the optional pre_launch hook (typically telegram-cleanup --pre-launch).
 #   3. Export any per-agent env vars from the registry's "env" map.
-#   4. For Claude runtimes only, schedule the three-stage auto-inject sequence
-#      (Enter at 4s, /color + /rename at 10s, startup_slash at 12s). Stale
-#      subshell PID cleanup runs first — SIGKILL the subshell BEFORE its sleep
-#      child (order matters; see CLAUDE.md "auto-inject sequence").
+#   4. For Claude runtimes only, clear stale auto-inject subshells left by older
+#      launcher versions. This launcher does not type delayed commands into a
+#      live tmux pane.
 #   5. exec the configured runtime command (claude, codex, hermes, openclaw).
 #
 # Pivot knobs — env overrides for shell aliases that want to repoint an agent:
@@ -55,6 +54,11 @@ CWD="${PROJECT_ROOT:-${RAW_CWD/#\~/$HOME}}"
 COLOR="$(field color)"
 RUNTIME="$(field runtime)"
 [[ -z "$RUNTIME" ]] && RUNTIME="codex"
+ALLOW_CLAUDE_RUNTIME="$(jq -r '.allow_claude_runtime // false' <<< "$ENTRY")"
+if [[ "$RUNTIME" == "claude" && "$ALLOW_CLAUDE_RUNTIME" != "true" ]]; then
+  echo "launch-agent: agent '$AGENT_ID' sets runtime=claude without allow_claude_runtime=true" >&2
+  exit 2
+fi
 MODEL="$(field model)"
 REASONING_EFFORT="$(field reasoning_effort)"
 [[ -z "$REASONING_EFFORT" ]] && REASONING_EFFORT="$(field effort)"
@@ -172,19 +176,16 @@ build_runtime_command() {
   done < <(jq -r '(.runtime_args // [])[]' <<< "$ENTRY")
 }
 
-# ---------------------------------------------------------------------------
-# Auto-inject sequence (only when running inside a tmux pane)
-# ---------------------------------------------------------------------------
 if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
   # PIDFILE per (agent, pane). Tmux pane ids are like %23 — the slash-safe
   # substitution matches the old per-agent scripts so existing /tmp files keep
   # working without orphaning.
   PIDFILE="/tmp/${AGENT_ID}-bg-${TMUX_PANE//%/_}.pids"
 
-  # Stale-pid cleanup. Order is load-bearing: SIGKILL the subshell BEFORE its
-  # sleep child. If we kill sleep first, bash unblocks and runs `tmux send-keys`
-  # into the new Claude session mid-boot. SIGKILL (not SIGTERM) because bash
-  # can trap SIGTERM. See CLAUDE.md "stale-pid cleanup".
+  # Stale-pid cleanup for older launcher versions that scheduled delayed tmux
+  # input. Order is load-bearing: SIGKILL the subshell BEFORE its sleep child.
+  # If we kill sleep first, bash unblocks and runs the delayed command into the
+  # active session. SIGKILL (not SIGTERM) because bash can trap SIGTERM.
   if [[ -f "$PIDFILE" ]]; then
     while IFS= read -r pid; do
       [[ -n "$pid" ]] || continue
@@ -192,21 +193,6 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
       pkill -9 -P "$pid" 2>/dev/null || true
     done < "$PIDFILE"
     rm -f "$PIDFILE"
-  fi
-
-  # Stage 1 — dismiss the --dangerously-load-development-channels warning.
-  ( sleep 4;  tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
-
-  # Stage 2 — pane color + rename. Matches the legacy 10s+0.5s spacing.
-  if [[ -n "$COLOR" ]]; then
-    ( sleep 10; tmux send-keys -t "$TMUX_PANE" "/color $COLOR" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-  else
-    ( sleep 10; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-  fi
-
-  # Stage 3 — startup slash. Skip if empty (matches old gekko.sh guard).
-  if [[ -n "$STARTUP" ]]; then
-    ( sleep 12; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
   fi
 fi
 

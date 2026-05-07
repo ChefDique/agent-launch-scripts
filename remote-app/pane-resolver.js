@@ -62,7 +62,17 @@ function removeSidecarSession(sidecar = {}, sessionName) {
   return next;
 }
 
+function pruneSidecarToLiveSessions(sidecar = {}, liveSessions = new Set()) {
+  const sessions = liveSessions instanceof Set ? liveSessions : new Set(liveSessions || []);
+  const next = {};
+  for (const [id, entry] of Object.entries(sidecar || {})) {
+    if (!entry || !entry.session || sessions.has(entry.session)) next[id] = entry;
+  }
+  return next;
+}
+
 module.exports = {
+  pruneSidecarToLiveSessions,
   removeSidecarIds,
   removeSidecarSession,
   resolveAgentPanes

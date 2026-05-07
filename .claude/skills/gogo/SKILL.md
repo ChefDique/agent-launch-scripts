@@ -17,7 +17,7 @@ Run all of these in parallel, then present status:
 git status --short --branch
 git log --oneline -10
 jq -r '"AgentRemote package version: " + .version' remote-app/package.json
-jq '.agents | length, [.agents[].id], [.agents[] | {id, runtime, model, allow_claude_runtime}]' agents.json
+jq '.agents | length, [.[].id], [.[] | {id, runtime, model, allow_claude_runtime}]' agents.json
 ps -axo pid,ppid,lstart,command | rg "agent-launch-scripts/remote-app/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron|--app-path=.*agent-launch-scripts/remote-app" || true
 tail -5 remote-app/out.log
 tmux ls 2>/dev/null | head -5

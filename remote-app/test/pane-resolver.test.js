@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('../pane-resolver');
+const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('../pane-resolver');
 
 test('sidecar pane resolves even when the pane title no longer matches the agent target', () => {
   const panes = [
@@ -60,5 +60,18 @@ test('session cleanup removes only entries for the killed tmux session', () => {
 
   assert.deepEqual(removeSidecarSession(sidecar, 'chq'), {
     helper: { pane_id: '%9', session: 'other' }
+  });
+});
+
+test('sidecar pruning removes entries for sessions tmux no longer reports', () => {
+  const sidecar = {
+    xavier: { pane_id: '%44', session: 'chq' },
+    helper: { pane_id: '%9', session: 'session1' },
+    legacy: { pane_id: '%10' }
+  };
+
+  assert.deepEqual(pruneSidecarToLiveSessions(sidecar, new Set(['session1'])), {
+    helper: { pane_id: '%9', session: 'session1' },
+    legacy: { pane_id: '%10' }
   });
 });

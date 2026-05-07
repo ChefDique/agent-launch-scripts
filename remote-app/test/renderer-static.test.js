@@ -129,6 +129,9 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
 test('deploy surface keeps the operator path to one movable window per agent', () => {
   assert.match(html, /data-layout="ittab"/);
   assert.match(html, />EACH<\/button>/);
+  assert.match(html, /ipcRenderer\.invoke\('spawn-agents'/);
+  assert.match(html, /Deploy failed/);
+  assert.doesNotMatch(html, /ipcRenderer\.send\('spawn-agents'/);
   assert.doesNotMatch(html, /data-layout="panes"/);
   assert.doesNotMatch(html, /data-layout="windows"/);
 });

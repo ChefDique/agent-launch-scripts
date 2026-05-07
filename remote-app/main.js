@@ -7,10 +7,11 @@ const os = require('os');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const { normalizeSpawnLayout, tmuxFocusedAttachCommand } = require('./layout-policy');
-const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
+const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
+const { hasRequiredTmuxClient, parseTmuxClientLines } = require('./deploy-viewer');
 const APP_PACKAGE = require('./package.json');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
@@ -429,7 +430,7 @@ function loadAgents() {
         // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
         autoRestart: a.auto_restart !== false,
         // Raw registry value. Kept for launcher/runtime settings; the dock
-        // label follows display_name so the icon settings form is authoritative.
+        // label follows display_name.
         renameTo: a.rename_to || '',
         startupSlash: a.startup_slash || '',
         avatar: a.avatar || bundledAvatarForId(a.id),
@@ -606,6 +607,19 @@ function removePaneSidecarSession(sessionName) {
     writePaneSidecar(removeSidecarSession(readPaneSidecar(), sessionName));
   } catch (err) {
     logToOutLog(`[sidecar] cleanup failed for session ${sessionName}: ${err.message}`);
+  }
+}
+
+function prunePaneSidecarForLiveSessions(panes) {
+  try {
+    const liveSessions = new Set((panes || [])
+      .map(pane => String(pane.coord || '').split(':')[0])
+      .filter(Boolean));
+    const current = readPaneSidecar();
+    const next = pruneSidecarToLiveSessions(current, liveSessions);
+    if (JSON.stringify(next) !== JSON.stringify(current)) writePaneSidecar(next);
+  } catch (err) {
+    logToOutLog(`[sidecar] live-session prune failed: ${err.message}`);
   }
 }
 
@@ -1178,6 +1192,7 @@ ipcMain.handle('pane-status', async () => {
   try { panes = await listPanes(); } catch {
     return agents.map(a => ({ id: a.id, running: false, attached: false }));
   }
+  prunePaneSidecarForLiveSessions(panes);
 
   const sidecar = readPaneSidecar();
 
@@ -1209,6 +1224,103 @@ ipcMain.handle('pane-status', async () => {
   }));
 });
 
+function execFileP(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, options, (err, stdout, stderr) => {
+      if (err) {
+        err.stdout = stdout;
+        err.stderr = stderr;
+        return reject(err);
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function listTmuxClients(sessionName) {
+  try {
+    const { stdout } = await execFileP('tmux', ['list-clients', '-t', sessionName, '-F', '#{client_name}\t#{client_control_mode}']);
+    return parseTmuxClientLines(stdout);
+  } catch {
+    return [];
+  }
+}
+
+async function waitForDeployViewer(layout, attempts = 10) {
+  for (let i = 0; i < attempts; i += 1) {
+    const clients = await listTmuxClients('chq');
+    if (hasRequiredTmuxClient(layout, clients)) return clients;
+    await delay(250);
+  }
+  return listTmuxClients('chq');
+}
+
+async function spawnAgents(payload) {
+  // Back-compat: payload may be a bare array of agent ids (legacy renderer)
+  // or { agents, layout } (post-v2.5 settings popover with layout checkboxes).
+  const agents = Array.isArray(payload) ? payload : (payload && payload.agents);
+  const layoutRaw = (payload && payload.layout) || '';
+  const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
+  if (safeAgents.length === 0) return { ok: false, error: 'no deployable agents selected' };
+
+  // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
+  // Fallback is ittab, because the operator default is draggable iTerm
+  // control-mode windows rather than one crowded split-pane tmux window.
+  const layout = normalizeSpawnLayout(layoutRaw);
+
+  let stdout = '';
+  try {
+    const result = await execFileP('bash', [CHQ_SCRIPT, 'add', ...safeAgents], {
+      env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
+    });
+    stdout = result.stdout || '';
+  } catch (err) {
+    const msg = err.stderr || err.message || 'chq-tmux add failed';
+    console.error(`[spawn] chq-tmux add failed: ${msg}`);
+    logToOutLog(`[spawn] chq-tmux add failed: ${msg}`);
+    return { ok: false, error: msg.trim(), agents: safeAgents, layout };
+  }
+  console.log(`[spawn] ${stdout.trim()}`);
+
+  // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
+  // every batch into a fresh iTerm tab. We now reuse an existing viewer only
+  // when tmux proves it is attached in the right mode. For ittab/EACH, plain
+  // tmux attach is not enough; the operator path requires control mode so
+  // iTerm materializes the tmux windows.
+  let clients = await listTmuxClients('chq');
+  if (hasRequiredTmuxClient(layout, clients)) {
+    execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
+    return { ok: true, agents: safeAgents, layout, reusedViewer: true, clients, stdout };
+  }
+
+  // No required viewer attached — open a fresh iTerm tab/window, then write
+  // the attach command into the newly created session.
+  const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
+  try {
+    await execFileP('osascript', ['-e', apple]);
+  } catch (err) {
+    const msg = err.stderr || err.message || 'osascript attach failed';
+    console.error(`[spawn] osascript attach failed: ${msg}`);
+    logToOutLog(`[spawn] osascript attach failed: ${msg}`);
+    return { ok: false, error: msg.trim(), agents: safeAgents, layout, stdout };
+  }
+
+  clients = await waitForDeployViewer(layout);
+  if (!hasRequiredTmuxClient(layout, clients)) {
+    const error = layout === 'ittab'
+      ? 'deploy created chq panes but no iTerm control-mode client attached'
+      : 'deploy created chq panes but no tmux client attached';
+    logToOutLog(`[spawn] ${error}; clients=${JSON.stringify(clients)}`);
+    return { ok: false, error, agents: safeAgents, layout, clients, stdout };
+  }
+
+  return { ok: true, agents: safeAgents, layout, reusedViewer: false, clients, stdout };
+}
+
 // ---------------------------------------------------------------------------
 // Spawn IPC — hardened against shell injection
 // ---------------------------------------------------------------------------
@@ -1217,69 +1329,10 @@ ipcMain.handle('pane-status', async () => {
 // with "Session already exists" when chq was already up, which was the root
 // cause of the "Deploy doesn't work after first deploy" bug — clicking an
 // agent button once chq existed was a silent no-op.
-ipcMain.on('spawn-agents', (event, payload) => {
-  // Back-compat: payload may be a bare array of agent ids (legacy renderer)
-  // or { agents, layout } (post-v2.5 settings popover with layout checkboxes).
-  const agents = Array.isArray(payload) ? payload : (payload && payload.agents);
-  const layoutRaw = (payload && payload.layout) || '';
-  const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
-  if (safeAgents.length === 0) return;
-
-  // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
-  // Fallback is ittab, because the operator default is draggable iTerm
-  // control-mode windows rather than one crowded split-pane tmux window.
-  const layout = normalizeSpawnLayout(layoutRaw);
-
-  execFile('bash', [CHQ_SCRIPT, 'add', ...safeAgents], { env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout } }, (err, stdout, stderr) => {
-    if (err) {
-      console.error(`[spawn] chq-tmux add failed: ${stderr || err.message}`);
-      return;
-    }
-    console.log(`[spawn] ${stdout.trim()}`);
-    // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
-    // every batch into a fresh iTerm tab — "you put them all on different
-    // tabs, so i gotta go move em each time." Root cause: the previous
-    // implementation ALWAYS ran `create tab with default profile` here
-    // unconditionally on every Deploy, even when an iTerm session attached
-    // to chq already existed. The tmux session WAS shared (cmd_add appends
-    // panes/windows to chq), but each Deploy opened a NEW tab attached
-    // to the same chq, so iTerm rendered N redundant attached views.
-    //
-    // Fix: ask tmux whether the chq session already has a client attached.
-    // If yes, don't spawn ANYTHING in iTerm — the user already has a tab
-    // showing chq, and tmux just grew it under the hood. We only activate
-    // iTerm so it surfaces; the existing tab stays in place.
-    // If no, spawn a fresh iTerm tab attached to chq (first Deploy, or
-    // user closed the previous tab).
-    //
-    // This is more reliable than scraping iTerm session names — tmux is
-    // the source of truth for "is anyone watching this session".
-    execFile('tmux', ['list-clients', '-t', 'chq', '-F', '#{client_name}\t#{client_control_mode}'], (errLC, lcOut) => {
-      const clients = !errLC
-        ? lcOut.split('\n').map(l => l.trim()).filter(Boolean)
-        : [];
-      const hasClient = clients.length > 0;
-      const hasControlClient = clients.some(line => line.split('\t')[1] === '1');
-      if ((layout === 'ittab' && hasControlClient) || (layout !== 'ittab' && hasClient)) {
-        // Someone is already attached in the right mode. Just bring iTerm
-        // forward so the existing control-mode windows/tab stay in place.
-        execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
-        return;
-      }
-      // No client attached — open a fresh iTerm tab/window, then write the
-      // attach command into the new first-window session. This matches the
-      // AppleScript path verified live on Richard's iTerm build; the
-      // "create ... command" form opened a shell but did not run the command.
-      const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
-      execFile('osascript', ['-e', apple], (err2, _o, e2) => {
-        if (err2) {
-          const msg = e2 || err2.message;
-          console.error(`[spawn] osascript attach failed: ${msg}`);
-          logToOutLog(`[spawn] osascript attach failed: ${msg}`);
-        }
-      });
-    });
-  });
+ipcMain.handle('spawn-agents', async (_event, payload) => spawnAgents(payload));
+ipcMain.on('spawn-agents', async (event, payload) => {
+  const result = await spawnAgents(payload);
+  try { event.reply('spawn-agents-result', result); } catch { /* legacy fire-and-forget */ }
 });
 
 // ---------------------------------------------------------------------------
@@ -1483,11 +1536,16 @@ ipcMain.handle('restart-agent', async (event, id) => {
 });
 
 // Update-agent IPC — partial PATCH of a registry entry. The right-click menu
-// uses this to toggle auto_restart and edit color / rename_to / startup_slash.
+// uses this to toggle auto_restart and edit display_name / color / startup_slash.
 // Whitelist the writable fields so a renderer bug can't clobber load-bearing
-// keys like display_name or cwd. Booleans are coerced; strings are trimmed.
+// keys like id or cwd. Booleans are coerced; strings are trimmed.
 const UPDATABLE_FIELDS = {
   auto_restart:  v => Boolean(v),
+  display_name:  v => {
+    const name = String(v || '').trim();
+    if (!name) throw new Error('display_name required');
+    return name;
+  },
   color:         v => String(v || '').trim().toLowerCase(),
   theme_color:   v => (/^#[0-9a-fA-F]{3,8}$/.test(String(v || '').trim()) ? String(v).trim() : null),
   runtime:       v => {

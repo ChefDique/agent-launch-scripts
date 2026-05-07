@@ -5,7 +5,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/claude-cwd"
+mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
 
 cat > "$TMP_DIR/bin/codex" <<'SH'
 #!/usr/bin/env bash
@@ -42,12 +42,19 @@ cat > "$TMP_DIR/agents.json" <<JSON
     {
       "id": "legacy",
       "display_name": "Legacy",
-      "cwd": "$TMP_DIR/claude-cwd"
+      "cwd": "$TMP_DIR/legacy-runtime-cwd"
     },
     {
-      "id": "explicit-claude",
-      "display_name": "Explicit Claude",
-      "cwd": "$TMP_DIR/claude-cwd",
+      "id": "intentional-runtime",
+      "display_name": "Intentional Runtime",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "claude",
+      "allow_claude_runtime": true
+    },
+    {
+      "id": "blocked-claude-runtime",
+      "display_name": "Blocked Claude Runtime",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
       "runtime": "claude"
     }
   ]
@@ -79,10 +86,21 @@ grep -qx 'COMMAND:codex' <<< "$legacy_output"
 grep -qx 'ARG:gpt-5.5' <<< "$legacy_output"
 grep -qx 'ARG:model_reasoning_effort="high"' <<< "$legacy_output"
 
-explicit_claude_output="$(run_agent explicit-claude)"
-grep -qx 'COMMAND:claude' <<< "$explicit_claude_output"
-grep -qx 'ARG:-n' <<< "$explicit_claude_output"
-grep -qx 'ARG:Explicit Claude' <<< "$explicit_claude_output"
+intentional_runtime_output="$(run_agent intentional-runtime)"
+grep -qx 'COMMAND:claude' <<< "$intentional_runtime_output"
+grep -qx 'ARG:-n' <<< "$intentional_runtime_output"
+grep -qx 'ARG:Intentional Runtime' <<< "$intentional_runtime_output"
+
+if blocked_runtime_output="$(run_agent blocked-claude-runtime 2>&1)"; then
+  echo "expected runtime=claude without allow_claude_runtime=true to fail" >&2
+  exit 1
+fi
+grep -q "allow_claude_runtime=true" <<< "$blocked_runtime_output"
+
+! grep -q 'submit_tmux_text' "$REPO_ROOT/launch-agent.sh"
+! grep -q 'tmux send-keys' "$REPO_ROOT/launch-agent.sh"
+! grep -q '"/rename \$RENAME_TO" Enter' "$REPO_ROOT/launch-agent.sh"
+! grep -q '"\$STARTUP" Enter' "$REPO_ROOT/launch-agent.sh"
 
 if jq -e '[.agents[] | select((.runtime // "codex") == "claude" and (.allow_claude_runtime != true))] | length == 0' "$REPO_ROOT/agents.json" >/dev/null; then
   :
