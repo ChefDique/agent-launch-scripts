@@ -121,8 +121,7 @@
       "color": "cyan",
       "startup_slash": "/gogo",
       "theme_color": "#e3ff0f",
-      "avatar": "hermes.svg",
-      "hidden": true
+      "avatar": "hermes.svg"
     },
     {
       "id": "goku",
