@@ -1108,7 +1108,7 @@
     /* ---------------------------------------------------------------------
        Layout-mode selector — segmented pill control next to Deploy.
        ---------------------------------------------------------------------
-       Three options ride along with spawn-agents IPC as the `layout` field.
+       Layout options ride along with spawn-agents IPC as the `layout` field.
        Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks
        across launches. Visually it's a tiny segmented control: one pill per
        mode, the active one wears the accent color. Clicking a pill selects
@@ -1922,12 +1922,13 @@
       font-weight: 600;
     }
 
-    /* Layout choice grid — one intentional card at full width. Clicking keeps
+    /* Layout choice grid — compact cards with the tmux wrap pattern visible.
+       Clicking keeps
        data-layout on the card; the JS reads aria-checked=true at confirm
        time. Hover lifts; selected has the accent border + glow. */
     .deploy-layout-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 14px;
     }
@@ -3597,11 +3598,12 @@
           <span class="glyph">✕</span>
           <span class="confirm"><span class="ok">✓</span><span class="no">✗</span></span>
         </button>
-        <!-- Deploy layout is intentionally single-mode in AgentRemote:
-             one tmux pane per agent, each broken into its own tmux window,
-             then attached via tmux -CC so iTerm can move/dock/split them. -->
+        <!-- Deploy layout modes preserve the two operator shapes Richard uses:
+             TABS keeps each agent as a solo tmux window surfaced by iTerm
+             control mode; PANES joins agents into one balanced tmux window. -->
         <div class="layout-pills" id="layout-pills" role="radiogroup" aria-label="Spawn layout mode">
-          <button class="layout-pill active" data-layout="ittab" data-base-title="One tmux pane per agent, attached through iTerm control-mode windows. Move, dock, or split them freely." title="One tmux pane per agent, attached through iTerm control-mode windows. Move, dock, or split them freely.">EACH</button>
+          <button class="layout-pill active" data-layout="ittab" data-base-title="Separate tabs: agent process -> tmux pane -> solo tmux window -> iTerm control-mode surface." title="Separate tabs: agent process -> tmux pane -> solo tmux window -> iTerm control-mode surface.">Tabs</button>
+          <button class="layout-pill" data-layout="panes" data-base-title="Even panes: agent processes -> tmux panes joined in one chq window -> balanced tmux layout." title="Even panes: agent processes -> tmux panes joined in one chq window -> balanced tmux layout.">Panes</button>
         </div>
         <button class="util-btn" id="edit-btn" title="Edit mode — show × badges to remove agents from registry">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
@@ -3700,8 +3702,17 @@
             <svg viewBox="0 0 32 22"><rect class="bg" x="2" y="5" width="18" height="14" rx="3"/><rect class="tab" x="12" y="1" width="18" height="14" rx="3"/><rect class="tab active" x="7" y="3" width="18" height="14" rx="3"/></svg>
           </div>
           <div class="dl-meta">
-            <div class="dl-name">Each agent</div>
-            <div class="dl-hint">One movable tmux/iTerm window per agent</div>
+            <div class="dl-name">Separate tabs</div>
+            <div class="dl-hint">process -> pane -> solo window -> iTerm control mode</div>
+          </div>
+        </button>
+        <button class="deploy-layout-card" data-layout="panes" role="radio" aria-checked="false">
+          <div class="dl-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 22"><rect class="bg" x="3" y="3" width="26" height="16" rx="3"/><path class="tab" d="M12 3v16M20 3v16"/><rect class="tab active" x="3" y="3" width="26" height="16" rx="3"/></svg>
+          </div>
+          <div class="dl-meta">
+            <div class="dl-name">Even panes</div>
+            <div class="dl-hint">processes -> tmux panes joined in one balanced window</div>
           </div>
         </button>
       </div>
@@ -3889,9 +3900,10 @@
     let selectedPets = {};
     let petMoodAgentId = null;
 
-    // Spawn-layout mode — affects the Deploy button. AgentRemote exposes the
-    // single operator path Richard asked for: one tmux pane per agent, each in
-    // its own tmux window, attached through tmux -CC so iTerm can move them.
+    // Spawn-layout mode — affects the Deploy button. AgentRemote exposes two
+    // operator paths:
+    //   ittab: agent process -> tmux pane -> solo tmux window -> iTerm control mode
+    //   panes: agent processes -> tmux panes joined in one balanced chq window
     // Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks.
     // Whitelisted on read; stale/corrupt values fall back to 'ittab'.
     // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
@@ -5731,8 +5743,8 @@
     // The overlay is a glass card with three things:
     //   1. Roster — one row per agent about to spawn (avatar + name + cwd
     //      + running-or-not chip).
-    //   2. Layout picker — one intentional operator path: ittab/EACH,
-    //      which maps to CHQ_LAYOUT=ittab.
+    //   2. Layout picker — TABS maps to CHQ_LAYOUT=ittab; PANES maps to
+    //      CHQ_LAYOUT=panes.
     //   3. Cancel + Deploy actions. Confirm fires spawn-agents.
     //
     // Defaults the picker to the segmented-pill choice in the meta row
@@ -5954,8 +5966,9 @@
     // Session-layout tracking + tear-down button (Issue 2)
     // ---------------------------------------------------------------------
     // chq-tmux.sh stashes the chosen layout in a tmux session option
-    // @chq_layout at start time. AgentRemote now exposes only EACH/ittab, but
-    // old or externally-started sessions may still be in a legacy layout.
+    // @chq_layout at start time. AgentRemote exposes TABS/ittab and
+    // PANES/panes; old or externally-started sessions may still be in another
+    // layout.
     // Surface that with:
     //
     //   1. A tooltip / amber border on .layout-pills when the active pill

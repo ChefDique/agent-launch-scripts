@@ -95,6 +95,8 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /resize-grip/);
   assert.match(petWindow, /pet-send-message/);
   assert.match(petWindow, /chat-tail-init/);
+  assert.match(petWindow, /pet-pane-tail/);
+  assert.match(petWindow, /function renderPaneLines\(lines\)/);
   assert.doesNotMatch(petWindow, /class="bubble-head"/);
 });
 
@@ -109,9 +111,13 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /payload\.anchorY === 'bottom'/);
   assert.match(main, /pet-set-mood/);
   assert.match(main, /pet-window-moving/);
-  assert.match(main, /split vertically with default profile command/);
-  assert.match(main, /mode: 'split-native'/);
+  assert.match(main, /safeTmuxWindowLabel/);
+  assert.match(main, /labelTmuxPaneWindow/);
+  assert.match(main, /updatePaneSidecarEntry/);
+  assert.match(main, /selectTarget = match\.paneId/);
+  assert.match(main, /mode: 'control-mode-focus'/);
   assert.doesNotMatch(main, /mode: 'focused-existing'/);
+  assert.doesNotMatch(main, /split vertically with default profile command/);
   assert.match(main, /send-keys', '-t', coord, '-l', message/);
   assert.match(main, /setTimeout\(\(\) => \{/);
   assert.match(main, /send-keys', '-t', coord, 'C-m'/);
@@ -126,6 +132,19 @@ test('chat input paste persists clipboard images as local file references', () =
   assert.match(html, /\[image: \$\{result\.path\}\]/);
   assert.match(main, /ipcMain\.handle\('save-pasted-image'/);
   assert.match(main, /agentremote-pasted-images/);
+});
+
+test('floating pet chat tails tmux output and supports pasted images', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
+  assert.match(main, /ipcMain\.handle\('pet-pane-tail'/);
+  assert.match(main, /capture-pane', '-p', '-J', '-S', '-80'/);
+  assert.match(petWindow, /refreshPaneTail\(true\)/);
+  assert.match(petWindow, /lastPaneTailFingerprint/);
+  assert.match(petWindow, /addEventListener\('paste', handleReplyImagePaste\)/);
+  assert.match(petWindow, /item\.kind === 'file' && \/\^image\\\//);
+  assert.match(petWindow, /ipcRenderer\.invoke\('save-pasted-image'/);
+  assert.match(petWindow, /\[image: \$\{result\.path\}\]/);
 });
 
 test('floating pet window maps Codex atlas rows and move events to moods', () => {
@@ -178,13 +197,18 @@ test('floating pet chat bubble adapts above or below based on window bounds', ()
   assert.match(main, /PET_WORKAREA_SAFETY/);
 });
 
-test('deploy surface keeps the operator path to one movable window per agent', () => {
+test('deploy surface exposes separate-tabs and even-panes operator paths', () => {
   assert.match(html, /data-layout="ittab"/);
-  assert.match(html, />EACH<\/button>/);
+  assert.match(html, /data-layout="panes"/);
+  assert.match(html, />Tabs<\/button>/);
+  assert.match(html, />Panes<\/button>/);
+  assert.match(html, /Separate tabs/);
+  assert.match(html, /Even panes/);
+  assert.match(html, /solo tmux window/);
+  assert.match(html, /joined in one balanced window/);
   assert.match(html, /ipcRenderer\.invoke\('spawn-agents'/);
   assert.match(html, /Deploy failed/);
   assert.doesNotMatch(html, /ipcRenderer\.send\('spawn-agents'/);
-  assert.doesNotMatch(html, /data-layout="panes"/);
   assert.doesNotMatch(html, /data-layout="windows"/);
 });
 

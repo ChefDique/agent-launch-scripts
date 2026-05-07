@@ -1,5 +1,5 @@
-const LAYOUT_MODES = ['ittab'];
-const DEPLOY_LAYOUTS = ['ittab'];
+const LAYOUT_MODES = ['ittab', 'panes'];
+const DEPLOY_LAYOUTS = ['ittab', 'panes'];
 
 const DEFAULT_LAYOUT = 'ittab';
 
@@ -22,7 +22,7 @@ function tmuxAttachCommand(sessionName, layout, options = {}) {
 function tmuxFocusedAttachCommand(sessionName, coord) {
   const safeSession = String(sessionName || '').trim();
   const safeCoord = String(coord || '').trim();
-  return `tmux select-pane -t ${safeCoord}; tmux attach -t ${safeSession}`;
+  return `tmux select-pane -t ${safeCoord}; tmux -CC attach -t ${safeSession}`;
 }
 
 module.exports = {

@@ -24,10 +24,24 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 - Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
 - Layout state can persist in the running tmux session through `@chq_layout`.
 - Existing process controls should use argv-style calls and surface hard failures when zero panes are targeted.
-- AgentRemote Deploy uses the `EACH`/`ittab` layout for one tmux pane per agent.
-  The Attach action should open the selected agent in a native iTerm split with
-  a normal `tmux attach`, so the current workspace gets a split pane instead of
-  another tmux control-mode tab.
+- AgentRemote Deploy uses the `EACH`/`ittab` control-mode layout. The durable
+  unit is one agent process in one tmux pane, with a stable `%N` pane id recorded
+  in `/tmp/agent-remote-panes.json`.
+- The intended viewing contract is "double wrapped": agent process -> tmux pane
+  -> solo tmux window -> iTerm control-mode surface. Richard does not mean a
+  normal `tmux attach` grid containing several agent panes in one terminal.
+- AgentRemote also exposes an explicit `PANES` layout for the joined view:
+  agent processes -> tmux panes joined in one `chq` window -> balanced tmux
+  layout. This is an intentional operator mode, not a fallback for Attach bugs.
+- Do not implement Attach by opening a normal `tmux attach -t chq` iTerm window,
+  splitting the current iTerm session, or otherwise showing multiple agents in
+  one tmux window. That makes the panes hard to arrange, resize, or pull apart.
+- Separate iTerm windows/tabs are incidental UI materialization. The invariant is
+  that each agent pane must be isolated in its own tmux window before iTerm
+  control mode presents it.
+- Input defects such as image paste or Shift+Enter/newline handling must be fixed
+  in AgentRemote/xterm/IPC/input handling. Do not switch to normal `tmux attach`
+  or merged split-pane layouts to work around input bugs.
 - Do not prove attach/deploy changes by mutating Richard's live iTerm desktop.
   Live validation can leave duplicate tmux clients, headless panes, or stray
   tabs. Use mocked IPC, isolated throwaway tmux sessions, or static command

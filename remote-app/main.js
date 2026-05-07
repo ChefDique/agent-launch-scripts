@@ -6,7 +6,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { normalizeSpawnLayout, tmuxFocusedAttachCommand } = require('./layout-policy');
+const { normalizeSpawnLayout } = require('./layout-policy');
 const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
@@ -1401,6 +1401,53 @@ function listPanes() {
   });
 }
 
+function safeTmuxWindowLabel(agent, fallbackId) {
+  const raw = String((agent && (agent.displayName || agent.id)) || fallbackId || 'agent').trim();
+  const cleaned = raw.replace(/[^a-z0-9_.:@+ -]+/gi, '').replace(/\s+/g, ' ').trim();
+  return (cleaned || String(fallbackId || 'agent')).slice(0, 48);
+}
+
+async function labelTmuxPaneWindow(match, label) {
+  if (!match || !label) return;
+  const windowTarget = String(match.coord || '').split('.')[0];
+  if (/^[a-z0-9_:.-]+$/i.test(windowTarget)) {
+    await new Promise(resolve => {
+      execFile('tmux', ['rename-window', '-t', windowTarget, label], err => {
+        if (err) logToOutLog(`[attach] rename-window failed for ${windowTarget}: ${err.message}`);
+        resolve();
+      });
+    });
+  }
+  if (match.paneId && /^%[0-9]+$/.test(match.paneId)) {
+    await new Promise(resolve => {
+      execFile('tmux', ['select-pane', '-t', match.paneId, '-T', label], err => {
+        if (err) logToOutLog(`[attach] pane title failed for ${match.paneId}: ${err.message}`);
+        resolve();
+      });
+    });
+  }
+}
+
+function updatePaneSidecarEntry(agentId, match) {
+  if (!agentId || !match || !match.paneId || !match.coord) return;
+  const parsed = /^([^:]+):([0-9]+)\.([0-9]+)$/.exec(String(match.coord || ''));
+  if (!parsed) return;
+  try {
+    const sidecar = readPaneSidecar();
+    sidecar[agentId] = {
+      ...(sidecar[agentId] || {}),
+      pane_id: match.paneId,
+      session: parsed[1],
+      window: Number(parsed[2]),
+      pane: Number(parsed[3]),
+      updated_at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+    };
+    writePaneSidecar(sidecar);
+  } catch (err) {
+    logToOutLog(`[sidecar] update failed for ${agentId}: ${err.message}`);
+  }
+}
+
 // pane-status — return [{ id, running, attached }] for each registry agent.
 // Used by the renderer's 3s status-dot poller. Substring match against pane
 // titles, same rule as broadcast resolution.
@@ -2035,10 +2082,13 @@ ipcMain.handle('kill-pane', async (event, id) => {
   }
 });
 
-// attach-pane — focus the user's cursor onto the agent's tmux pane in iTerm,
-// guaranteeing the agent opens as a native iTerm split pane. ALS-010 collapsed the
-// previous three controls (Attach orb + Detach-to-window + Detach-to-split)
-// into this single layout-aware action. Behaviour:
+// attach-pane — focus the user's cursor onto the agent's tmux pane while
+// preserving AgentRemote's "double wrapped" viewing contract:
+//
+//   agent process -> tmux pane -> solo tmux window -> iTerm control-mode surface
+//
+// ALS-010 collapsed the previous three controls (Attach orb + Detach-to-window
+// + Detach-to-split) into this single layout-aware action. Behaviour:
 //
 //   0. NEW (ALS-010): if the agent's pane is sharing its tmux window with
 //      other panes, silently `tmux break-pane -d -s <paneId>` it into a new
@@ -2053,17 +2103,16 @@ ipcMain.handle('kill-pane', async (event, id) => {
 //      window AND pane in one call — works across `panes`, `windows`, and
 //      `ittab` layouts.
 //
-//   2. Split the current iTerm session and run a normal `tmux attach`, not
-//      `tmux -CC attach`. Deploy still uses iTerm/tmux control mode for the
-//      movable one-agent-per-window fleet, but Attach is an operator focus
-//      action: it should put the selected agent into the current iTerm
-//      workspace as a native split pane instead of opening another tmux tab.
+//   2. Reuse the existing iTerm control-mode viewer when present. If no
+//      control-mode viewer exists, launch `chq-tmux.sh attach`, which uses
+//      `tmux -CC attach` for the ittab layout. Do not open a normal
+//      `tmux attach -t chq` viewer here; it collapses multiple agent panes into
+//      one split-pane terminal and breaks Richard's arrange/resize workflow.
 //
-// The previous implementation chained `tmux attach \; select-pane` in one
-// shell command — but `\;` collapses to `;` in shell parse, splitting it
-// into two sequential commands. The first `tmux attach` BLOCKED, then on
-// detach the `select-pane` ran outside any tmux session. Fixed by running
-// `select-pane` server-side on the host BEFORE invoking iTerm at all.
+// The previous implementation chained `tmux attach \; select-pane` or opened
+// a native iTerm split running normal attach. Both are wrong for AgentRemote.
+// Select the pane/window server-side first, then focus or create the
+// control-mode viewer.
 ipcMain.handle('attach-pane', async (event, id) => {
   try {
     const safeId = String(id || '').trim().toLowerCase();
@@ -2131,41 +2180,51 @@ ipcMain.handle('attach-pane', async (event, id) => {
       match = updated;                                          // continue with new coord
     }
 
+    const attachLabel = safeTmuxWindowLabel(agent, safeId);
+    await labelTmuxPaneWindow(match, attachLabel);
+    updatePaneSidecarEntry(safeId, match);
+
     // Step 1 — set active pane server-side. Works across panes/windows/ittab.
+    // Prefer the stable pane id so stale window coordinates cannot send Attach
+    // to a neighboring pane after a prior break-pane or iTerm control-mode move.
+    const selectTarget = match.paneId && /^%[0-9]+$/.test(match.paneId) ? match.paneId : match.coord;
     await new Promise((resolve, reject) => {
-      execFile('tmux', ['select-pane', '-t', match.coord], (err, _o, ser) => {
+      execFile('tmux', ['select-pane', '-t', selectTarget], (err, _o, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve();
+      });
+    });
+    const windowTarget = match.coord.split('.')[0];
+    await new Promise((resolve, reject) => {
+      execFile('tmux', ['select-window', '-t', windowTarget], (err, _o, ser) => {
         if (err) return reject(new Error(ser || err.message));
         resolve();
       });
     });
 
-    // Step 2 — open a native iTerm split focused on this tmux pane. A normal
-    // tmux attach keeps the tmux session durable and scriptable without
-    // asking iTerm control mode to materialize the whole fleet as tmux tabs.
-    const attachCmd = tmuxFocusedAttachCommand(sessionName, match.coord);
-
-    const spawnScript = `tell application "iTerm"
-      activate
-      if (count of windows) is 0 then
-        set newWindow to (create window with default profile)
-        tell current session of newWindow
-          write text "${attachCmd}"
-        end tell
-      else
-        set newWindow to current window
-        tell current session of newWindow
-          set splitSession to (split vertically with default profile command "${attachCmd}")
-          tell splitSession to select
-        end tell
-      end if
-    end tell`;
-    await new Promise((resolve, reject) => {
-      execFile('osascript', ['-e', spawnScript], (err, _o, ser) => {
-        if (err) return reject(new Error(ser || err.message));
-        resolve();
+    let clients = await listTmuxClients(sessionName);
+    if (!hasRequiredTmuxClient('ittab', clients)) {
+      const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
+      await new Promise((resolve, reject) => {
+        execFile('osascript', ['-e', apple], (err, _o, ser) => {
+          if (err) return reject(new Error(ser || err.message));
+          resolve();
+        });
       });
-    });
-    return { ok: true, coord: match.coord, mode: 'split-native', brokeOut: !!breakPaneResult };
+      clients = await waitForDeployViewer('ittab');
+      if (!hasRequiredTmuxClient('ittab', clients)) {
+        throw new Error('control-mode iTerm viewer did not attach');
+      }
+    } else {
+      await new Promise((resolve, reject) => {
+        execFile('osascript', ['-e', 'tell application "iTerm" to activate'], (err, _o, ser) => {
+          if (err) return reject(new Error(ser || err.message));
+          resolve();
+        });
+      });
+    }
+
+    return { ok: true, coord: match.coord, mode: 'control-mode-focus', brokeOut: !!breakPaneResult };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -2390,6 +2449,45 @@ ipcMain.handle('chat-tail-read', async (_event, payload = {}) => {
     } finally {
       await fh.close();
     }
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('pet-pane-tail', async (_event, payload = {}) => {
+  try {
+    const safeId = String(payload.agentId || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agent id');
+
+    const agentList = loadAgents();
+    const agent = agentList.find(a => a.id === safeId);
+    if (!agent) throw new Error(`agent "${safeId}" not in registry`);
+
+    const matches = await resolveLiveAgentPanes(agent);
+    const match = matches[0];
+    if (!match) throw new Error(`${agent.displayName || safeId} is not running`);
+
+    const target = match.paneId && /^%[0-9]+$/.test(match.paneId) ? match.paneId : match.coord;
+    const stdout = await new Promise((resolve, reject) => {
+      execFile('tmux', ['capture-pane', '-p', '-J', '-S', '-80', '-t', target], (err, out, ser) => {
+        if (err) return reject(new Error(ser || err.message));
+        resolve(out || '');
+      });
+    });
+    const lines = stdout
+      .split('\n')
+      .map(line => line.replace(/\s+$/g, ''))
+      .filter(line => line.trim())
+      .slice(-18);
+
+    return {
+      ok: true,
+      source: 'tmux',
+      coord: match.coord,
+      paneId: match.paneId,
+      title: match.title,
+      lines
+    };
   } catch (err) {
     return { ok: false, error: err && err.message ? err.message : String(err) };
   }

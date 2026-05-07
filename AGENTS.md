@@ -72,6 +72,10 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
 - Restart loops live in tmux orchestrators, not inside per-agent launchers.
 - Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
+- AgentRemote's intended pane style is one agent process in one tmux pane,
+  isolated into its own tmux window, then surfaced by iTerm control mode. Do not
+  use a normal `tmux attach` viewer or merged split-pane window as a workaround
+  for paste, Shift+Enter, or Attach bugs.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.
 - Docs follow progressive disclosure: this file is the map, `docs/` is the system of record, and `.claude/memory/handoff.md` is the live continuation point.
 

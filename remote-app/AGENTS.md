@@ -43,6 +43,10 @@ bash ../launch-remote.sh
 - Bump `package.json` and `package-lock.json` by SemVer for app changes, then verify the HUD build badge can identify version, branch, commit, dirty state, and checkout path.
 - Verify tmux-facing changes against a real or intentionally mocked `chq` session before claiming success.
 - Treat tmux as the durable backend and iTerm as a viewer. Do not validate attach/deploy behavior by creating or detaching live iTerm/tmux clients on Richard's desktop unless he explicitly asks for that live mutation. Prefer static tests, mocked IPC, or isolated throwaway tmux sessions.
+- Preserve the AgentRemote pane contract: one agent process in one tmux pane,
+  isolated into a solo tmux window, surfaced through iTerm control mode. Do not
+  solve renderer/input bugs by opening a normal `tmux attach` view that merges
+  multiple agents into one split-pane terminal.
 - Any scrollable HUD surface must inherit the dark scrollbar treatment. Before finishing a modal, picker, popover, overlay, or pet window that can scroll, verify it cannot fall back to Chromium's white native scrollbar.
 - Dock online state means the agent tmux pane/process exists. Do not make a live agent look offline just because no iTerm/tmux client is attached.
 - At session end, run `bash ../scripts/session-end-cleanup.sh` to clear stale worktree Electron apps and stale Chromium caches, then relaunch the canonical HUD with `bash ../launch-remote.sh` unless Richard explicitly asked to leave AgentRemote stopped.
