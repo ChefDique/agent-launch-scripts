@@ -70,7 +70,7 @@ DEPARTMENTS+=(
 # target broadcasts via pane_id rather than the brittle pane-title grep.
 # pane_id is stable across agent auto-restart: pane_loop relaunches the
 # configured runtime in the SAME pane, so no re-write is needed on relaunch.
-SIDECAR_PATH="/tmp/agent-remote-panes.json"
+SIDECAR_PATH="${AGENT_REMOTE_PANES_SIDECAR:-/tmp/agent-remote-panes.json}"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -123,6 +123,14 @@ normalize_session_to_tmux_windows() {
       tmux rename-window -t "$pane_id" "$pane_title" 2>/dev/null || true
     fi
   done <<< "$pane_ids"
+}
+
+normalize_session_for_layout() {
+  local layout="$1"
+  case "$layout" in
+    windows|ittab) normalize_session_to_tmux_windows "$layout" ;;
+    *) return 0 ;;
+  esac
 }
 
 # Write/update the pane sidecar at SIDECAR_PATH. Called once per pane at
@@ -338,6 +346,8 @@ cmd_start() {
     done
   fi
 
+  normalize_session_for_layout "$layout"
+
   tmux set -t "$SESSION" pane-border-status top
   tmux set -t "$SESSION" pane-border-format " #T "
   # Apply the chosen pane layout. `tiled` auto-balances into a grid; `panes`
@@ -412,8 +422,10 @@ cmd_attach() {
   local layout
   layout=$(tmux show-option -t "$SESSION" -v -q '@chq_layout' 2>/dev/null || echo "")
   if [[ "$layout" == "ittab" ]]; then
+    normalize_session_for_layout "$layout"
     exec tmux -CC attach -t "$SESSION"
   fi
+  normalize_session_for_layout "$layout"
   exec tmux attach -t "$SESSION"
 }
 
@@ -464,7 +476,7 @@ cmd_add() {
   case "$layout" in panes|windows|ittab|tiled) ;; *) layout="ittab";; esac
 
   if [[ "$layout" == "windows" || "$layout" == "ittab" ]]; then
-    normalize_session_to_tmux_windows "$layout"
+    normalize_session_for_layout "$layout"
   fi
   if [[ "$stored_layout" != "$layout" ]]; then
     tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
@@ -507,6 +519,7 @@ cmd_add() {
   done
 
   if [[ $added -gt 0 ]]; then
+    normalize_session_for_layout "$layout"
     # Re-balance based on the session's chosen layout. `tiled` auto-grids;
     # everything else falls back to even-horizontal. windows/ittab only added
     # whole windows (no panes inside chq:0), so the call is a harmless no-op

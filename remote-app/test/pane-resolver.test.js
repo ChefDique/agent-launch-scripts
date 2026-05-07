@@ -75,3 +75,14 @@ test('sidecar pruning removes entries for sessions tmux no longer reports', () =
     legacy: { pane_id: '%10' }
   });
 });
+
+test('sidecar pruning removes entries whose pane id no longer exists', () => {
+  const sidecar = {
+    xavier: { pane_id: '%44', session: 'chq' },
+    stale: { pane_id: '%45', session: 'chq' }
+  };
+
+  assert.deepEqual(pruneSidecarToLiveSessions(sidecar, new Set(['chq']), new Set(['%44'])), {
+    xavier: { pane_id: '%44', session: 'chq' }
+  });
+});

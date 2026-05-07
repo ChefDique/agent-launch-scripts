@@ -1,11 +1,11 @@
 {
   "name": "remote-app",
   "productName": "AgentRemote",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "node --test test/*.test.js && bash ../test/chq-layout-normalization.test.sh && bash ../test/launch-agent-runtime.test.sh && bash ../test/chq-codex-runtime-smoke.test.sh"
+    "test": "node --test test/*.test.js && bash ../test/chq-layout-normalization.test.sh && bash ../test/chq-ittab-window-layout.test.sh && bash ../test/launch-agent-runtime.test.sh && bash ../test/chq-codex-runtime-smoke.test.sh"
   },
   "keywords": [],
   "author": "",

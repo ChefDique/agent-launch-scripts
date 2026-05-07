@@ -55,6 +55,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
 JSON
 
 AGENT_REGISTRY="$TMP_DIR/agents.json" \
+AGENT_REMOTE_PANES_SIDECAR="$TMP_DIR/sidecar.json" \
 CHQ_SESSION="$SESSION" \
 TMUX_AUTO_ATTACH=0 \
   bash "$REPO_ROOT/chq-tmux.sh" start smoke-codex >/tmp/chq-codex-smoke.out

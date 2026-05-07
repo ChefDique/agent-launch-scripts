@@ -62,11 +62,18 @@ function removeSidecarSession(sidecar = {}, sessionName) {
   return next;
 }
 
-function pruneSidecarToLiveSessions(sidecar = {}, liveSessions = new Set()) {
+function pruneSidecarToLiveSessions(sidecar = {}, liveSessions = new Set(), livePaneIds = null) {
   const sessions = liveSessions instanceof Set ? liveSessions : new Set(liveSessions || []);
+  const paneIds = livePaneIds ? (livePaneIds instanceof Set ? livePaneIds : new Set(livePaneIds || [])) : null;
   const next = {};
   for (const [id, entry] of Object.entries(sidecar || {})) {
-    if (!entry || !entry.session || sessions.has(entry.session)) next[id] = entry;
+    if (!entry) {
+      next[id] = entry;
+      continue;
+    }
+    const sessionLive = !entry.session || sessions.has(entry.session);
+    const paneLive = !paneIds || !entry.pane_id || paneIds.has(entry.pane_id);
+    if (sessionLive && paneLive) next[id] = entry;
   }
   return next;
 }

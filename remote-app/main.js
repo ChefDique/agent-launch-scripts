@@ -32,6 +32,14 @@ const AVATAR_EXTENSIONS = ['svg', 'gif', 'png', 'jpg', 'jpeg', 'webp'];
 const USER_CODEX_PETS_DIR = path.join(os.homedir(), '.codex', 'pets');
 const BUNDLED_PETS_DIR = path.join(ASSETS_DIR, 'pets');
 const PET_WINDOW_FILE = path.join(__dirname, 'pet-window.html');
+const PASTED_IMAGES_DIR = path.join(os.tmpdir(), 'agentremote-pasted-images');
+const PASTED_IMAGE_EXTENSIONS = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp'
+};
 
 // Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
@@ -615,8 +623,11 @@ function prunePaneSidecarForLiveSessions(panes) {
     const liveSessions = new Set((panes || [])
       .map(pane => String(pane.coord || '').split(':')[0])
       .filter(Boolean));
+    const livePaneIds = new Set((panes || [])
+      .map(pane => pane.paneId)
+      .filter(Boolean));
     const current = readPaneSidecar();
-    const next = pruneSidecarToLiveSessions(current, liveSessions);
+    const next = pruneSidecarToLiveSessions(current, liveSessions, livePaneIds);
     if (JSON.stringify(next) !== JSON.stringify(current)) writePaneSidecar(next);
   } catch (err) {
     logToOutLog(`[sidecar] live-session prune failed: ${err.message}`);
@@ -1147,6 +1158,23 @@ ipcMain.handle('broadcast-message', async (_event, payload) => broadcastMessage(
 ipcMain.on('broadcast-message', async (event, payload) => {
   const result = await broadcastMessage(payload);
   try { event.reply('broadcast-message-result', result); } catch { /* legacy fire-and-forget */ }
+});
+
+ipcMain.handle('save-pasted-image', async (_event, payload = {}) => {
+  const mimeType = String(payload.mimeType || 'image/png').toLowerCase();
+  const ext = PASTED_IMAGE_EXTENSIONS[mimeType] || 'png';
+  const encoded = String(payload.base64 || '');
+  if (!encoded) return { ok: false, error: 'image clipboard data missing' };
+
+  const bytes = Buffer.from(encoded, 'base64');
+  if (bytes.length === 0) return { ok: false, error: 'image clipboard data empty' };
+  if (bytes.length > 25 * 1024 * 1024) return { ok: false, error: 'image paste is larger than 25MB' };
+
+  await fsp.mkdir(PASTED_IMAGES_DIR, { recursive: true });
+  const filename = `paste-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+  const filePath = path.join(PASTED_IMAGES_DIR, filename);
+  await fsp.writeFile(filePath, bytes, { flag: 'wx' });
+  return { ok: true, path: filePath, mimeType };
 });
 
 // listPanes() — promise wrapper around `tmux list-panes -a -F '...'`. Returns
