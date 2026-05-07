@@ -41,12 +41,14 @@ test('right-click settings routes to the shared add/edit form', () => {
 
 test('agent pets are per-agent and use the Codex pet roster instead of a hard-coded companion', () => {
   assert.match(html, /id="agent-pet-layer"/);
-  assert.match(html, /id="pet-picker"/);
+  assert.match(html, /id="f-pet"/);
   assert.match(html, /className = 'pet-toggle'/);
   assert.match(html, /list-codex-pets/);
   assert.match(html, /load-agent-pet-state/);
+  assert.match(html, /set-agent-pet-selection/);
   assert.match(html, /show-agent-pet/);
   assert.match(html, /hide-agent-pet/);
+  assert.doesNotMatch(html, /openPetPicker/);
   assert.doesNotMatch(html, /agentRemoteVisiblePets/);
   assert.doesNotMatch(html, /id="codex-pet"/);
   assert.doesNotMatch(html, /professor-xavier/);
@@ -80,10 +82,13 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /chat-expanded/);
   assert.match(petWindow, /chat-collapsed/);
   assert.match(petWindow, /function agentAliases\(\)/);
-  assert.match(petWindow, /function messageMentionsAgent\(message, aliases\)/);
+  assert.match(petWindow, /function petAliases\(\)/);
+  assert.match(petWindow, /function messageMentionsAlias\(message, aliases\)/);
+  assert.match(petWindow, /chatTailOffset = res\.offset \|\| 0/);
+  assert.match(petWindow, /renderMessages\(\[\], false\)/);
   assert.doesNotMatch(petWindow, /from === 'richard'/);
   assert.match(petWindow, /body\.chat-expanded \.sprite-wrap/);
-  assert.match(petWindow, /min-height: min\(220px, calc\(100vh - 160px\)\)/);
+  assert.match(petWindow, /min-height: min\(156px, calc\(100vh - 148px\)\)/);
   assert.match(petWindow, /chat-meta/);
   assert.match(petWindow, /pet-resize-window/);
   assert.match(petWindow, /overflow-wrap: anywhere/);
@@ -100,6 +105,8 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /minWidth: PET_WINDOW_GEOMETRY\.minWidth/);
   assert.match(main, /function clampPetWindowSize\(width, height, fallback = \{\}\)/);
   assert.match(main, /pet-resize-window/);
+  assert.match(main, /payload\.anchorX === 'center'/);
+  assert.match(main, /payload\.anchorY === 'bottom'/);
   assert.match(main, /pet-set-mood/);
   assert.match(main, /pet-window-moving/);
   assert.match(main, /split vertically with default profile command/);
@@ -185,9 +192,9 @@ test('scrollable HUD popups use dark themed scrollbars', () => {
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
   assert.match(html, /\*::-webkit-scrollbar-thumb/);
   assert.match(petWindow, /\*::-webkit-scrollbar-thumb/);
-  assert.match(html, /\.pet-picker,\s*\n\s*\.deploy-roster,/);
-  assert.match(html, /\.pet-picker::-webkit-scrollbar/);
-  assert.match(html, /\.pet-picker::-webkit-scrollbar-thumb/);
+  assert.match(html, /\.deploy-roster,\s*\n\s*\.hidden-panel,/);
+  assert.match(html, /\.deploy-roster::-webkit-scrollbar/);
+  assert.match(html, /\.deploy-roster::-webkit-scrollbar-thumb/);
 });
 
 test('dock online state follows running pane, not attached iTerm client', () => {

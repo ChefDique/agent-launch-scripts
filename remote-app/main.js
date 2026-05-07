@@ -13,6 +13,7 @@ const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
 const { hasRequiredTmuxClient, parseTmuxClientLines } = require('./deploy-viewer');
 const APP_PACKAGE = require('./package.json');
+const { bus: atlasBus } = require('./atlas-event-bus');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
 // defaults to "Electron" and the userData dir at
@@ -66,12 +67,12 @@ const petWindows = new Map();
 const petWindowConfigs = new Map();
 const petMoveTimers = new Map();
 const PET_WINDOW_GEOMETRY = {
-  minWidth: 400,
-  minHeight: 430,
-  maxWidth: 680,
-  maxHeight: 720,
-  defaultWidth: 400,
-  defaultHeight: 430
+  minWidth: 300,
+  minHeight: 340,
+  maxWidth: 520,
+  maxHeight: 620,
+  defaultWidth: 340,
+  defaultHeight: 360
 };
 const PET_BUBBLE_EDGE_THRESHOLD = 96;
 const PET_WORKAREA_SAFETY = 8;
@@ -810,6 +811,16 @@ function createWindow() {
     if (lastTileRightClickAt && Date.now() - lastTileRightClickAt < 250) return;
     contextMenu.popup();
   });
+
+  // AtlasEventBus — wire renderer send so bus.emit() forwards typed events
+  // to the renderer via the 'atlas-event' channel. Detach on window close so
+  // we don't hold a stale webContents reference after the window is destroyed.
+  atlasBus.attach((...args) => {
+    try { mainWindow.webContents.send(...args); } catch {}
+  });
+  mainWindow.on('closed', () => {
+    atlasBus.detach();
+  });
 }
 
 // Set by renderer just before it opens the radial menu so the native
@@ -978,6 +989,48 @@ ipcMain.handle('load-agent-pet-state', () => {
   }
 });
 
+ipcMain.handle('set-agent-pet-selection', (_event, payload = {}) => {
+  try {
+    const agentId = typeof payload.agentId === 'string' ? payload.agentId.trim() : '';
+    const originalAgentId = typeof payload.originalAgentId === 'string' ? payload.originalAgentId.trim() : '';
+    const petId = typeof payload.petId === 'string' ? payload.petId.trim() : '';
+    if (!/^[a-z0-9_-]+$/i.test(agentId)) throw new Error('agent id required');
+    const agent = agentById(agentId);
+    if (!agent) throw new Error(`unknown agent: ${agentId}`);
+    const pet = petId ? petById(petId) : null;
+    if (petId && !pet) throw new Error(`unknown pet: ${petId}`);
+
+    const state = readPetState();
+    if (originalAgentId && originalAgentId !== agentId) {
+      if (state.selections[originalAgentId] && !state.selections[agentId]) {
+        state.selections[agentId] = state.selections[originalAgentId];
+      }
+      if (state.visible[originalAgentId] && !state.visible[agentId]) {
+        state.visible[agentId] = true;
+      }
+      if (state.bounds[originalAgentId] && !state.bounds[agentId]) {
+        state.bounds[agentId] = state.bounds[originalAgentId];
+      }
+      delete state.selections[originalAgentId];
+      delete state.visible[originalAgentId];
+      delete state.bounds[originalAgentId];
+    }
+    if (pet) state.selections[agentId] = pet.id;
+    else delete state.selections[agentId];
+    const nextState = writePetState(state);
+
+    const win = petWindows.get(agentId);
+    if (win && !win.isDestroyed()) {
+      showAgentPetWindow(agentId, pet ? pet.id : '');
+    } else {
+      notifyMainPetState();
+    }
+    return { ok: true, state: nextState };
+  } catch (err) {
+    return { ok: false, error: err.message, state: readPetState() };
+  }
+});
+
 ipcMain.handle('show-agent-pet', (_event, payload = {}) => {
   const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
   const petId = typeof payload.petId === 'string' ? payload.petId : '';
@@ -1032,7 +1085,23 @@ ipcMain.handle('pet-resize-window', (_event, payload = {}) => {
   if (!win || win.isDestroyed()) return { ok: false, error: 'pet window not found' };
   const bounds = win.getBounds();
   const { width, height } = clampPetWindowSize(payload.width, payload.height, bounds);
-  win.setBounds({ ...bounds, width: Math.round(width), height: Math.round(height) });
+  const nextWidth = Math.round(width);
+  const nextHeight = Math.round(height);
+  let x = bounds.x;
+  let y = bounds.y;
+  if (payload.anchorX === 'center') {
+    x = Math.round(bounds.x + bounds.width / 2 - nextWidth / 2);
+  }
+  if (payload.anchorY === 'bottom') {
+    y = Math.round(bounds.y + bounds.height - nextHeight);
+  }
+  const nextBounds = clampPetWindowBoundsToVisibleDisplay({
+    x,
+    y,
+    width: nextWidth,
+    height: nextHeight
+  });
+  win.setBounds(nextBounds);
   persistPetBounds(agentId, win.getBounds());
   sendPetWindowGeometry(agentId, win);
   return { ok: true, bounds: win.getBounds() };
@@ -1126,6 +1195,8 @@ ipcMain.handle('transcribe-voice', async (_event, audioBufferB64) => {
   const stem = `agentremote-voice-${stamp}`;
   const webmPath = path.join(tmpDir, `${stem}.webm`);
   const txtPath = path.join(tmpDir, `${stem}.txt`);
+  const voiceStartedAt = new Date().toISOString();
+  atlasBus.emit('voice_recording_started', { language: 'en' }, { source: 'stt' });
   try {
     fs.writeFileSync(webmPath, Buffer.from(audioBufferB64, 'base64'));
   } catch (err) {
@@ -1145,7 +1216,17 @@ ipcMain.handle('transcribe-voice', async (_event, audioBufferB64) => {
       }
       try { fs.unlinkSync(webmPath); } catch {}
       try { fs.unlinkSync(txtPath); } catch {}
-      resolve((text || '').trim());
+      const trimmed = (text || '').trim();
+      const voiceEndedAt = new Date().toISOString();
+      if (trimmed) {
+        atlasBus.emit('voice_transcript_ready', {
+          text: trimmed,
+          startedAt: voiceStartedAt,
+          endedAt: voiceEndedAt,
+          partial: false
+        }, { source: 'stt' });
+      }
+      resolve(trimmed);
     });
   });
 });
@@ -1219,6 +1300,11 @@ async function broadcastMessage({ message, selectedAgents, isAll } = {}) {
   }
 
   if (resolved.coords.length === 0) {
+    atlasBus.emit('message_failed', {
+      text,
+      targets: (selectedAgents || []).map(a => a.id || String(a)),
+      error: 'no running panes matched the selected agents'
+    });
     return {
       ok: false,
       sent: 0,
@@ -1237,6 +1323,22 @@ async function broadcastMessage({ message, selectedAgents, isAll } = {}) {
     .map(r => r.reason && r.reason.message ? r.reason.message : String(r.reason));
 
   failures.forEach(err => console.error(`[broadcast] send failed: ${err}`));
+
+  if (sent > 0) {
+    atlasBus.emit('message_sent', {
+      text,
+      targets: (selectedAgents || []).map(a => a.id || String(a)),
+      coords: resolved.coords,
+      sentCount: sent
+    });
+  } else {
+    atlasBus.emit('message_failed', {
+      text,
+      targets: (selectedAgents || []).map(a => a.id || String(a)),
+      error: failures[0] || 'send failed'
+    });
+  }
+
   return {
     ok: sent > 0,
     sent,
@@ -1341,11 +1443,20 @@ ipcMain.handle('pane-status', async () => {
     });
   })));
 
-  return matches.map(m => ({
+  const statusResult = matches.map(m => ({
     id: m.id,
     running: m.running,
     attached: m.session ? !!attachedBySession[m.session] : false
   }));
+
+  // Emit agent_running for each pane that is currently live.
+  for (const s of statusResult) {
+    if (s.running) {
+      atlasBus.emit('agent_running', { agentId: s.id }, { agentId: s.id });
+    }
+  }
+
+  return statusResult;
 });
 
 function execFileP(command, args, options = {}) {
@@ -1395,6 +1506,11 @@ async function spawnAgents(payload) {
   // Fallback is ittab, because the operator default is draggable iTerm
   // control-mode windows rather than one crowded split-pane tmux window.
   const layout = normalizeSpawnLayout(layoutRaw);
+
+  // Emit agent_spawn_requested for each agent before launch.
+  for (const agentId of safeAgents) {
+    atlasBus.emit('agent_spawn_requested', { role: agentId, mode: layout }, { agentId });
+  }
 
   let stdout = '';
   try {
@@ -2535,6 +2651,35 @@ async function teardownPipePaneForAgent(agentId) {
 
   logToOutLog(`[pipe:${agentId}] torn down`);
 }
+
+// ---------------------------------------------------------------------------
+// AtlasEventBus — renderer-originated IPC bridge (ARB-003)
+// ---------------------------------------------------------------------------
+// These handlers receive events from the renderer and re-emit them through
+// the typed AtlasEventBus so both main-process subscribers and other renderer
+// windows see a consistent event stream.
+
+ipcMain.on('atlas:agent-selected', (_event, payload = {}) => {
+  atlasBus.emit('agent_selected', payload, { agentId: payload.agentId, source: 'renderer' });
+});
+
+ipcMain.on('atlas:agent-deselected', (_event, payload = {}) => {
+  atlasBus.emit('agent_deselected', payload, { agentId: payload.agentId, source: 'renderer' });
+});
+
+ipcMain.on('atlas:voice-start', (_event, payload = {}) => {
+  atlasBus.emit('voice_recording_started', payload, { source: 'renderer' });
+});
+
+ipcMain.on('atlas:voice-stop', (_event, payload = {}) => {
+  atlasBus.emit('voice_recording_stopped', payload, { source: 'renderer' });
+});
+
+ipcMain.on('atlas:capability-validate', (_event, payload = {}) => {
+  atlasBus.emit('capability_validated', payload, { agentId: payload.agentId, source: 'renderer' });
+});
+
+ipcMain.handle('atlas:get-event-log', () => atlasBus.getLog());
 
 // Tear down all active pipe readers (called on before-quit).
 function teardownAllPipePanes() {
