@@ -74,6 +74,7 @@ const PET_WINDOW_GEOMETRY = {
   defaultHeight: 430
 };
 const PET_BUBBLE_EDGE_THRESHOLD = 96;
+const PET_WORKAREA_SAFETY = 8;
 let isQuitting = false;
 
 // Best-effort append to remote-app/out.log. Used so registration warnings
@@ -325,6 +326,44 @@ function normalizePetWindowBounds(bounds = {}) {
   return { ...bounds, ...size };
 }
 
+function clampPetWindowBoundsToWorkArea(bounds, workArea) {
+  const normalized = normalizePetWindowBounds(bounds);
+  if (!workArea) return normalized;
+  return computeWindowBounds(normalized, normalized, workArea, {
+    minWidth: PET_WINDOW_GEOMETRY.minWidth,
+    minHeight: PET_WINDOW_GEOMETRY.minHeight,
+    maxWidth: PET_WINDOW_GEOMETRY.maxWidth,
+    maxHeight: PET_WINDOW_GEOMETRY.maxHeight,
+    safety: PET_WORKAREA_SAFETY
+  });
+}
+
+function clampPetWindowBoundsToVisibleDisplay(bounds) {
+  const normalized = normalizePetWindowBounds(bounds);
+  try {
+    const display = screen.getDisplayMatching(normalized);
+    return clampPetWindowBoundsToWorkArea(normalized, display && display.workArea);
+  } catch {
+    return normalized;
+  }
+}
+
+function boundsChanged(a, b) {
+  return a.x !== b.x || a.y !== b.y || a.width !== b.width || a.height !== b.height;
+}
+
+function settlePetWindowBounds(agentId, win) {
+  if (!win || win.isDestroyed()) return null;
+  const current = win.getBounds();
+  const clamped = clampPetWindowBoundsToVisibleDisplay(current);
+  if (boundsChanged(current, clamped)) {
+    win.setBounds(clamped, false);
+  }
+  const settled = win.getBounds();
+  persistPetBounds(agentId, settled);
+  return settled;
+}
+
 function hideAgentPetWindow(agentId, { persist = true } = {}) {
   const id = String(agentId || '');
   if (!id) return { ok: false, error: 'agent id required' };
@@ -371,7 +410,7 @@ function showAgentPetWindow(agentId, petId) {
 
   const savedBounds = state.bounds[agent.id];
   const bounds = savedBounds && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)
-    ? normalizePetWindowBounds(savedBounds)
+    ? clampPetWindowBoundsToVisibleDisplay(savedBounds)
     : defaultPetBounds(agent.id);
   const win = new BrowserWindow({
     width: bounds.width || PET_WINDOW_GEOMETRY.defaultWidth,
@@ -426,7 +465,7 @@ function showAgentPetWindow(agentId, petId) {
   });
   win.on('moved', () => {
     if (!win.isDestroyed()) {
-      persistPetBounds(agent.id, win.getBounds());
+      settlePetWindowBounds(agent.id, win);
       const settledPayload = petWindowGeometryPayload(win, { moving: false });
       sendToPetWindow(agent.id, 'pet-window-moving', settledPayload);
       sendToPetWindow(agent.id, 'pet-window-bounds', settledPayload);

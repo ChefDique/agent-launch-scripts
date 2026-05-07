@@ -166,6 +166,9 @@ test('floating pet chat bubble adapts above or below based on window bounds', ()
   assert.match(main, /screen\.getDisplayMatching\(bounds\)/);
   assert.match(main, /sendToPetWindow\(agent\.id, 'pet-window-bounds', movePayload\)/);
   assert.match(main, /sendPetWindowGeometry\(agentId, win\)/);
+  assert.match(main, /function clampPetWindowBoundsToVisibleDisplay\(bounds\)/);
+  assert.match(main, /settlePetWindowBounds\(agent\.id, win\)/);
+  assert.match(main, /PET_WORKAREA_SAFETY/);
 });
 
 test('deploy surface keeps the operator path to one movable window per agent', () => {

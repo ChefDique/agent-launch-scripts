@@ -2,21 +2,21 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote paste/deploy/pet parity fixes plus hard-coded pet/HUD cleanup inventory.
+**Last working on:** AgentRemote floating pet edge clamp verification/fix.
 
-**State at last pause (2026-05-07T03:26:06-0700):**
-- AgentRemote is relaunched from `/Users/richardadair/agent-launch-scripts/remote-app` at `v1.0.19`; current branch is `main` and is ahead of origin.
-- Shipped local commits: `b2e473e` deploy viewer validation, `4026802` ittab deploy normalization, `aac4686` image paste into the AgentRemote input, and `6af9918` floating Codex pet parity.
-- Image paste now saves clipboard images under `/tmp/agentremote-pasted-images/` and inserts `[image: /tmp/...]` tokens for tmux-compatible delivery.
-- Floating pets now use centralized `PET_ATLAS` / `PET_WINDOW_GEOMETRY`, movement/release moods, compact chat bubbles, and edge-aware bubble placement above/below the character.
-- Verification passed after the pet parity commit: `npm test` (`41` tests), `node --check remote-app/main.js`, and `git diff --check`.
-- Read-only hard-coded-assumption inventory completed. Highest-priority cleanup targets: pet atlas metadata, mood mapping, pet geometry, duplicated chat bubble rendering, stale inline HUD pet CSS, hard-coded `richard`/`team` chat identity, and brittle static tests.
+**State at last pause (2026-05-07T03:37:16-0700):**
+- AgentRemote is relaunched from `/Users/richardadair/agent-launch-scripts/remote-app` at `v1.0.20`; current branch is `main` and is ahead of origin.
+- Live pet verification: opening the `tmux-masta` floating pet through the HUD passed top-edge bubble placement, reproduced the bottom/lower-display off-screen release problem (`y=1298`), then verified the patched build settles the same aggressive drag back inside the visible work area (`pos=779,639`).
+- Patch scope: `remote-app/main.js` now clamps floating pet BrowserWindow bounds to the matched display work area when restoring saved bounds and after drag release; `remote-app/test/renderer-static.test.js` guards the clamp path.
+- Verification passed after the clamp fix: `npm test` (`41` Node tests plus shell runtime/layout checks), `node --check remote-app/main.js`, and `git diff --check`.
+- Prior shipped local commits remain relevant: `b2e473e` deploy viewer validation, `4026802` ittab deploy normalization, `aac4686` image paste into the AgentRemote input, and `6af9918` floating Codex pet parity.
+- Read-only hard-coded-assumption inventory from the prior session remains next cleanup fodder: pet atlas metadata, mood mapping, pet geometry, duplicated chat bubble rendering, stale inline HUD pet CSS, hard-coded `richard`/`team` chat identity, and brittle static tests.
 - Richard asked how painful it would be to migrate this repo under `~/ai_projects`. Verdict: doable as a planned migration, not a blind `mv`; `DESIGN.md` already names `~/ai_projects/agent-remote/` as the future home, but current live scripts/tests/docs still contain absolute `~/agent-launch-scripts` / `/Users/richardadair/agent-launch-scripts` assumptions.
 - Richard asked to run `/chores` after every major task and to `/done` and restart when context is near 50%; no active goal budget is exposed by the harness, so use visible context indicators and `/done` proactively.
 
-**Next verifiable step:** If continuing AgentRemote work, first verify live pet behavior by dragging a pet near the top and bottom screen edges. If taking the migration request next, draft and execute a small migration plan: choose final path (`~/ai_projects/agent-remote` or `~/ai_projects/agent-launch-scripts`), update path-sensitive launch scripts/tests/docs, verify AgentRemote process path and shortcut behavior, then only move/rename after `launch-remote.sh`, `session-end-cleanup.sh`, tmux launchers, and package tests pass.
+**Next verifiable step:** If continuing AgentRemote work, start the hard-coded-assumption cleanup with pet atlas metadata/mood mapping/geometry extraction, or take the migration request by drafting a small migration plan: choose final path (`~/ai_projects/agent-remote` or `~/ai_projects/agent-launch-scripts`), update path-sensitive launch scripts/tests/docs, verify AgentRemote process path and shortcut behavior, then only move/rename after `launch-remote.sh`, `session-end-cleanup.sh`, tmux launchers, and package tests pass.
 
-**If that step fails:** For pet behavior, inspect `remote-app/out.log`, `remote-app/pet-window.html`, `remote-app/main.js` pet-window bounds events, and `remote-app/test/renderer-static.test.js`. For migration, search absolute path assumptions first (`rg '/Users/richardadair/agent-launch-scripts|~/agent-launch-scripts|agent-launch-scripts/remote-app'`) and avoid moving the live HUD until the replacement launch path is verified.
+**If that step fails:** For pet cleanup, inspect `remote-app/out.log`, `remote-app/pet-window.html`, `remote-app/main.js` pet-window bounds/events, and `remote-app/test/renderer-static.test.js`. For migration, search absolute path assumptions first (`rg '/Users/richardadair/agent-launch-scripts|~/agent-launch-scripts|agent-launch-scripts/remote-app'`) and avoid moving the live HUD until the replacement launch path is verified.
 
 **Pending uncommitted diff:** none. AgentRemote hidden roster state for `gekko`, `openclaw-generic`, `hermes-generic`, and `codex` was preserved in commit `de4b8f3`.
 
@@ -56,5 +56,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-06-SESSION_6: AgentRemote pet/chat/tmux regression wave documented and partially repaired: pet bubble/readability, per-agent pet chat filtering, relaunch-after-cleanup rule, pet-picker scrollbar styling, dock online state corrected to pane-alive semantics, and new guardrails added against live iTerm/tmux validation mutations — commits: `f6aa1dd`, `43bad2c`, `84b9acc`, `9c0f333`, `e04e35a`, `e1dbd0b`, `3170c3c` plus `/done` closeout commits — gated on Richard: none
 - 2026-05-06-SESSION_7: Deploy/headless viewer regression fixed, live `chq` iTerm control-mode viewer restored, AgentRemote `v1.0.14` relaunched, registry-driven pet/chat identity cleanup preserved, and Codex `SessionStart` `claude-mem` hook removed from active hook manifests — commits: closeout commit — gated on Richard: none
 - 2026-05-07-SESSION: AgentRemote deploy validation, ittab normalization, image paste, floating Codex pet parity, handoff cleanup, and hidden roster persistence shipped; hard-coded pet/HUD cleanup inventory completed; `/chores`/`done` cadence preference captured; migration-to-`~/ai_projects` request assessed as doable but path-sensitive — commits: `b2e473e`, `4026802`, `aac4686`, `6af9918`, `b208480`, `de4b8f3` — gated on Richard: none
+- 2026-05-07-SESSION_2: `/gogo` startup verified canonical AgentRemote runtime, opened the `tmux-masta` pet through the HUD, reproduced lower-display off-screen release, patched pet-window bounds clamping, bumped AgentRemote to `v1.0.20`, and verified tests/live relaunch — commits: current clamp-fix commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
