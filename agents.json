@@ -69,7 +69,8 @@
       "approval_policy": "never",
       "startup_slash": "/gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
-      "rename_to": "GEKKO"
+      "rename_to": "GEKKO",
+      "hidden": true
     },
     {
       "id": "overlord-swarmy",
@@ -109,7 +110,8 @@
       "color": "cyan",
       "startup_slash": "/gogo",
       "theme_color": "#ff0000",
-      "avatar": "openclaw.svg"
+      "avatar": "openclaw.svg",
+      "hidden": true
     },
     {
       "id": "hermes-generic",
@@ -119,7 +121,8 @@
       "color": "cyan",
       "startup_slash": "/gogo",
       "theme_color": "#e3ff0f",
-      "avatar": "hermes.svg"
+      "avatar": "hermes.svg",
+      "hidden": true
     },
     {
       "id": "goku",
@@ -158,7 +161,8 @@
       "approval_policy": "never",
       "rename_to": "CODEX",
       "startup_slash": "/gogo",
-      "avatar": "codex.svg"
+      "avatar": "codex.svg",
+      "hidden": true
     }
   ]
 }
