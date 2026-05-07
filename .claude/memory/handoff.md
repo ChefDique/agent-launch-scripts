@@ -18,7 +18,7 @@
 
 **If that step fails:** For pet behavior, inspect `remote-app/out.log`, `remote-app/pet-window.html`, `remote-app/main.js` pet-window bounds events, and `remote-app/test/renderer-static.test.js`. For migration, search absolute path assumptions first (`rg '/Users/richardadair/agent-launch-scripts|~/agent-launch-scripts|agent-launch-scripts/remote-app'`) and avoid moving the live HUD until the replacement launch path is verified.
 
-**Pending uncommitted diff:** `agents.json` only: `hidden: true` toggles for `gekko`, `openclaw-generic`, `hermes-generic`, and `codex`. Treat as AgentRemote/user visibility state; do not commit or revert without Richard's direction.
+**Pending uncommitted diff:** none. AgentRemote hidden roster state for `gekko`, `openclaw-generic`, `hermes-generic`, and `codex` was preserved in commit `de4b8f3`.
 
 ---
 
@@ -55,6 +55,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-06-SESSION_5: Codex lifecycle skill visibility incident closed: global shared `gogo` YAML and `done` stale path fixed, prompt-input verified `gogo`/`chores`/`done`, Lucius report written and R&D coord note delivered because `claude-peers` had zero peers — commits: `1c1b12b`, R&D `521bfc2` — gated on Richard: none
 - 2026-05-06-SESSION_6: AgentRemote pet/chat/tmux regression wave documented and partially repaired: pet bubble/readability, per-agent pet chat filtering, relaunch-after-cleanup rule, pet-picker scrollbar styling, dock online state corrected to pane-alive semantics, and new guardrails added against live iTerm/tmux validation mutations — commits: `f6aa1dd`, `43bad2c`, `84b9acc`, `9c0f333`, `e04e35a`, `e1dbd0b`, `3170c3c` plus `/done` closeout commits — gated on Richard: none
 - 2026-05-06-SESSION_7: Deploy/headless viewer regression fixed, live `chq` iTerm control-mode viewer restored, AgentRemote `v1.0.14` relaunched, registry-driven pet/chat identity cleanup preserved, and Codex `SessionStart` `claude-mem` hook removed from active hook manifests — commits: closeout commit — gated on Richard: none
-- 2026-05-07-SESSION: AgentRemote deploy validation, ittab normalization, image paste, and floating Codex pet parity shipped; hard-coded pet/HUD cleanup inventory completed; `/chores`/`done` cadence preference captured; migration-to-`~/ai_projects` request assessed as doable but path-sensitive — commits: `b2e473e`, `4026802`, `aac4686`, `6af9918` — gated on Richard: decide whether to commit or revert `agents.json` hidden-agent toggles
+- 2026-05-07-SESSION: AgentRemote deploy validation, ittab normalization, image paste, floating Codex pet parity, handoff cleanup, and hidden roster persistence shipped; hard-coded pet/HUD cleanup inventory completed; `/chores`/`done` cadence preference captured; migration-to-`~/ai_projects` request assessed as doable but path-sensitive — commits: `b2e473e`, `4026802`, `aac4686`, `6af9918`, `b208480`, `de4b8f3` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
