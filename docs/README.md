@@ -32,3 +32,7 @@ This directory is the durable knowledge base for `agent-launch-scripts`. Keep `A
 - Keep claims about live behavior tied to scripts, audits, or verification commands.
 - Prefer linking to root docs over duplicating their content until those docs are split.
 - Update this index when adding a new durable doc.
+
+## Location
+
+The canonical checkout is `/Users/richardadair/ai_projects/agent-launch-scripts`. See `operations/repo-location-migration.md` for the cutover contract and compatibility symlink.

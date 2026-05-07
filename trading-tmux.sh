@@ -16,11 +16,21 @@ TRADING_ROOT="${HOME}/ai_projects/trading"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
+default_launch_root="${HOME}/ai_projects/agent-launch-scripts"
+legacy_launch_root="${HOME}/agent-launch-scripts"
+if [[ -n "${AGENT_LAUNCH_SCRIPTS_ROOT:-}" ]]; then
+  LAUNCH_SCRIPTS="${AGENT_LAUNCH_SCRIPTS_ROOT}"
+elif [[ -d "$default_launch_root" ]]; then
+  LAUNCH_SCRIPTS="$default_launch_root"
+else
+  LAUNCH_SCRIPTS="$legacy_launch_root"
+fi
+
 # Department definitions: name|cwd|window-name|script
 # script is a full command (registry-driven via launch-agent.sh + agents.json),
 # not a path. pane_loop runs it as-is rather than prefixing with `bash`.
 DEPARTMENTS=(
-  "gekko|${TRADING_ROOT}|gekko|bash ${HOME}/agent-launch-scripts/launch-agent.sh gekko"
+  "gekko|${TRADING_ROOT}|gekko|bash ${LAUNCH_SCRIPTS}/launch-agent.sh gekko"
 )
 
 # ---------------------------------------------------------------------------

@@ -7,7 +7,9 @@ disable-model-invocation: false
 
 # /gogo - Operator-Station Session Entry
 
-You are starting or resuming work as the meta-agent / operator-station maintainer in `~/agent-launch-scripts`. You are sister-level to the local fleet, not one of the fleet panes. Your turf is the launch scripts (`launch-agent.sh`, `chq-tmux.sh`, `agents.json`), the Electron HUD at `remote-app/` (AgentRemote), and cross-fleet operations that run from this chair.
+> Extends global lead startup: launcher startup must use `/lead-gogo`; this local `/gogo` only adds project-specific read order, checks, and task routing. It must not bypass global vault, pod, job-contract, telemetry, documentation-loop, or safety gates.
+
+You are starting or resuming work as the meta-agent / operator-station maintainer in `~/ai_projects/agent-launch-scripts`. You are sister-level to the local fleet, not one of the fleet panes. Your turf is the launch scripts (`launch-agent.sh`, `chq-tmux.sh`, `agents.json`), the Electron HUD at `remote-app/` (AgentRemote), and cross-fleet operations that run from this chair.
 
 Codex is the current priority runtime. Do not launch Claude from this repo unless `agents.json` explicitly sets `runtime: "claude"` and `allow_claude_runtime: true`.
 

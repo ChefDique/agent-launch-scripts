@@ -65,9 +65,13 @@ class RemoteWindow: NSPanel {
         let task = Process()
         task.launchPath = "/usr/bin/env"
         let home = NSHomeDirectory()
+        let envRoot = ProcessInfo.processInfo.environment["AGENT_LAUNCH_SCRIPTS_ROOT"]
+        let canonicalRoot = "\(home)/ai_projects/agent-launch-scripts"
+        let legacyRoot = "\(home)/agent-launch-scripts"
+        let root = envRoot ?? (FileManager.default.fileExists(atPath: canonicalRoot) ? canonicalRoot : legacyRoot)
         
         // Use CHQ for everything now that it's extended
-        task.arguments = ["bash", "\(home)/agent-launch-scripts/chq-tmux.sh", "start", id]
+        task.arguments = ["bash", "\(root)/chq-tmux.sh", "start", id]
         
         try? task.run()
         

@@ -17,7 +17,15 @@ RND_ROOT="${HOME}/ai_projects/research-and-development"
 RESTART_DELAY=3
 AUTO_ATTACH_DEFAULT="${TMUX_AUTO_ATTACH:-1}"
 
-LAUNCH_SCRIPTS="${HOME}/agent-launch-scripts"
+default_launch_root="${HOME}/ai_projects/agent-launch-scripts"
+legacy_launch_root="${HOME}/agent-launch-scripts"
+if [[ -n "${AGENT_LAUNCH_SCRIPTS_ROOT:-}" ]]; then
+  LAUNCH_SCRIPTS="${AGENT_LAUNCH_SCRIPTS_ROOT}"
+elif [[ -d "$default_launch_root" ]]; then
+  LAUNCH_SCRIPTS="$default_launch_root"
+else
+  LAUNCH_SCRIPTS="$legacy_launch_root"
+fi
 
 # Department definitions: name|cwd|window-name|script
 # script is a full command (registry-driven via launch-agent.sh + agents.json),

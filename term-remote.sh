@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Terminal-based Small Tool Kit
 # For when you want to stay inside the terminal flow.
+
+default_launch_root="${HOME}/ai_projects/agent-launch-scripts"
+legacy_launch_root="${HOME}/agent-launch-scripts"
+if [[ -n "${AGENT_LAUNCH_SCRIPTS_ROOT:-}" ]]; then
+  launch_root="${AGENT_LAUNCH_SCRIPTS_ROOT}"
+elif [[ -d "$default_launch_root" ]]; then
+  launch_root="$default_launch_root"
+else
+  launch_root="$legacy_launch_root"
+fi
 
 echo "--- AGENT REMOTE ---"
 echo "1) Xavier"
@@ -25,4 +36,4 @@ TARGETS=""
 
 if [ -z "$TARGETS" ]; then exit 0; fi
 
-bash ~/agent-launch-scripts/chq-tmux.sh start $TARGETS
+bash "$launch_root/chq-tmux.sh" start $TARGETS

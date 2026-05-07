@@ -8,7 +8,16 @@
 set -euo pipefail
 
 SESSION="chq"
-LAUNCHER="${HOME}/agent-launch-scripts/chq-tmux.sh"
+default_launch_root="${HOME}/ai_projects/agent-launch-scripts"
+legacy_launch_root="${HOME}/agent-launch-scripts"
+if [[ -n "${AGENT_LAUNCH_SCRIPTS_ROOT:-}" ]]; then
+  LAUNCH_SCRIPTS="${AGENT_LAUNCH_SCRIPTS_ROOT}"
+elif [[ -d "$default_launch_root" ]]; then
+  LAUNCH_SCRIPTS="$default_launch_root"
+else
+  LAUNCH_SCRIPTS="$legacy_launch_root"
+fi
+LAUNCHER="${LAUNCH_SCRIPTS}/chq-tmux.sh"
 
 # Process-based detection
 match="$(ps -eo command= | grep -E 'claude .*-n overlordswarmy' || true)"

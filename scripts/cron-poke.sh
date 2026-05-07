@@ -14,7 +14,7 @@
 #   scripts/cron-poke.sh <agent-id> <message...>
 #
 # Crontab example (daily 09:00 nudge to Xavier):
-#   0 9 * * * /Users/richardadair/agent-launch-scripts/scripts/cron-poke.sh xavier "morning standup: post yesterday's wins" >> /tmp/cron-poke.log 2>&1
+#   0 9 * * * /Users/richardadair/ai_projects/agent-launch-scripts/scripts/cron-poke.sh xavier "morning standup: post yesterday's wins" >> /tmp/cron-poke.log 2>&1
 
 set -euo pipefail
 

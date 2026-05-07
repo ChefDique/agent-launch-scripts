@@ -37,7 +37,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/gogo"
+      "startup_slash": "/lead-gogo"
     },
     {
       "id": "legacy",
@@ -79,7 +79,7 @@ grep -qx 'ARG:danger-full-access' <<< "$codex_output"
 grep -qx 'ARG:-c' <<< "$codex_output"
 grep -qx 'ARG:model_reasoning_effort="high"' <<< "$codex_output"
 grep -qx 'ARG:--no-alt-screen' <<< "$codex_output"
-grep -qx 'ARG:/gogo' <<< "$codex_output"
+grep -qx 'ARG:/lead-gogo' <<< "$codex_output"
 
 legacy_output="$(run_agent legacy)"
 grep -qx 'COMMAND:codex' <<< "$legacy_output"

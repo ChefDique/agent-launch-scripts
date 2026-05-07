@@ -16,7 +16,7 @@
     "color": "Claude-only argument to /color. Set during Claude auto-inject; ignored by Codex/Hermes/OpenClaw.",
     "theme_color": "Hex color string (e.g. '#00f2ff') used by AgentRemote to generate per-agent CSS variables at runtime. Controls the active-border glow and radial-orb palette. Picked in the Add Agent modal. Falls back to --accent if omitted.",
     "rename_to": "Claude-only argument to /rename. Non-Claude runtimes keep the tmux pane title unless tmux_target is set.",
-    "startup_slash": "Slash command auto-injected after boot (default /gogo). Empty string disables.",
+    "startup_slash": "Startup command passed to runtimes that support it. Lead agents must use /lead-gogo so repo-local /gogo files extend the global protocol instead of shadowing it. Empty string disables.",
     "auto_restart": "If false, chq-tmux.sh's pane_loop exits after the agent quits instead of relooping after RESTART_DELAY. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
     "pre_launch": "Optional path to a hook script run before execing the configured runtime. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
     "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
@@ -34,7 +34,7 @@
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
       "rename_to": "XAVIER"
     },
@@ -49,7 +49,7 @@
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
       "env": {
         "KOKORO_VOICE": "am_michael"
@@ -67,7 +67,7 @@
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
       "rename_to": "GEKKO",
       "hidden": true
@@ -84,7 +84,7 @@
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "rename_to": "OVERLORDSWARMY",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
       "avatar": "swarmy.svg"
     },
@@ -94,7 +94,7 @@
       "runtime": "codex",
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "theme_color": "#00ff4c",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
@@ -108,7 +108,7 @@
       "runtime": "openclaw",
       "cwd": "/Users/richardadair/ai_projects/content-creation",
       "color": "cyan",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "theme_color": "#ff0000",
       "avatar": "openclaw.svg",
       "hidden": true
@@ -119,7 +119,7 @@
       "runtime": "hermes",
       "cwd": "/Users/richardadair/ai_projects",
       "color": "cyan",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "theme_color": "#6bdef5",
       "avatar": "hermes.svg"
     },
@@ -144,7 +144,7 @@
       "runtime": "openclaw",
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "theme_color": "#ad0000",
       "avatar": "gara.gif"
     },
@@ -159,7 +159,7 @@
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "rename_to": "CODEX",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "avatar": "codex.svg",
       "hidden": true
     }

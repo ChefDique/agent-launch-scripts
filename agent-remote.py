@@ -2,6 +2,16 @@ import tkinter as tk
 import subprocess
 import os
 
+def launch_scripts_root():
+    configured = os.environ.get("AGENT_LAUNCH_SCRIPTS_ROOT")
+    if configured:
+        return os.path.expanduser(configured)
+    home = os.path.expanduser("~")
+    canonical = os.path.join(home, "ai_projects", "agent-launch-scripts")
+    if os.path.isdir(canonical):
+        return canonical
+    return os.path.join(home, "agent-launch-scripts")
+
 class AgentRemote:
     def __init__(self, root):
         self.root = root
@@ -67,9 +77,8 @@ class AgentRemote:
         if not active:
             return
             
-        home = os.path.expanduser("~")
         # Build the chq-tmux command with all selected agents
-        cmd = ["bash", f"{home}/agent-launch-scripts/chq-tmux.sh", "start"] + active
+        cmd = ["bash", f"{launch_scripts_root()}/chq-tmux.sh", "start"] + active
         
         # Launch and reset selections
         subprocess.Popen(cmd, start_new_session=True)

@@ -1,6 +1,6 @@
 # Design — operator control surface
 
-**Status:** Working spec. Codifies the design system of the current Electron remote at `~/agent-launch-scripts/remote-app/` and proposes the path to its production home in `~/ai_projects/<name>/`.
+**Status:** Working spec. Codifies the design system of the current Electron remote at `~/ai_projects/agent-launch-scripts/remote-app/`. The former `~/agent-launch-scripts` location is compatibility-only.
 
 **Skill spirit:** `extract-design-system` (the formal skill is URL-input only; this doc does the same job against the local Electron CSS at `remote-app/index.html` plus the iso-armory screenshot at `~/.claude/image-cache/21397d35-4cc3-463a-95cc-388b9f942327/1.png`).
 
@@ -132,7 +132,7 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 
 ## 5. Architecture for the new home
 
-**Path:** `~/ai_projects/agent-remote/`
+**Future split path:** `~/ai_projects/agent-remote/`
 
 **Stack:**
 - Electron (frameless, transparent, always-on-top — same flags as current)
@@ -140,8 +140,8 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 - Renderer: vanilla DOM today; React optional later if the surface complexity grows. Don't pull React for the lite HUD just because the iso center uses it.
 - IPC: same hardened `execFile`-with-argv pattern; no shell strings
 - xterm.js + node-pty for the in-tile terminal expand (deferred — see open decisions)
-- Agent registry: reads `~/agent-launch-scripts/agents.json` (single source of truth — AgentRemote doesn't fork it)
-- Tmux orchestration: shells out to `~/agent-launch-scripts/launch-agent.sh` and `chq-tmux.sh` (AgentRemote is a UI on top of the existing scripts — doesn't reimplement them)
+- Agent registry: reads `~/ai_projects/agent-launch-scripts/agents.json` (single source of truth — AgentRemote doesn't fork it)
+- Tmux orchestration: shells out to `~/ai_projects/agent-launch-scripts/launch-agent.sh` and `chq-tmux.sh` (AgentRemote is a UI on top of the existing scripts — doesn't reimplement them)
 
 **Directory layout target:**
 ```
@@ -184,7 +184,7 @@ Three phases, each independently shippable:
 
 **Phase 1 — Repo init.** `~/ai_projects/agent-remote/` scaffolded with the layout in §5. Tokens extracted to `design-system/tokens.css`. `package.json` with TypeScript + Electron + esbuild. Empty `src/` skeleton. README + DESIGN.md in place. ~1 day.
 
-**Phase 2 — Feature parity transplant.** Port current Electron code into TS in the new repo. Same UX. Same registry (read directly from `~/agent-launch-scripts/agents.json`). Same IPC patterns (hardened argv, no shell). Verify drag-region, radial menu, status dots, edit mode, global shortcut, broadcast all still work. ~2-3 days. At end: switch the `Ctrl+Shift+Space` global shortcut to summon the new app, deprecate the old `launch-remote.sh`.
+**Phase 2 — Feature parity transplant.** Port current Electron code into TS in the new repo. Same UX. Same registry (read directly from `~/ai_projects/agent-launch-scripts/agents.json`). Same IPC patterns (hardened argv, no shell). Verify drag-region, radial menu, status dots, edit mode, global shortcut, broadcast all still work. ~2-3 days. At end: switch the `Ctrl+Shift+Space` global shortcut to summon the new app, deprecate the old `launch-remote.sh`.
 
 **Phase 3 — Diverge.** AgentRemote grows in its new home: tmux command palette, layout presets, xterm.js inline expand, anything else. The old `remote-app/` is git-mv'd to `deprecated/` once Phase 2 has soaked for ~1 week.
 

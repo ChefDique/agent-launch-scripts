@@ -6,7 +6,7 @@ This file intentionally matches the root `AGENTS.md` contract while adding Claud
 
 ## Repository Overview
 
-`agent-launch-scripts` owns Richard's local agent launch infrastructure and the lightweight AgentRemote Electron HUD. This repo is the operator-station layer: spawn and supervise local agent sessions, route messages to tmux panes, and keep the always-on desktop remote useful and polished.
+`agent-launch-scripts` owns Richard's local agent launch infrastructure and the lightweight AgentRemote Electron HUD. This repo is the operator-station layer: spawn and supervise local agent sessions, route messages to tmux panes, and keep the always-on desktop remote useful and polished. The canonical checkout path is `/Users/richardadair/ai_projects/agent-launch-scripts`; `/Users/richardadair/agent-launch-scripts` may exist only as a compatibility symlink.
 
 The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintainer. It is sister-level to the agent fleet, not one of the fleet panes.
 
