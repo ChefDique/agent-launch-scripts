@@ -114,13 +114,13 @@
       "hidden": true
     },
     {
-      "id": "hermes-generic",
-      "display_name": "HERMES",
+      "id": "aria-hermes-tmux",
+      "display_name": "ARIA",
       "runtime": "hermes",
       "cwd": "/Users/richardadair/ai_projects",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#e3ff0f",
+      "theme_color": "#6bdef5",
       "avatar": "hermes.svg"
     },
     {
