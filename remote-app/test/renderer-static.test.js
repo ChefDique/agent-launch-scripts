@@ -118,6 +118,9 @@ test('deploy surface keeps the operator path to one movable window per agent', (
 });
 
 test('scrollable HUD popups use dark themed scrollbars', () => {
+  const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
+  assert.match(html, /\*::-webkit-scrollbar-thumb/);
+  assert.match(petWindow, /\*::-webkit-scrollbar-thumb/);
   assert.match(html, /\.pet-picker,\s*\n\s*\.deploy-roster,/);
   assert.match(html, /\.pet-picker::-webkit-scrollbar/);
   assert.match(html, /\.pet-picker::-webkit-scrollbar-thumb/);

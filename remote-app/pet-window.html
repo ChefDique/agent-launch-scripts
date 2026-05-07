@@ -15,6 +15,41 @@
       --border-soft: rgba(255, 255, 255, 0.12);
     }
     * { box-sizing: border-box; }
+
+    * {
+      scrollbar-color: rgba(224, 124, 76, 0.5) rgba(255, 255, 255, 0.035);
+      scrollbar-width: thin;
+    }
+
+    *::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.035);
+      border-radius: 999px;
+      margin: 6px;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background:
+        linear-gradient(180deg, rgba(224, 124, 76, 0.72), rgba(16, 163, 127, 0.38));
+      border: 2px solid rgba(8, 8, 14, 0.72);
+      border-radius: 999px;
+      background-clip: padding-box;
+      box-shadow: 0 0 10px rgba(224, 124, 76, 0.22);
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background:
+        linear-gradient(180deg, rgba(255, 146, 90, 0.82), rgba(44, 247, 197, 0.48));
+      background-clip: padding-box;
+    }
+
+    *::-webkit-scrollbar-corner {
+      background: transparent;
+    }
     html,
     body {
       width: 100%;

@@ -28,6 +28,10 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
   The Attach action should open the selected agent in a native iTerm split with
   a normal `tmux attach`, so the current workspace gets a split pane instead of
   another tmux control-mode tab.
+- Do not prove attach/deploy changes by mutating Richard's live iTerm desktop.
+  Live validation can leave duplicate tmux clients, headless panes, or stray
+  tabs. Use mocked IPC, isolated throwaway tmux sessions, or static command
+  checks unless Richard explicitly requests a live desktop mutation.
 - `chq-tmux.sh` enables tmux extended keys for modified-key input such as
   Shift+Enter. iTerm must also emit modified-key sequences from the active
   profile; otherwise tmux only receives a plain Enter.

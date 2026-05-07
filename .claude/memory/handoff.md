@@ -2,23 +2,21 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Codex lifecycle skill visibility incident closed: `/gogo` YAML was fixed, `/done` stale path was corrected, and a Lucius/R&D report was written.
+**Last working on:** AgentRemote pet/chat/tmux HUD regression cleanup after Richard reported repeated white scrollbars, surprise iTerm/tmux attach mutations, and misleading online state.
 
-**State at last pause (2026-05-06T14:15:54-0700):**
-- Root cause for missing `gogo` was live Codex loader evidence, not missing config: `/Users/richardadair/.agents/skills/gogo/SKILL.md` had invalid YAML from an unquoted colon in `description`.
-- Fixed global shared skills outside this repo: quoted `gogo` frontmatter description and corrected `/Users/richardadair/.agents/skills/done/SKILL.md` to reference `/Users/richardadair/.agents/skills/chores/SKILL.md` instead of stale uppercase `~/.Codex`.
-- Verified with strict YAML parsing and `codex debug prompt-input 'test skill load'`; `gogo`, `chores`, and `done` are now model-visible skills.
-- Report written at `docs/references/2026-05-06-codex-skill-command-visibility-report.md` and indexed in `docs/README.md`.
-- Live `claude-peers` delivery to Lucius was not possible: `codex mcp list` showed `claude-peers` disabled, and `bun /Users/richardadair/.claude/mcp-servers/claude-peers/cli.ts status` showed broker ok with `0` peers.
-- Durable Lucius handoff was written and committed in R&D at `/Users/richardadair/ai_projects/research-and-development/memory/coord/2026-05-06-tmux-masta-to-lucius-codex-skill-command-visibility.md` (`521bfc2`).
-- Main repo still has app-generated or user AgentRemote registry/avatar edits not made by this report work: `agents.json` changes `tmux-masta` color and avatar, plus new `remote-app/assets/tmux-masta.gif`.
-- Remaining worktree: `/Users/richardadair/.codex/worktrees/8e7d/agent-launch-scripts` on `codex/tmux-gogo-launch-fixes`, clean, with unique commit `2624436` not merged into current `main`.
+**State at last pause (2026-05-06T20:40:18-0700):**
+- Shipped local commits through `3170c3c`: pet bubble sizing/readability, per-agent pet chat filtering, AgentRemote relaunch-after-cleanup rule, native split attach attempt, and pet-picker/online-state fix.
+- Richard rejected the live attach validation approach: do not mutate his live iTerm desktop to prove attach/deploy behavior. It left duplicate tmux clients/tabs and made this Codex session effectively headless from iTerm even though the tmux pane/process survived.
+- Current operating contract to preserve: tmux is the durable backend, iTerm is only a viewer, AgentRemote must not create surprise tabs/windows, and validation should use static/mocked/isolated checks unless Richard explicitly asks for live desktop mutation.
+- Scrollbars are a recurring regression. Any scrollable modal, picker, popover, overlay, pet window, roster, or log must inherit dark HUD scrollbar styling; native white Chromium scrollbars are never acceptable in AgentRemote.
+- Dock online state should mean the tmux pane/process exists. Do not make a running agent look offline just because no iTerm/tmux client is attached.
+- `/done` closeout in progress: docs/rules are being updated, generated `output/` artifacts are being ignored, registry/avatar state is being classified and committed, and AgentRemote will be relaunched from the canonical checkout.
 
-**Next verifiable step:** If Richard continues the skill-visibility thread, add a shared-skill compatibility lint/check for `~/.agents/skills/*/SKILL.md`. Otherwise resume the prior product cursor: edit `remote-app/pet-window.html` into a Codex-style compact chat bubble.
+**Next verifiable step:** On fresh context, start by reading this block and the latest commits, then inspect AgentRemote visually for all scrollable surfaces without touching live tmux/iTerm attach state. If code changes are needed, add static or isolated tests first.
 
-**If that step fails:** For skills, start from `codex debug prompt-input` plus `/Users/richardadair/.codex/log/codex-tui.log`; separate file existence, config pinning, YAML load, prompt visibility, and slash-picker UI. For pet UI, inspect the Codex pet UI contract from the local app/runtime or `hatch-pet` references.
+**If that step fails:** Do not trial-and-error against Richard's desktop. Use `remote-app/test/renderer-static.test.js`, isolated Electron renderer checks that do not confirm deploy/attach, or a throwaway tmux session. If a live desktop mutation seems necessary, ask first with the exact command/effect.
 
-**Pending uncommitted diff:** `agents.json` and `remote-app/assets/tmux-masta.gif` are intentionally left uncommitted as non-report AgentRemote registry/avatar edits.
+**Pending uncommitted diff:** `/done` should leave none except intentionally ignored `output/` artifacts; if `agents.json` or `remote-app/assets/tmux-masta.gif` remain dirty, classify before restarting.
 
 ---
 
@@ -53,5 +51,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-06-SESSION_3: AgentRemote reliability/versioning closeout shipped: floating pets, registry/avatar state, stale-worktree launcher fix, session-end cleanup hook, dirty-state rules, SemVer badge `v1.0.1`, `/gogo` version/process checks, and pushed `main` through `ac52cfe` — gated on Richard: none
 - 2026-05-06-SESSION_4: AgentRemote pet send/mood/chrome iteration committed locally: tmux send now submits with delayed `C-m`, pet windows resize, Codex sprite atlas rows react to move/send/review/error states, and package is `v1.0.5`; Richard's screenshot review shows the bubble UI still needs Codex-style compact/expand/reply behavior next — commits: `50d8de5` local only plus `/done` handoff commit — gated on Richard: none
 - 2026-05-06-SESSION_5: Codex lifecycle skill visibility incident closed: global shared `gogo` YAML and `done` stale path fixed, prompt-input verified `gogo`/`chores`/`done`, Lucius report written and R&D coord note delivered because `claude-peers` had zero peers — commits: `1c1b12b`, R&D `521bfc2` — gated on Richard: none
+- 2026-05-06-SESSION_6: AgentRemote pet/chat/tmux regression wave documented and partially repaired: pet bubble/readability, per-agent pet chat filtering, relaunch-after-cleanup rule, pet-picker scrollbar styling, dock online state corrected to pane-alive semantics, and new guardrails added against live iTerm/tmux validation mutations — commits: `f6aa1dd`, `43bad2c`, `84b9acc`, `9c0f333`, `e04e35a`, `e1dbd0b`, `3170c3c` plus `/done` closeout commits — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->

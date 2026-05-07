@@ -101,6 +101,11 @@ These are the Lego bricks. The iso command center reuses every one of them in it
 - **Inline confirms, never modals.** Tile takeover with ✓/✗, auto-cancel after 4s of silence.
 - **Always-visible chat.** No toggle to hide the input. Chat is the centerpiece.
 - **Status dots, not text.** Liveness is communicated visually, polled every 3s.
+- **Dark scrollbars everywhere.** Any modal, picker, popover, overlay, pet
+  window, log, or roster that can scroll must inherit the HUD scrollbar
+  treatment. A native white Chromium scrollbar is a visual regression.
+- **Online means pane alive.** iTerm attachment is only the viewing layer.
+  A running tmux pane/process is online even when no client is attached.
 - **Drag freely.** Every non-interactive surface is a grab handle.
 
 These constraints are part of the design system, not just implementation choices.

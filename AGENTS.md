@@ -55,6 +55,8 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - For Electron edits, use `bash launch-remote.sh`; do not start duplicate AgentRemote instances.
 - For AgentRemote app edits, bump `remote-app/package.json` and `remote-app/package-lock.json` using SemVer before commit. The HUD must show `v<semver> <branch>@<sha>` so stale worktree apps are visually identifiable.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
+- Do not validate attach/deploy behavior by mutating Richard's live iTerm desktop unless he explicitly asks for that live mutation. Use static tests, mocked IPC, or isolated throwaway tmux sessions first.
+- For AgentRemote UI, any scrollable modal, picker, popover, overlay, roster, log, or pet window must use the dark HUD scrollbar styling. Native white scrollbars are regressions.
 - Commit completed work units with clear messages. Push only when Richard asks.
 
 ## Session-End Cleanup
