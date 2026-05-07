@@ -68,6 +68,10 @@
       padding: 10px 10px 12px;
       -webkit-app-region: drag;
     }
+    body.bubble-below {
+      align-items: flex-start;
+      padding: 12px 10px 10px;
+    }
     .pet-shell {
       position: relative;
       width: 100%;
@@ -78,49 +82,50 @@
       justify-content: flex-end;
       gap: 5px;
     }
+    body.bubble-below .pet-shell {
+      justify-content: flex-start;
+    }
+    .chat-tab,
+    .bubble {
+      order: 1;
+    }
+    .chat-meta {
+      order: 2;
+    }
+    .sprite-wrap {
+      order: 3;
+    }
+    body.bubble-below .sprite-wrap {
+      order: 1;
+    }
+    body.bubble-below .chat-meta {
+      order: 2;
+    }
+    body.bubble-below .chat-tab,
+    body.bubble-below .bubble {
+      order: 3;
+    }
     .bubble {
       position: relative;
-      width: min(100%, 376px);
-      min-height: 64px;
-      max-height: min(132px, calc(100vh - 118px));
-      border: 1px solid var(--border-soft);
-      border-radius: 16px;
-      background:
-        radial-gradient(circle at 18px 16px, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34px),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 40%),
-        var(--bg-glass);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.09),
-        0 14px 28px rgba(0, 0, 0, 0.34);
-      backdrop-filter: blur(24px) saturate(136%);
+      width: min(100%, 348px);
+      min-height: 50px;
+      max-height: min(118px, calc(100vh - 118px));
       overflow: hidden;
-      opacity: 0.98;
       -webkit-app-region: no-drag;
       display: flex;
       flex-direction: column;
+      gap: 4px;
       transition:
         max-height 0.2s var(--ease),
         min-height 0.2s var(--ease),
-        border-color 0.2s var(--ease),
-        box-shadow 0.2s var(--ease);
+        opacity 0.2s var(--ease);
     }
     body.chat-expanded .bubble {
-      min-height: min(252px, calc(100vh - 160px));
-      max-height: min(324px, calc(100vh - 160px));
-      border-color: color-mix(in srgb, var(--accent) 34%, rgba(255, 255, 255, 0.13));
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.10),
-        0 18px 34px rgba(0, 0, 0, 0.38),
-        0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+      min-height: min(220px, calc(100vh - 160px));
+      max-height: min(304px, calc(100vh - 160px));
     }
     .bubble::before {
-      content: "";
-      position: absolute;
-      inset: 0 0 auto 0;
-      height: 30px;
-      background: linear-gradient(180deg, rgba(8, 8, 14, 0.66), rgba(8, 8, 14, 0));
-      pointer-events: none;
-      z-index: 1;
+      content: none;
     }
     .chat-meta {
       max-width: min(100%, 376px);
@@ -155,8 +160,8 @@
     }
     .chrome-actions {
       position: absolute;
-      top: 5px;
-      right: 5px;
+      top: 0;
+      right: 0;
       display: flex;
       align-items: center;
       gap: 3px;
@@ -203,12 +208,12 @@
     }
     .log {
       min-height: 36px;
-      max-height: min(66px, calc(100vh - 184px));
+      max-height: min(78px, calc(100vh - 184px));
       overflow: auto;
-      padding: 29px 14px 8px 10px;
+      padding: 2px 50px 2px 2px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 5px;
       flex: 1 1 auto;
       font-size: 10.5px;
       line-height: 1.34;
@@ -218,8 +223,8 @@
     body.chat-expanded .log {
       min-height: 158px;
       max-height: min(236px, calc(100vh - 244px));
-      padding-top: 30px;
-      padding-right: 16px;
+      padding-top: 2px;
+      padding-right: 54px;
       font-size: 12px;
       line-height: 1.38;
     }
@@ -229,9 +234,24 @@
       background: rgba(255, 255, 255, 0.18);
     }
     .msg {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      align-self: flex-start;
+      max-width: min(282px, 88%);
       min-width: 0;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 13px 13px 13px 4px;
+      background: rgba(20, 20, 30, 0.72);
       color: rgba(244, 244, 248, 0.9);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(18px) saturate(124%);
+    }
+    .msg.from-me {
+      align-self: flex-end;
+      border-radius: 13px 13px 4px 13px;
+      border-color: color-mix(in srgb, var(--accent) 32%, rgba(255, 255, 255, 0.12));
+      background: color-mix(in srgb, var(--accent) 24%, rgba(20, 20, 30, 0.74));
     }
     .msg .from {
       display: none;
@@ -262,7 +282,7 @@
       display: none;
       grid-template-columns: minmax(0, 1fr) 46px;
       gap: 6px;
-      padding: 0 22px 10px 8px;
+      padding: 0 2px 2px 2px;
       flex: 0 0 auto;
     }
     body.chat-expanded .reply {
@@ -370,8 +390,8 @@
     }
     .sprite-wrap {
       position: relative;
-      width: 112px;
-      height: 122px;
+      width: calc(var(--pet-display-width) + 16px);
+      height: calc(var(--pet-display-height) + 18px);
       flex: 0 0 auto;
       filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.48));
       transform-origin: 50% 75%;
@@ -379,8 +399,8 @@
       transition: width 0.2s var(--ease), height 0.2s var(--ease);
     }
     body.chat-expanded .sprite-wrap {
-      width: 112px;
-      height: 122px;
+      width: calc(var(--pet-display-width) + 16px);
+      height: calc(var(--pet-display-height) + 18px);
     }
     .sprite-wrap::before {
       content: "";
@@ -396,19 +416,20 @@
     }
     .sprite {
       --pet-y: 0px;
-      --pet-to-x: -576px;
+      --pet-to-x: calc(var(--pet-display-width) * -6);
       --pet-step: steps(6);
+      --pet-duration: 1.25s;
       position: relative;
-      width: 96px;
-      height: 104px;
+      width: var(--pet-display-width);
+      height: var(--pet-display-height);
       margin: 6px auto 0;
       display: block;
       background-image: var(--pet-sheet);
       background-repeat: no-repeat;
-      background-size: 768px 936px;
+      background-size: var(--pet-bg-width) var(--pet-bg-height);
       background-position: 0 var(--pet-y);
       image-rendering: auto;
-      animation: row 1.25s var(--pet-step) infinite;
+      animation: row var(--pet-duration) var(--pet-step) infinite;
       transition: transform 0.2s var(--ease), margin 0.2s var(--ease);
     }
     body.chat-expanded .sprite {
@@ -416,56 +437,7 @@
       transform: scale(1);
       transform-origin: 50% 0;
     }
-    body.mood-running-right .sprite {
-      --pet-y: -104px;
-      --pet-to-x: -768px;
-      --pet-step: steps(8);
-      animation-duration: 0.92s;
-    }
-    body.mood-running-left .sprite {
-      --pet-y: -208px;
-      --pet-to-x: -768px;
-      --pet-step: steps(8);
-      animation-duration: 0.92s;
-    }
-    body.mood-waving .sprite {
-      --pet-y: -312px;
-      --pet-to-x: -384px;
-      --pet-step: steps(4);
-      animation-duration: 0.74s;
-    }
-    body.sending .sprite,
-    body.mood-jumping .sprite {
-      --pet-y: -416px;
-      --pet-to-x: -480px;
-      --pet-step: steps(5);
-      animation-duration: 0.8s;
-    }
-    body.error .sprite,
-    body.mood-failed .sprite {
-      --pet-y: -520px;
-      --pet-to-x: -768px;
-      --pet-step: steps(8);
-      animation-duration: 0.95s;
-    }
-    body.mood-waiting .sprite {
-      --pet-y: -624px;
-      --pet-to-x: -576px;
-      --pet-step: steps(6);
-      animation-duration: 1.25s;
-    }
-    body.mood-running .sprite {
-      --pet-y: -728px;
-      --pet-to-x: -576px;
-      --pet-step: steps(6);
-      animation-duration: 0.82s;
-    }
-    body.mood-review .sprite {
-      --pet-y: -832px;
-      --pet-to-x: -576px;
-      --pet-step: steps(6);
-      animation-duration: 1.2s;
-    }
+    body.pet-picked-up .sprite-wrap,
     body.pet-moving .sprite-wrap {
       animation-duration: 0.9s;
       filter:
@@ -526,8 +498,72 @@
     const collapseBtn = document.getElementById('collapse');
     const replyToggleBtn = document.getElementById('reply-toggle');
     const chatTabBtn = document.getElementById('chat-tab');
+    const spriteEl = document.getElementById('sprite');
     const collapseKey = `agentremote.pet.${agentId || 'unknown'}.chatCollapsed`;
     const expandKey = `agentremote.pet.${agentId || 'unknown'}.chatExpanded`;
+    const PET_WINDOW_GEOMETRY = {
+      minWidth: 400,
+      minHeight: 430,
+      maxWidth: 680,
+      maxHeight: 720
+    };
+    const PET_ATLAS = {
+      columns: 8,
+      rows: 9,
+      scale: 0.5,
+      sourceCell: { width: 192, height: 208 },
+      moods: {
+        idle: { row: 0, frames: 6, duration: '1.25s' },
+        'running-right': { row: 1, frames: 8, duration: '0.92s' },
+        'running-left': { row: 2, frames: 8, duration: '0.92s' },
+        waving: { row: 3, frames: 4, duration: '0.74s' },
+        jumping: { row: 4, frames: 5, duration: '0.8s' },
+        failed: { row: 5, frames: 8, duration: '0.95s' },
+        waiting: { row: 6, frames: 6, duration: '1.25s' },
+        running: { row: 7, frames: 6, duration: '0.82s' },
+        review: { row: 8, frames: 6, duration: '1.2s' }
+      },
+      aliases: {
+        recording: 'waving',
+        sent: 'waving',
+        transcribing: 'review',
+        thinking: 'review',
+        error: 'failed',
+        failed: 'failed',
+        'moving-right': 'running-right',
+        'moving-left': 'running-left',
+        released: 'jumping',
+        settling: 'jumping'
+      }
+    };
+    const PET_ATLAS_DISPLAY_CELL = {
+      width: PET_ATLAS.sourceCell.width * PET_ATLAS.scale,
+      height: PET_ATLAS.sourceCell.height * PET_ATLAS.scale
+    };
+    const MOOD_CLASSES = Object.keys(PET_ATLAS.moods)
+      .filter((mood) => mood !== 'idle')
+      .map((mood) => `mood-${mood}`);
+
+    function applyAtlasGeometry() {
+      document.documentElement.style.setProperty('--pet-display-width', `${PET_ATLAS_DISPLAY_CELL.width}px`);
+      document.documentElement.style.setProperty('--pet-display-height', `${PET_ATLAS_DISPLAY_CELL.height}px`);
+      document.documentElement.style.setProperty('--pet-bg-width', `${PET_ATLAS_DISPLAY_CELL.width * PET_ATLAS.columns}px`);
+      document.documentElement.style.setProperty('--pet-bg-height', `${PET_ATLAS_DISPLAY_CELL.height * PET_ATLAS.rows}px`);
+    }
+
+    function atlasMoodFor(value) {
+      const mood = String(value || 'idle').toLowerCase();
+      const aliased = PET_ATLAS.aliases[mood] || mood;
+      return PET_ATLAS.moods[aliased] ? aliased : 'idle';
+    }
+
+    function applyAtlasMood(mood) {
+      const row = PET_ATLAS.moods[mood] || PET_ATLAS.moods.idle;
+      spriteEl.style.setProperty('--pet-y', `${-row.row * PET_ATLAS_DISPLAY_CELL.height}px`);
+      spriteEl.style.setProperty('--pet-to-x', `${-row.frames * PET_ATLAS_DISPLAY_CELL.width}px`);
+      spriteEl.style.setProperty('--pet-step', `steps(${row.frames})`);
+      spriteEl.style.setProperty('--pet-duration', row.duration);
+    }
 
     function normalizeSender(value) {
       return String(value || '').toLowerCase().replace(/^@+/, '').trim().replace(/[^a-z0-9]+/g, '');
@@ -569,8 +605,8 @@
 
     function boundedWindowSize(width, height) {
       return {
-        width: Math.max(400, Math.min(680, Math.round(width))),
-        height: Math.max(430, Math.min(720, Math.round(height)))
+        width: Math.max(PET_WINDOW_GEOMETRY.minWidth, Math.min(PET_WINDOW_GEOMETRY.maxWidth, Math.round(width))),
+        height: Math.max(PET_WINDOW_GEOMETRY.minHeight, Math.min(PET_WINDOW_GEOMETRY.maxHeight, Math.round(height)))
       };
     }
 
@@ -580,6 +616,12 @@
       const title = collapsed ? 'Show chat' : (expanded ? 'Compact chat' : 'Expand chat');
       collapseBtn.title = title;
       collapseBtn.setAttribute('aria-label', title);
+    }
+
+    function applyBubblePlacement(placement) {
+      const below = placement === 'below';
+      document.body.classList.toggle('bubble-below', below);
+      document.body.classList.toggle('bubble-above', !below);
     }
 
     function setCollapsed(collapsed) {
@@ -602,39 +644,19 @@
       syncChatControls();
     }
 
-    const MOOD_CLASSES = [
-      'mood-running-right',
-      'mood-running-left',
-      'mood-waving',
-      'mood-jumping',
-      'mood-failed',
-      'mood-waiting',
-      'mood-running',
-      'mood-review'
-    ];
-
-    function normalizeMood(value) {
-      const mood = String(value || 'idle').toLowerCase();
-      if (mood === 'recording' || mood === 'sent') return 'waving';
-      if (mood === 'transcribing' || mood === 'thinking') return 'review';
-      if (mood === 'error' || mood === 'failed') return 'failed';
-      if (mood === 'moving-right') return 'running-right';
-      if (mood === 'moving-left') return 'running-left';
-      if (MOOD_CLASSES.includes(`mood-${mood}`)) return mood;
-      return 'idle';
-    }
-
     function setMood(mood, ms = 0) {
       if (moodTimer) {
         clearTimeout(moodTimer);
         moodTimer = null;
       }
       document.body.classList.remove(...MOOD_CLASSES);
-      const next = normalizeMood(mood);
+      const next = atlasMoodFor(mood);
+      applyAtlasMood(next);
       if (next !== 'idle') document.body.classList.add(`mood-${next}`);
       if (ms > 0) {
         moodTimer = setTimeout(() => {
           document.body.classList.remove(...MOOD_CLASSES);
+          applyAtlasMood('idle');
           moodTimer = null;
         }, ms);
       }
@@ -653,11 +675,13 @@
       const existingEmpty = logEl.querySelector('.empty');
       if (existingEmpty && filtered.length) existingEmpty.remove();
       for (const env of filtered) {
+        const sender = normalizeSender(env.from || '?');
         const row = document.createElement('div');
         row.className = 'msg';
+        if (['richard', 'operator'].includes(sender)) row.classList.add('from-me');
         const from = document.createElement('span');
         from.className = 'from';
-        from.textContent = normalizeSender(env.from || '?');
+        from.textContent = sender;
         const body = document.createElement('span');
         body.className = 'text';
         body.textContent = String(env.message || '');
@@ -690,11 +714,14 @@
       if (!config || !config.agent || !config.pet) return;
       document.documentElement.style.setProperty('--accent', config.agent.themeColor || '#e07c4c');
       nameEl.textContent = config.agent.displayName || config.agent.id;
-      document.getElementById('sprite').style.setProperty('--pet-sheet', `url("${config.pet.sheetUrl}")`);
+      spriteEl.style.setProperty('--pet-sheet', `url("${config.pet.sheetUrl}")`);
       document.title = `${config.agent.displayName || config.agent.id} Pet`;
     }
 
     async function init() {
+      applyAtlasGeometry();
+      applyAtlasMood('idle');
+      applyBubblePlacement('above');
       const res = await ipcRenderer.invoke('get-agent-pet-config', { agentId });
       if (!res || !res.ok) {
         nameEl.textContent = 'Pet unavailable';
@@ -756,6 +783,19 @@
     closeBtn.addEventListener('click', () => {
       ipcRenderer.invoke('pet-close-window', { agentId });
     });
+    window.addEventListener('pointerdown', (ev) => {
+      if (ev.target.closest('button, input, .resize-grip')) return;
+      document.body.classList.add('pet-picked-up');
+      setMood('waiting');
+    });
+    window.addEventListener('pointerup', () => {
+      if (!document.body.classList.contains('pet-picked-up')) return;
+      document.body.classList.remove('pet-picked-up');
+      if (!document.body.classList.contains('pet-moving')) setMood('released', 650);
+    });
+    window.addEventListener('blur', () => {
+      document.body.classList.remove('pet-picked-up');
+    });
     document.querySelector('.resize-grip').addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -792,10 +832,15 @@
     ipcRenderer.on('pet-mood', (_event, payload = {}) => {
       setMood(payload.mood || 'idle', Number(payload.ms) || 0);
     });
+    ipcRenderer.on('pet-window-bounds', (_event, payload = {}) => {
+      applyBubblePlacement(payload.bubblePlacement || 'above');
+    });
     ipcRenderer.on('pet-window-moving', (_event, payload = {}) => {
       const moving = !!payload.moving;
       document.body.classList.toggle('pet-moving', moving);
-      setMood(moving ? `moving-${payload.direction === 'left' ? 'left' : 'right'}` : 'jumping', moving ? 0 : 650);
+      document.body.classList.toggle('pet-picked-up', moving);
+      applyBubblePlacement(payload.bubblePlacement || 'above');
+      setMood(moving ? `moving-${payload.direction === 'left' ? 'left' : 'right'}` : 'released', moving ? 0 : 650);
     });
     window.addEventListener('beforeunload', () => {
       if (pollHandle) clearInterval(pollHandle);

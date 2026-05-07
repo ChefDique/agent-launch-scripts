@@ -65,6 +65,15 @@ let mainWindow;
 const petWindows = new Map();
 const petWindowConfigs = new Map();
 const petMoveTimers = new Map();
+const PET_WINDOW_GEOMETRY = {
+  minWidth: 400,
+  minHeight: 430,
+  maxWidth: 680,
+  maxHeight: 720,
+  defaultWidth: 400,
+  defaultHeight: 430
+};
+const PET_BUBBLE_EDGE_THRESHOLD = 96;
 let isQuitting = false;
 
 // Best-effort append to remote-app/out.log. Used so registration warnings
@@ -239,7 +248,12 @@ function defaultPetBounds(agentId) {
     y = Math.max(work.y + 16, mainBounds.y - 250);
   }
   const offset = Math.max(0, Array.from(petWindows.keys()).indexOf(agentId)) * 26;
-  return { x: x + offset, y: y + offset, width: 400, height: 430 };
+  return {
+    x: x + offset,
+    y: y + offset,
+    width: PET_WINDOW_GEOMETRY.defaultWidth,
+    height: PET_WINDOW_GEOMETRY.defaultHeight
+  };
 }
 
 function persistPetBounds(agentId, bounds) {
@@ -273,6 +287,42 @@ function sendToPetWindow(agentId, channel, payload = {}) {
   if (!win || win.isDestroyed()) return;
   try { win.webContents.send(channel, payload); }
   catch { /* renderer not ready */ }
+}
+
+function petWindowGeometryPayload(win, { moving = false, direction = 'right' } = {}) {
+  const bounds = win.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  const workArea = display && display.workArea ? display.workArea : null;
+  let bubblePlacement = 'above';
+  if (workArea) {
+    const topGap = bounds.y - workArea.y;
+    const bottomGap = (workArea.y + workArea.height) - (bounds.y + bounds.height);
+    bubblePlacement = topGap <= PET_BUBBLE_EDGE_THRESHOLD && bottomGap > topGap ? 'below' : 'above';
+  }
+  return { moving, direction, bounds, workArea, bubblePlacement };
+}
+
+function sendPetWindowGeometry(agentId, win, options = {}) {
+  if (!win || win.isDestroyed()) return;
+  sendToPetWindow(agentId, 'pet-window-bounds', petWindowGeometryPayload(win, options));
+}
+
+function clampPetWindowSize(width, height, fallback = {}) {
+  return {
+    width: Math.max(
+      PET_WINDOW_GEOMETRY.minWidth,
+      Math.min(PET_WINDOW_GEOMETRY.maxWidth, Number(width) || fallback.width || PET_WINDOW_GEOMETRY.defaultWidth)
+    ),
+    height: Math.max(
+      PET_WINDOW_GEOMETRY.minHeight,
+      Math.min(PET_WINDOW_GEOMETRY.maxHeight, Number(height) || fallback.height || PET_WINDOW_GEOMETRY.defaultHeight)
+    )
+  };
+}
+
+function normalizePetWindowBounds(bounds = {}) {
+  const size = clampPetWindowSize(bounds.width, bounds.height);
+  return { ...bounds, ...size };
 }
 
 function hideAgentPetWindow(agentId, { persist = true } = {}) {
@@ -321,19 +371,15 @@ function showAgentPetWindow(agentId, petId) {
 
   const savedBounds = state.bounds[agent.id];
   const bounds = savedBounds && Number.isFinite(savedBounds.x) && Number.isFinite(savedBounds.y)
-    ? {
-        ...savedBounds,
-        width: Math.max(400, Math.min(680, Number(savedBounds.width) || 400)),
-        height: Math.max(430, Math.min(720, Number(savedBounds.height) || 430))
-      }
+    ? normalizePetWindowBounds(savedBounds)
     : defaultPetBounds(agent.id);
   const win = new BrowserWindow({
-    width: bounds.width || 400,
-    height: bounds.height || 430,
-    minWidth: 400,
-    minHeight: 430,
-    maxWidth: 680,
-    maxHeight: 720,
+    width: bounds.width || PET_WINDOW_GEOMETRY.defaultWidth,
+    height: bounds.height || PET_WINDOW_GEOMETRY.defaultHeight,
+    minWidth: PET_WINDOW_GEOMETRY.minWidth,
+    minHeight: PET_WINDOW_GEOMETRY.minHeight,
+    maxWidth: PET_WINDOW_GEOMETRY.maxWidth,
+    maxHeight: PET_WINDOW_GEOMETRY.maxHeight,
     x: bounds.x,
     y: bounds.y,
     frame: false,
@@ -354,7 +400,9 @@ function showAgentPetWindow(agentId, petId) {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.loadFile(PET_WINDOW_FILE, { query: { agentId: agent.id } });
   win.once('ready-to-show', () => {
-    if (!win.isDestroyed()) win.showInactive();
+    if (win.isDestroyed()) return;
+    win.showInactive();
+    sendPetWindowGeometry(agent.id, win);
   });
   let lastMoveBounds = win.getBounds();
   win.on('move', () => {
@@ -362,21 +410,30 @@ function showAgentPetWindow(agentId, petId) {
     const nextBounds = win.getBounds();
     const dx = nextBounds.x - lastMoveBounds.x;
     lastMoveBounds = nextBounds;
-    sendToPetWindow(agent.id, 'pet-window-moving', {
+    const movePayload = petWindowGeometryPayload(win, {
       moving: true,
       direction: dx < 0 ? 'left' : 'right'
     });
+    sendToPetWindow(agent.id, 'pet-window-moving', movePayload);
+    sendToPetWindow(agent.id, 'pet-window-bounds', movePayload);
     if (petMoveTimers.has(agent.id)) clearTimeout(petMoveTimers.get(agent.id));
     petMoveTimers.set(agent.id, setTimeout(() => {
       petMoveTimers.delete(agent.id);
-      sendToPetWindow(agent.id, 'pet-window-moving', { moving: false });
+      const settledPayload = petWindowGeometryPayload(win, { moving: false });
+      sendToPetWindow(agent.id, 'pet-window-moving', settledPayload);
+      sendToPetWindow(agent.id, 'pet-window-bounds', settledPayload);
     }, 180));
   });
   win.on('moved', () => {
     if (!win.isDestroyed()) {
       persistPetBounds(agent.id, win.getBounds());
-      sendToPetWindow(agent.id, 'pet-window-moving', { moving: false });
+      const settledPayload = petWindowGeometryPayload(win, { moving: false });
+      sendToPetWindow(agent.id, 'pet-window-moving', settledPayload);
+      sendToPetWindow(agent.id, 'pet-window-bounds', settledPayload);
     }
+  });
+  win.on('resize', () => {
+    sendPetWindowGeometry(agent.id, win);
   });
   win.on('closed', () => {
     if (petMoveTimers.has(agent.id)) {
@@ -935,10 +992,10 @@ ipcMain.handle('pet-resize-window', (_event, payload = {}) => {
   const win = petWindows.get(agentId);
   if (!win || win.isDestroyed()) return { ok: false, error: 'pet window not found' };
   const bounds = win.getBounds();
-  const width = Math.max(400, Math.min(680, Number(payload.width) || bounds.width));
-  const height = Math.max(430, Math.min(720, Number(payload.height) || bounds.height));
+  const { width, height } = clampPetWindowSize(payload.width, payload.height, bounds);
   win.setBounds({ ...bounds, width: Math.round(width), height: Math.round(height) });
   persistPetBounds(agentId, win.getBounds());
+  sendPetWindowGeometry(agentId, win);
   return { ok: true, bounds: win.getBounds() };
 });
 

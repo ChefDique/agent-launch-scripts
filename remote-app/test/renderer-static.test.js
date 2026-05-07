@@ -83,7 +83,7 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /function messageMentionsAgent\(message, aliases\)/);
   assert.doesNotMatch(petWindow, /from === 'richard'/);
   assert.match(petWindow, /body\.chat-expanded \.sprite-wrap/);
-  assert.match(petWindow, /min-height: min\(252px, calc\(100vh - 160px\)\)/);
+  assert.match(petWindow, /min-height: min\(220px, calc\(100vh - 160px\)\)/);
   assert.match(petWindow, /chat-meta/);
   assert.match(petWindow, /pet-resize-window/);
   assert.match(petWindow, /overflow-wrap: anywhere/);
@@ -96,8 +96,9 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
 test('main process pet windows are resizable and broadcasts delay submit after literal text', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(main, /resizable: true/);
-  assert.match(main, /minWidth: 400/);
-  assert.match(main, /height: Math\.max\(430/);
+  assert.match(main, /const PET_WINDOW_GEOMETRY = \{/);
+  assert.match(main, /minWidth: PET_WINDOW_GEOMETRY\.minWidth/);
+  assert.match(main, /function clampPetWindowSize\(width, height, fallback = \{\}\)/);
   assert.match(main, /pet-resize-window/);
   assert.match(main, /pet-set-mood/);
   assert.match(main, /pet-window-moving/);
@@ -121,20 +122,50 @@ test('chat input paste persists clipboard images as local file references', () =
 });
 
 test('floating pet window maps Codex atlas rows and move events to moods', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
-  assert.match(petWindow, /mood-running-right/);
-  assert.match(petWindow, /mood-running-left/);
-  assert.match(petWindow, /mood-waving/);
-  assert.match(petWindow, /mood-jumping/);
-  assert.match(petWindow, /mood-failed/);
-  assert.match(petWindow, /mood-waiting/);
-  assert.match(petWindow, /mood-running/);
-  assert.match(petWindow, /mood-review/);
+  assert.match(petWindow, /const PET_ATLAS = \{/);
+  assert.match(petWindow, /columns: 8/);
+  assert.match(petWindow, /rows: 9/);
+  assert.match(petWindow, /scale: 0\.5/);
+  assert.match(petWindow, /sourceCell: \{ width: 192, height: 208 \}/);
+  assert.match(petWindow, /function applyAtlasGeometry\(\)/);
+  assert.match(petWindow, /function applyAtlasMood\(mood\)/);
+  assert.doesNotMatch(petWindow, /background-size: 768px 936px/);
+  assert.doesNotMatch(petWindow, /--pet-y: -104px/);
+  assert.match(petWindow, /'running-right': \{ row: 1, frames: 8/);
+  assert.match(petWindow, /'running-left': \{ row: 2, frames: 8/);
+  assert.match(petWindow, /waving: \{ row: 3, frames: 4/);
+  assert.match(petWindow, /jumping: \{ row: 4, frames: 5/);
+  assert.match(petWindow, /failed: \{ row: 5, frames: 8/);
+  assert.match(petWindow, /waiting: \{ row: 6, frames: 6/);
+  assert.match(petWindow, /running: \{ row: 7, frames: 6/);
+  assert.match(petWindow, /review: \{ row: 8, frames: 6/);
+  assert.match(petWindow, /document\.body\.classList\.add\(`mood-\$\{next\}`\)/);
   assert.match(petWindow, /pet-window-moving/);
+  assert.match(petWindow, /pet-window-bounds/);
   assert.match(petWindow, /pet-moving/);
+  assert.match(petWindow, /pet-picked-up/);
+  assert.match(petWindow, /released: 'jumping'/);
+  assert.match(main, /petWindowGeometryPayload/);
+  assert.match(main, /PET_BUBBLE_EDGE_THRESHOLD/);
+  assert.match(main, /bubblePlacement = topGap <= PET_BUBBLE_EDGE_THRESHOLD/);
   assert.match(html, /sendPetWindowMood/);
   assert.match(html, /sendPetWindowMood\(a\.id, 'review'\)/);
   assert.match(html, /sendPetWindowMood\(a\.id, 'sent', 1400\)/);
+});
+
+test('floating pet chat bubble adapts above or below based on window bounds', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
+  assert.match(petWindow, /function applyBubblePlacement\(placement\)/);
+  assert.match(petWindow, /body\.bubble-below \.pet-shell/);
+  assert.match(petWindow, /body\.bubble-below \.sprite-wrap/);
+  assert.match(petWindow, /body\.bubble-below \.bubble/);
+  assert.match(petWindow, /classList\.toggle\('bubble-below', below\)/);
+  assert.match(main, /screen\.getDisplayMatching\(bounds\)/);
+  assert.match(main, /sendToPetWindow\(agent\.id, 'pet-window-bounds', movePayload\)/);
+  assert.match(main, /sendPetWindowGeometry\(agentId, win\)/);
 });
 
 test('deploy surface keeps the operator path to one movable window per agent', () => {
