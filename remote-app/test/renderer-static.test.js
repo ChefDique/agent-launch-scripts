@@ -85,6 +85,9 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /pet-resize-window/);
   assert.match(main, /pet-set-mood/);
   assert.match(main, /pet-window-moving/);
+  assert.match(main, /split vertically with default profile command/);
+  assert.match(main, /mode: 'split-native'/);
+  assert.doesNotMatch(main, /mode: 'focused-existing'/);
   assert.match(main, /send-keys', '-t', coord, '-l', message/);
   assert.match(main, /setTimeout\(\(\) => \{/);
   assert.match(main, /send-keys', '-t', coord, 'C-m'/);

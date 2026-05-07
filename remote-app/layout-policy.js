@@ -19,11 +19,18 @@ function tmuxAttachCommand(sessionName, layout, options = {}) {
     : `tmux attach -t ${safeSession}`;
 }
 
+function tmuxFocusedAttachCommand(sessionName, coord) {
+  const safeSession = String(sessionName || '').trim();
+  const safeCoord = String(coord || '').trim();
+  return `tmux select-pane -t ${safeCoord}; tmux attach -t ${safeSession}`;
+}
+
 module.exports = {
   DEFAULT_LAYOUT,
   DEPLOY_LAYOUTS,
   LAYOUT_MODES,
   layoutModeToDeployLayout,
   normalizeSpawnLayout,
-  tmuxAttachCommand
+  tmuxAttachCommand,
+  tmuxFocusedAttachCommand
 };

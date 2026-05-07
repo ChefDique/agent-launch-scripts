@@ -6,7 +6,8 @@ const {
   LAYOUT_MODES,
   layoutModeToDeployLayout,
   normalizeSpawnLayout,
-  tmuxAttachCommand
+  tmuxAttachCommand,
+  tmuxFocusedAttachCommand
 } = require('../layout-policy');
 
 test('EACH/ittab remains the deploy layout instead of degrading to plain windows', () => {
@@ -33,4 +34,8 @@ test('attach uses iTerm control mode for movable window layouts and break-outs',
   assert.equal(tmuxAttachCommand('chq', 'ittab'), 'tmux -CC attach -t chq');
   assert.equal(tmuxAttachCommand('chq', 'panes', { brokeOut: true }), 'tmux -CC attach -t chq');
   assert.equal(tmuxAttachCommand('chq', 'panes'), 'tmux attach -t chq');
+});
+
+test('focused attach selects the target pane before normal tmux attach', () => {
+  assert.equal(tmuxFocusedAttachCommand('chq', 'chq:2.0'), 'tmux select-pane -t chq:2.0; tmux attach -t chq');
 });

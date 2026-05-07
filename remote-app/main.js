@@ -6,7 +6,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { normalizeSpawnLayout, tmuxAttachCommand } = require('./layout-policy');
+const { normalizeSpawnLayout, tmuxFocusedAttachCommand } = require('./layout-policy');
 const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
@@ -1757,7 +1757,7 @@ ipcMain.handle('kill-pane', async (event, id) => {
 });
 
 // attach-pane — focus the user's cursor onto the agent's tmux pane in iTerm,
-// guaranteeing the agent fills its OWN iTerm window. ALS-010 collapsed the
+// guaranteeing the agent opens as a native iTerm split pane. ALS-010 collapsed the
 // previous three controls (Attach orb + Detach-to-window + Detach-to-split)
 // into this single layout-aware action. Behaviour:
 //
@@ -1774,19 +1774,11 @@ ipcMain.handle('kill-pane', async (event, id) => {
 //      window AND pane in one call — works across `panes`, `windows`, and
 //      `ittab` layouts.
 //
-//   2. Try to focus an EXISTING iTerm session whose name contains the agent's
-//      tmuxTarget (iTerm session names mirror the tmux pane title). This is
-//      the right path when:
-//        - The user already has an iTerm window/tab attached (which they
-//          almost always do — the chq fleet boots into one), or
-//        - The agent is in `ittab` layout where each agent already has its
-//          own iTerm window from `tmux -CC` spawn.
-//      If found: select that session, no new tab spawn.
-//
-//   3. Only if no iTerm session matches do we open a new tab and run
-//      `tmux attach -t <session>` (panes/windows) or `tmux -CC attach`
-//      (ittab — matches `chq-tmux.sh attach` behavior so iTerm renders
-//      windows-per-tmux-window).
+//   2. Split the current iTerm session and run a normal `tmux attach`, not
+//      `tmux -CC attach`. Deploy still uses iTerm/tmux control mode for the
+//      movable one-agent-per-window fleet, but Attach is an operator focus
+//      action: it should put the selected agent into the current iTerm
+//      workspace as a native split pane instead of opening another tmux tab.
 //
 // The previous implementation chained `tmux attach \; select-pane` in one
 // shell command — but `\;` collapses to `;` in shell parse, splitting it
@@ -1801,7 +1793,6 @@ ipcMain.handle('attach-pane', async (event, id) => {
     const agentList = loadAgents();
     const agent = agentList.find(a => a.id === safeId);
     if (!agent) throw new Error(`agent "${safeId}" not in registry`);
-    const needle = (agent.tmuxTarget || '').toLowerCase();
 
     let panes = await listPanes();
     let match = resolveAgentPanes({ agent, panes, sidecar: readPaneSidecar() })[0];
@@ -1869,65 +1860,25 @@ ipcMain.handle('attach-pane', async (event, id) => {
       });
     });
 
-    // Step 2 — try to focus an existing iTerm session whose name matches the
-    // agent's pane title needle. Returns "found" or "not-found".
-    //
-    // Quoting note: the needle goes through agentList's tmuxTarget, which is
-    // derived from registry rename_to / display_name (validated lowercased
-    // ascii in writeRegistry). Belt + suspenders — re-validate before letting
-    // it touch an AppleScript literal.
-    if (!/^[a-z0-9_-]+$/i.test(needle)) {
-      throw new Error(`refusing to interpolate suspicious needle: ${needle}`);
-    }
-    const focusScript = `tell application "iTerm"
-      activate
-      repeat with w in windows
-        repeat with t in tabs of w
-          repeat with s in sessions of t
-            if (name of s) contains "${needle}" then
-              tell w to select
-              tell t to select
-              tell s to select
-              return "found"
-            end if
-          end repeat
-        end repeat
-      end repeat
-      return "not-found"
-    end tell`;
-    const focusResult = await new Promise((resolve) => {
-      execFile('osascript', ['-e', focusScript], (err, stdout) => {
-        if (err) return resolve('not-found');                  // graceful fallback
-        resolve((stdout || '').trim());
-      });
-    });
-
-    if (focusResult === 'found') {
-      return { ok: true, coord: match.coord, mode: 'focused-existing', brokeOut: !!breakPaneResult };
-    }
-
-    // Step 3 — no existing iTerm session matched. Open a new one and attach.
-    // ittab uses tmux -CC for draggable iTerm windows; a pane we just broke
-    // out also uses -CC so the new standalone tmux window is movable.
-    const layout = await new Promise((resolve) => {
-      execFile('tmux', ['show-option', '-t', sessionName, '-v', '-q', '@chq_layout'], (err, stdout) => {
-        if (err) return resolve('');
-        resolve((stdout || '').trim());
-      });
-    });
-    const attachCmd = tmuxAttachCommand(sessionName, layout, { brokeOut: !!breakPaneResult });
+    // Step 2 — open a native iTerm split focused on this tmux pane. A normal
+    // tmux attach keeps the tmux session durable and scriptable without
+    // asking iTerm control mode to materialize the whole fleet as tmux tabs.
+    const attachCmd = tmuxFocusedAttachCommand(sessionName, match.coord);
 
     const spawnScript = `tell application "iTerm"
       activate
       if (count of windows) is 0 then
         set newWindow to (create window with default profile)
+        tell current session of newWindow
+          write text "${attachCmd}"
+        end tell
       else
         set newWindow to current window
-        tell newWindow to create tab with default profile
+        tell current session of newWindow
+          set splitSession to (split vertically with default profile command "${attachCmd}")
+          tell splitSession to select
+        end tell
       end if
-      tell current session of newWindow
-        write text "${attachCmd}"
-      end tell
     end tell`;
     await new Promise((resolve, reject) => {
       execFile('osascript', ['-e', spawnScript], (err, _o, ser) => {
@@ -1935,7 +1886,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
         resolve();
       });
     });
-    return { ok: true, coord: match.coord, mode: 'spawned-new', brokeOut: !!breakPaneResult };
+    return { ok: true, coord: match.coord, mode: 'split-native', brokeOut: !!breakPaneResult };
   } catch (err) {
     return { ok: false, error: err.message };
   }

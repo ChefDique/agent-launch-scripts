@@ -353,6 +353,13 @@ cmd_start() {
   # Navigation: mouse + Alt-number + Alt-arrow, no prefix chord required.
   tmux set -g mouse on
   tmux set -g history-limit 50000
+  # Let terminal chat UIs distinguish modified keys such as Shift+Enter
+  # through tmux. iTerm must also emit modified-key sequences for this to work.
+  tmux set -g extended-keys always
+  tmux set -g extended-keys-format csi-u
+  if ! tmux show -gqv terminal-features | tr ',' '\n' | grep -Eq '^xterm\*:(.*:)?extkeys(:|$)'; then
+    tmux set -as terminal-features ',xterm*:extkeys'
+  fi
   tmux bind-key -n M-1 select-pane -t 0
   tmux bind-key -n M-2 select-pane -t 1
   tmux bind-key -n M-3 select-pane -t 2

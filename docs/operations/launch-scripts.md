@@ -24,6 +24,13 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 - Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
 - Layout state can persist in the running tmux session through `@chq_layout`.
 - Existing process controls should use argv-style calls and surface hard failures when zero panes are targeted.
+- AgentRemote Deploy uses the `EACH`/`ittab` layout for one tmux pane per agent.
+  The Attach action should open the selected agent in a native iTerm split with
+  a normal `tmux attach`, so the current workspace gets a split pane instead of
+  another tmux control-mode tab.
+- `chq-tmux.sh` enables tmux extended keys for modified-key input such as
+  Shift+Enter. iTerm must also emit modified-key sequences from the active
+  profile; otherwise tmux only receives a plain Enter.
 
 ## Verification
 
