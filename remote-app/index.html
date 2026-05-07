@@ -5600,6 +5600,63 @@
       }
     }
 
+    function insertChatText(input, text) {
+      const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+      const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : input.value.length;
+      const before = input.value.slice(0, start);
+      const after = input.value.slice(end);
+      const prefix = before && !/\s$/.test(before) ? ' ' : '';
+      const suffix = after && !/^\s/.test(after) ? ' ' : '';
+      input.value = `${before}${prefix}${text}${suffix}${after}`;
+      const caret = before.length + prefix.length + text.length + suffix.length;
+      input.setSelectionRange(caret, caret);
+      input.focus();
+    }
+
+    async function saveClipboardImage(file) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      return ipcRenderer.invoke('save-pasted-image', {
+        base64: buffer.toString('base64'),
+        mimeType: file.type || 'image/png'
+      });
+    }
+
+    async function handleChatImagePaste(event) {
+      const input = event.currentTarget;
+      const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+      const imageFiles = items
+        .filter(item => item.kind === 'file' && /^image\//i.test(item.type || ''))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (imageFiles.length === 0) return;
+
+      event.preventDefault();
+      try {
+        const saved = [];
+        for (const file of imageFiles) {
+          const result = await saveClipboardImage(file);
+          if (!result || !result.ok || !result.path) {
+            throw new Error(result && result.error ? result.error : 'image paste failed');
+          }
+          saved.push(`[image: ${result.path}]`);
+        }
+        insertChatText(input, saved.join(' '));
+        showVoiceToast({
+          kind: 'ok',
+          target: saved.length === 1 ? 'image pasted' : `${saved.length} images pasted`,
+          snippet: saved.join(' '),
+          ms: 2600
+        });
+      } catch (err) {
+        showVoiceToast({
+          kind: 'error',
+          target: 'Image paste failed',
+          snippet: err && err.message ? err.message : String(err),
+          ms: 3500
+        });
+      }
+    }
+
     async function send() {
       const input = document.getElementById('chat-input');
       const msg = input.value;
@@ -6518,6 +6575,7 @@
       e.preventDefault();
       send();
     });
+    document.getElementById('chat-input').addEventListener('paste', handleChatImagePaste);
     // Escape blurs chat-input so number-key shortcuts (1..9 voice / Cmd+digit attach)
     // fire instead of typing digits into the field. Window opens with input auto-focused
     // by the focus-chat-input IPC; Escape is the way out without needing a border-click.

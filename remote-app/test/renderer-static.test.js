@@ -109,6 +109,17 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /send-keys', '-t', coord, 'C-m'/);
 });
 
+test('chat input paste persists clipboard images as local file references', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(html, /addEventListener\('paste', handleChatImagePaste\)/);
+  assert.match(html, /function handleChatImagePaste/);
+  assert.match(html, /item\.kind === 'file' && \/\^image\\\//);
+  assert.match(html, /ipcRenderer\.invoke\('save-pasted-image'/);
+  assert.match(html, /\[image: \$\{result\.path\}\]/);
+  assert.match(main, /ipcMain\.handle\('save-pasted-image'/);
+  assert.match(main, /agentremote-pasted-images/);
+});
+
 test('floating pet window maps Codex atlas rows and move events to moods', () => {
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
   assert.match(petWindow, /mood-running-right/);
