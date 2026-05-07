@@ -99,12 +99,17 @@
     {
       "id": "goku",
       "display_name": "GOKU",
-      "runtime": "hermes",
+      "runtime": "codex",
       "cwd": "/Users/richardadair/ai_projects/AgentRemote_AtlasIslands",
       "color": "cyan",
-      "startup_slash": "/gogo",
+      "startup_slash": "",
       "theme_color": "#00f2ff",
-      "avatar": "goku.gif"
+      "avatar": "goku.gif",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "auto_restart": false
     },
     {
       "id": "codex",
@@ -122,22 +127,24 @@
       "hidden": true
     },
     {
-      "id": "openclaw",
+      "id": "openclaw-generic",
       "display_name": "OPENCLAW",
       "runtime": "openclaw",
       "cwd": "/Users/richardadair/ai_projects/content-creation",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#ff0000"
+      "theme_color": "#ff0000",
+      "avatar": "openclaw.svg"
     },
     {
-      "id": "hermes",
+      "id": "hermes-generic",
       "display_name": "HERMES",
       "runtime": "hermes",
       "cwd": "/Users/richardadair/ai_projects",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#e3ff0f"
+      "theme_color": "#e3ff0f",
+      "avatar": "hermes.svg"
     },
     {
       "id": "tmux-masta",
@@ -146,11 +153,12 @@
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#ff8800",
+      "theme_color": "#00ff4c",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
-      "approval_policy": "never"
+      "approval_policy": "never",
+      "avatar": "tmux-masta.gif"
     }
   ]
 }
