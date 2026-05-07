@@ -117,6 +117,18 @@ test('deploy surface keeps the operator path to one movable window per agent', (
   assert.doesNotMatch(html, /data-layout="windows"/);
 });
 
+test('scrollable HUD popups use dark themed scrollbars', () => {
+  assert.match(html, /\.pet-picker,\s*\n\s*\.deploy-roster,/);
+  assert.match(html, /\.pet-picker::-webkit-scrollbar/);
+  assert.match(html, /\.pet-picker::-webkit-scrollbar-thumb/);
+});
+
+test('dock online state follows running pane, not attached iTerm client', () => {
+  assert.match(html, /Online means the tmux pane\/process exists/);
+  assert.match(html, /dot\.classList\.add\('on'\)/);
+  assert.doesNotMatch(html, /dot\.classList\.add\(s\.attached \? 'on' : 'detached'\)/);
+});
+
 test('edit form allows agent id edits until the agent is running', () => {
   assert.match(html, /Stop this agent before changing its id/);
   assert.match(html, /originalId: editingAgentId/);

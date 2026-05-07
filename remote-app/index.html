@@ -838,6 +838,7 @@
        window. Avoids the native white scrollbar inside dark glass surfaces. */
     .add-form,
     .armory-panel,
+    .pet-picker,
     .deploy-roster,
     .hidden-panel,
     .radial-settings,
@@ -847,6 +848,7 @@
     }
     .add-form::-webkit-scrollbar,
     .armory-panel::-webkit-scrollbar,
+    .pet-picker::-webkit-scrollbar,
     .deploy-roster::-webkit-scrollbar,
     .hidden-panel::-webkit-scrollbar,
     .radial-settings::-webkit-scrollbar,
@@ -856,6 +858,7 @@
     }
     .add-form::-webkit-scrollbar-track,
     .armory-panel::-webkit-scrollbar-track,
+    .pet-picker::-webkit-scrollbar-track,
     .deploy-roster::-webkit-scrollbar-track,
     .hidden-panel::-webkit-scrollbar-track,
     .radial-settings::-webkit-scrollbar-track,
@@ -866,6 +869,7 @@
     }
     .add-form::-webkit-scrollbar-thumb,
     .armory-panel::-webkit-scrollbar-thumb,
+    .pet-picker::-webkit-scrollbar-thumb,
     .deploy-roster::-webkit-scrollbar-thumb,
     .hidden-panel::-webkit-scrollbar-thumb,
     .radial-settings::-webkit-scrollbar-thumb,
@@ -879,6 +883,7 @@
     }
     .add-form::-webkit-scrollbar-thumb:hover,
     .armory-panel::-webkit-scrollbar-thumb:hover,
+    .pet-picker::-webkit-scrollbar-thumb:hover,
     .deploy-roster::-webkit-scrollbar-thumb:hover,
     .hidden-panel::-webkit-scrollbar-thumb:hover,
     .radial-settings::-webkit-scrollbar-thumb:hover,
@@ -889,6 +894,7 @@
     }
     .add-form::-webkit-scrollbar-corner,
     .armory-panel::-webkit-scrollbar-corner,
+    .pet-picker::-webkit-scrollbar-corner,
     .deploy-roster::-webkit-scrollbar-corner,
     .hidden-panel::-webkit-scrollbar-corner,
     .radial-settings::-webkit-scrollbar-corner,
@@ -6437,15 +6443,12 @@
           agents[s.id].attached = !!s.attached;
           const dot = document.getElementById(`dot-${s.id}`);
           if (dot) {
-            // Three states:
-            //   - .on        running + at least one tmux client attached
-            //   - .detached  running + zero clients attached (headless)
-            //   - (neither)  not running
-            // The classes are mutually exclusive so the CSS animations don't
-            // stack. Build the class list from scratch each tick.
+            // Online means the tmux pane/process exists. iTerm attachment is
+            // only a viewing-layer detail and must not make a live agent look
+            // offline in the dock.
             dot.classList.remove('on', 'detached');
             if (s.running) {
-              dot.classList.add(s.attached ? 'on' : 'detached');
+              dot.classList.add('on');
             }
           }
         });
