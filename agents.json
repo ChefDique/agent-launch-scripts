@@ -72,8 +72,8 @@
       "rename_to": "GEKKO"
     },
     {
-      "id": "swarmy",
-      "display_name": "overlordswarmy",
+      "id": "overlord-swarmy",
+      "display_name": "swarmy",
       "runtime": "codex",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
@@ -84,47 +84,22 @@
       "approval_policy": "never",
       "rename_to": "OVERLORDSWARMY",
       "startup_slash": "/gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy"
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
+      "avatar": "swarmy.svg"
     },
     {
-      "id": "gara",
-      "display_name": "GARRA",
-      "runtime": "openclaw",
+      "id": "tmux-masta",
+      "display_name": "TMUX-MASTA",
+      "runtime": "codex",
       "cwd": "/Users/richardadair/agent-launch-scripts",
       "color": "cyan",
       "startup_slash": "/gogo",
-      "theme_color": "#ad0000",
-      "avatar": "gara.gif"
-    },
-    {
-      "id": "goku",
-      "display_name": "GOKU",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/AgentRemote_AtlasIslands",
-      "color": "cyan",
-      "startup_slash": "",
-      "theme_color": "#00f2ff",
-      "avatar": "goku.gif",
+      "theme_color": "#00ff4c",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "auto_restart": false
-    },
-    {
-      "id": "codex",
-      "display_name": "Codex",
-      "runtime": "codex",
-      "cwd": "~/agent-launch-scripts",
-      "theme_color": "#0affc2",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "rename_to": "CODEX",
-      "startup_slash": "/gogo",
-      "avatar": "codex.svg",
-      "hidden": true
+      "avatar": "tmux-masta.gif"
     },
     {
       "id": "openclaw-generic",
@@ -147,18 +122,44 @@
       "avatar": "hermes.svg"
     },
     {
-      "id": "tmux-masta",
-      "display_name": "TMUX-MASTA",
+      "id": "goku",
+      "display_name": "GOKU",
       "runtime": "codex",
-      "cwd": "/Users/richardadair/agent-launch-scripts",
+      "cwd": "/Users/richardadair/ai_projects/AgentRemote_AtlasIslands",
       "color": "cyan",
-      "startup_slash": "/gogo",
-      "theme_color": "#00ff4c",
+      "startup_slash": "",
+      "theme_color": "#00f2ff",
+      "avatar": "goku.gif",
       "model": "gpt-5.5",
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "avatar": "tmux-masta.gif"
+      "auto_restart": false
+    },
+    {
+      "id": "gara",
+      "display_name": "GARRA",
+      "runtime": "openclaw",
+      "cwd": "/Users/richardadair/agent-launch-scripts",
+      "color": "cyan",
+      "startup_slash": "/gogo",
+      "theme_color": "#ad0000",
+      "avatar": "gara.gif"
+    },
+    {
+      "id": "codex",
+      "display_name": "Codex",
+      "runtime": "codex",
+      "cwd": "~/agent-launch-scripts",
+      "theme_color": "#0affc2",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "rename_to": "CODEX",
+      "startup_slash": "/gogo",
+      "avatar": "codex.svg",
+      "hidden": true
     }
   ]
 }

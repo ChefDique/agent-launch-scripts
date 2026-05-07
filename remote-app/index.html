@@ -3920,15 +3920,11 @@
       pollStatusOnce();
     }
 
-    // Registry-driven label for tile display. Uses the agent's id (the stable
-    // agents.json lookup key) rather than display_name, since display_name is
-    // load-bearing for pane targeting (e.g. "overlordswarmy" for the swarmy
-    // agent) and may not be suitable for a compact dock label. The id is always
-    // short, lowercase, and user-chosen — a reliable display key.
+    // Registry-driven label for tile display. The editable display_name field
+    // in the agent settings form is the user-facing name; id stays the stable
+    // lookup key for launch and IPC.
     function displayLabelFor(agent) {
-      const label = agent.id || agent.displayName || '';
-      // Titlecase: "xavier" → "Xavier", "swarmy" → "Swarmy"
-      return label.charAt(0).toUpperCase() + label.slice(1);
+      return String(agent.displayName || agent.id || '');
     }
 
     // HTML-escape helper for user/registry-supplied strings going into
@@ -4066,19 +4062,13 @@
       const exactCandidates = [
         agent.id,
         agent.displayName,
-        agent.id === 'xavier' ? 'professor-xavier' : '',
-        agent.id === 'codex' ? 'codeberg' : '',
-        agent.id === 'tmux-masta' ? 'openclaw' : '',
         agent.runtime === 'openclaw' ? 'openclaw' : '',
         agent.runtime === 'hermes' ? 'hermes' : ''
       ].map(normalizePetToken).filter(Boolean);
       for (const candidate of exactCandidates) {
         if (codexPetsById.has(candidate)) return codexPetsById.get(candidate);
       }
-      for (const fallback of ['openclaw', 'codeberg', 'neo']) {
-        if (codexPetsById.has(fallback)) return codexPetsById.get(fallback);
-      }
-      return codexPets.find(p => normalizePetToken(p.id) !== 'goku') || codexPets[0] || null;
+      return codexPets[0] || null;
     }
 
     function isAgentPetVisible(id) {
@@ -4375,10 +4365,7 @@
         btn.appendChild(overlay);
 
         // Wrap the avatar button + a small text label below it. Label text
-        // is resolved by labelTextFor(): rename_to wins when set (so editing
-        // the radial-settings field flips the label live), otherwise the
-        // mixed-case display_name with the overlordswarmy → Swarmy alias.
-        // tmux_target / display_name in the registry stay untouched.
+        // follows the editable display_name from the agent settings form.
         const tile = document.createElement('div');
         tile.className = 'agent-tile';
         tile.dataset.agentId = id;
@@ -4496,23 +4483,7 @@
     // ---------------------------------------------------------------------
     // Label resolution (v2.7)
     // ---------------------------------------------------------------------
-    // The dock label ALWAYS reflects the registry's rename_to whenever it's
-    // set, even if the value happens to equal display_name uppercased. This
-    // is what Richard expects: the radial-settings "Rename to" field is the
-    // single source of truth for the label below the avatar — type "XAVIER"
-    // and the label flips from "Xavier" to "XAVIER" immediately.
-    //
-    // Falls back to displayLabelFor() (mixed-case display_name + the
-    // overlordswarmy → Swarmy alias) ONLY when rename_to is empty.
-    //
-    // main.js exposes the raw registry value in agent.renameTo (empty when
-    // unset), which is what makes this discrimination possible. Earlier
-    // versions had main.js resolve empty → display_name uppercased, which
-    // collapsed "user explicitly typed XAVIER" into "user set nothing" — that
-    // resolution moved out of main.js (see loadAgents).
     function labelTextFor(agent) {
-      const renameTo = (agent.renameTo || '').trim();
-      if (renameTo) return renameTo;
       return displayLabelFor(agent);
     }
 
@@ -5484,16 +5455,8 @@
             const returned = (res.entry && res.entry[patchKey] !== undefined) ? res.entry[patchKey] : v;
             agent[localKey] = returned;
 
-            // v2.7: when rename_to changes, refresh the dock-label DOM
-            // immediately so Richard sees the new label without waiting for
-            // a full re-render. labelTextFor() honors any non-empty value
-            // (so editing to "XAVIER" really does flip "Xavier" → "XAVIER")
-            // and falls back to displayLabelFor() only when the field is
-            // cleared.
             if (patchKey === 'rename_to') {
               agent.renameTo = returned;
-              const labelEl = document.getElementById(`label-${id}`);
-              if (labelEl) labelEl.textContent = labelTextFor(agent);
             }
             // Brief green pulse to confirm the save landed.
             el.classList.add('saved');
@@ -7344,37 +7307,39 @@
     const CHAT_OVERLAY_MIN_W = 620;
     const CHAT_OVERLAY_MIN_H = 540;
 
-    // Bare-name canonical identities. Substrate is migrating off the
-    // `claude-` prefix per Richard 2026-05-03 — Hermes returns in a different
-    // shape so the disambiguator no longer earns its keep. Normalization
-    // below handles legacy `claude-*` and `overlordswarmy` for historical
-    // JSONL display until those rows age out.
-    const CHAT_FROM_COLORS = {
-      richard: '#e07c4c',  // matches --accent (amber)
-      lucius:  '#7fc7ff',
-      xavier:  '#c79bff',
-      gekko:   '#ff9b6a',
-      swarmy:  '#5cd28a'
-    };
+    const CHAT_SELF_COLOR = '#e07c4c';
     const CHAT_FROM_FALLBACK = 'var(--text-muted)';
 
     function chatNormalizeSender(from) {
       if (!from) return '';
-      const f = String(from).toLowerCase();
-      if (f === 'overlordswarmy') return 'swarmy';
-      if (f.startsWith('claude-')) return f.slice(7);
-      return f;
+      const f = String(from).toLowerCase().replace(/^@+/, '').trim();
+      const runtimePrefix = HARNESS_OPTIONS.map(option => `${option.id}-`).find(prefix => f.startsWith(prefix));
+      const bare = runtimePrefix ? f.slice(runtimePrefix.length) : f;
+      return bare.replace(/[^a-z0-9]+/g, '');
+    }
+
+    function chatAgentForFrom(from) {
+      const wanted = chatNormalizeSender(from);
+      if (!wanted || wanted === 'richard') return null;
+      return Object.values(agents || {}).find((agent) => {
+        return [agent.id, agent.displayName, agent.tmuxTarget]
+          .map(chatNormalizeSender)
+          .filter(Boolean)
+          .includes(wanted);
+      }) || null;
     }
 
     // Returns the agents.json id for avatar lookup; richard returns null
     // because self-bubbles right-align without an avatar.
     function chatAgentIdForFrom(from) {
-      const id = chatNormalizeSender(from);
-      return id === 'richard' ? null : id;
+      const agent = chatAgentForFrom(from);
+      return agent ? agent.id : null;
     }
 
     function chatColorFor(from) {
-      return CHAT_FROM_COLORS[chatNormalizeSender(from)] || CHAT_FROM_FALLBACK;
+      if (chatNormalizeSender(from) === 'richard') return CHAT_SELF_COLOR;
+      const agent = chatAgentForFrom(from);
+      return (agent && agent.themeColor) || CHAT_FROM_FALLBACK;
     }
 
     let chatDismissCleanup = null;                // outside-click / Esc unbinder
@@ -7595,7 +7560,8 @@
           senderRow.className = 'sender-row';
           const name = document.createElement('span');
           name.className = 'name';
-          name.textContent = from;
+          const agent = chatAgentForFrom(from);
+          name.textContent = agent ? displayLabelFor(agent) : from;
           name.style.color = chatColorFor(from);
           senderRow.appendChild(name);
           if (ts) {

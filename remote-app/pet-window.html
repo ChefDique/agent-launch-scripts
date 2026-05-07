@@ -530,10 +530,7 @@
     const expandKey = `agentremote.pet.${agentId || 'unknown'}.chatExpanded`;
 
     function normalizeSender(value) {
-      const raw = String(value || '').toLowerCase().replace(/^@+/, '').trim();
-      if (raw.startsWith('claude-')) return raw.slice(7);
-      if (raw === 'overlordswarmy') return 'swarmy';
-      return raw;
+      return String(value || '').toLowerCase().replace(/^@+/, '').trim().replace(/[^a-z0-9]+/g, '');
     }
 
     function agentAliases() {
@@ -677,7 +674,7 @@
       if (!res || !res.ok) return;
       chatTailOffset = res.offset || 0;
       historyLoaded = true;
-      renderMessages(res.envelopes || [], false);
+      renderMessages([], false);
     }
 
     async function tailRefresh() {

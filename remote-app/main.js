@@ -10,6 +10,7 @@ const { normalizeSpawnLayout, tmuxFocusedAttachCommand } = require('./layout-pol
 const { removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
+const { buildITermAttachScript } = require('./iterm-attach');
 const APP_PACKAGE = require('./package.json');
 
 // Pin the app name BEFORE anything reads userData paths. Without this, Electron
@@ -189,7 +190,7 @@ function writePetState(state) {
 }
 
 function normalizePetId(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function agentById(agentId) {
@@ -209,19 +210,13 @@ function defaultPetForAgent(agent) {
   const candidates = [
     agent.id,
     agent.displayName,
-    agent.id === 'xavier' ? 'professor-xavier' : '',
-    agent.id === 'codex' ? 'codeberg' : '',
-    agent.id === 'tmux-masta' ? 'openclaw' : '',
     agent.runtime === 'openclaw' ? 'openclaw' : '',
     agent.runtime === 'hermes' ? 'hermes' : ''
-  ].map(value => normalizePetId(value).replace(/[^a-z0-9]+/g, '-')).filter(Boolean);
+  ].map(normalizePetId).filter(Boolean);
   for (const candidate of candidates) {
     if (byId.has(candidate)) return byId.get(candidate);
   }
-  for (const fallback of ['openclaw', 'codeberg', 'neo']) {
-    if (byId.has(fallback)) return byId.get(fallback);
-  }
-  return pets.find(p => normalizePetId(p.id) !== 'goku') || pets[0] || null;
+  return pets[0] || null;
 }
 
 function defaultPetBounds(agentId) {
@@ -433,16 +428,8 @@ function loadAgents() {
         // Auto-restart defaults to true when the field is omitted (matches the
         // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
         autoRestart: a.auto_restart !== false,
-        // Expose the RAW registry value (empty string when the user hasn't set
-        // an override). The renderer uses this to drive the dock label: any
-        // non-empty value wins, otherwise the renderer falls back to
-        // displayLabelFor() (mixed-case displayName + the overlordswarmy → Swarmy
-        // alias). The /rename actually-sent-to-tmux default (display_name
-        // uppercased, mirroring launch-agent.sh) is surfaced via the renderer's
-        // input placeholder, so the user can still see what the empty fallback
-        // resolves to. Was previously eagerly resolved here, which prevented the
-        // renderer from telling "user explicitly set it to XAVIER" apart from
-        // "user set nothing and main filled in XAVIER".
+        // Raw registry value. Kept for launcher/runtime settings; the dock
+        // label follows display_name so the icon settings form is authoritative.
         renameTo: a.rename_to || '',
         startupSlash: a.startup_slash || '',
         avatar: a.avatar || bundledAvatarForId(a.id),
@@ -1279,23 +1266,17 @@ ipcMain.on('spawn-agents', (event, payload) => {
         execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
         return;
       }
-      // No client attached — open a fresh iTerm tab and run chq-tmux attach.
-      // CHQ_SCRIPT is a fixed path; safeAgents are id-validated. The
-      // AppleScript source is a single literal — no user input flows in.
-      const apple = `tell application "iTerm"
-        activate
-        if (count of windows) is 0 then
-          set newWindow to (create window with default profile)
-        else
-          set newWindow to current window
-          tell newWindow to create tab with default profile
-        end if
-        tell current session of newWindow
-          write text "bash ${CHQ_SCRIPT} attach"
-        end tell
-      end tell`;
+      // No client attached — open a fresh iTerm tab/window, then write the
+      // attach command into the new first-window session. This matches the
+      // AppleScript path verified live on Richard's iTerm build; the
+      // "create ... command" form opened a shell but did not run the command.
+      const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
       execFile('osascript', ['-e', apple], (err2, _o, e2) => {
-        if (err2) console.error(`[spawn] osascript attach failed: ${e2 || err2.message}`);
+        if (err2) {
+          const msg = e2 || err2.message;
+          console.error(`[spawn] osascript attach failed: ${msg}`);
+          logToOutLog(`[spawn] osascript attach failed: ${msg}`);
+        }
       });
     });
   });
