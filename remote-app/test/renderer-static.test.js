@@ -217,8 +217,10 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /renderMessages\(res\.envelopes \|\| \[\], false\)/);
   assert.match(petWindow, /await loadHistory\(\);\s*await startPaneStream\(\);/);
   assert.match(petWindow, /scrollbar-gutter: stable/);
-  assert.match(petWindow, /body:not\(\.chat-expanded\) \.msg \{/);
+  assert.match(petWindow, /\.msg \{[\s\S]*?width: 100%;[\s\S]*?background: transparent;/);
+  assert.match(petWindow, /\.msg \{[\s\S]*?box-shadow: none;[\s\S]*?backdrop-filter: none;/);
   assert.match(petWindow, /min-height: 126px/);
+  assert.doesNotMatch(petWindow, /body:not\(\.chat-expanded\) \.msg \{/);
   assert.doesNotMatch(petWindow, /\.msg:nth-last-child\(n\+3\)/);
   assert.match(petWindow, /\.resize-grip \{\s*display: none;/);
   assert.match(petWindow, /ipcRenderer\.on\(outputChannel, safeHandler\)/);
