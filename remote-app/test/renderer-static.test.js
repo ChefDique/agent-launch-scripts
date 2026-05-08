@@ -115,6 +115,7 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /labelTmuxPaneWindow/);
   assert.match(main, /updatePaneSidecarEntry/);
   assert.match(main, /selectTarget = match\.paneId/);
+  assert.match(main, /execFile\('tmux', \['switch-client', '-c', client\.name, '-t', windowTarget\]/);
   assert.match(main, /mode: 'control-mode-focus'/);
   assert.doesNotMatch(main, /mode: 'focused-existing'/);
   assert.doesNotMatch(main, /split vertically with default profile command/);
@@ -139,6 +140,8 @@ test('chat input paste persists clipboard images as local file references', () =
 
 test('embedded terminal intercepts paste and sends clipboard text or image references to the agent pane', () => {
   assert.match(html, /function pasteClipboardIntoAgentPane/);
+  assert.match(html, /host\.addEventListener\('paste', handleTerminalPaste, true\)/);
+  assert.match(html, /clipboardData\.getData\('text\/plain'\)/);
   assert.match(html, /term\.attachCustomKeyEventHandler/);
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);

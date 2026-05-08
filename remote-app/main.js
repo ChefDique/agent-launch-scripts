@@ -2253,6 +2253,20 @@ ipcMain.handle('attach-pane', async (event, id) => {
         throw new Error('control-mode iTerm viewer did not attach');
       }
     } else {
+      const controlModeClients = clients.filter(client => {
+        return String(client.controlMode) === '1' && /^\/dev\/ttys[0-9]+$/.test(String(client.name || ''));
+      });
+      if (controlModeClients.length === 0) {
+        throw new Error('control-mode iTerm viewer is present but no switchable client tty was found');
+      }
+      for (const client of controlModeClients) {
+        await new Promise((resolve, reject) => {
+          execFile('tmux', ['switch-client', '-c', client.name, '-t', windowTarget], (err, _o, ser) => {
+            if (err) return reject(new Error(ser || err.message));
+            resolve();
+          });
+        });
+      }
       await new Promise((resolve, reject) => {
         execFile('osascript', ['-e', 'tell application "iTerm" to activate'], (err, _o, ser) => {
           if (err) return reject(new Error(ser || err.message));

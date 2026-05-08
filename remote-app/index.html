@@ -5670,7 +5670,32 @@
       return result && result.ok && typeof result.text === 'string' ? result.text : '';
     }
 
-    async function pasteClipboardIntoAgentPane(agentId) {
+    async function pasteClipboardIntoAgentPane(agentId, event = null) {
+      const clipboardData = event && event.clipboardData;
+      const items = Array.from((clipboardData && clipboardData.items) || []);
+      const imageFiles = items
+        .filter(item => item.kind === 'file' && /^image\//i.test(item.type || ''))
+        .map(item => item.getAsFile())
+        .filter(Boolean);
+      if (imageFiles.length > 0) {
+        const saved = [];
+        for (const file of imageFiles) {
+          const result = await saveClipboardImage(file);
+          if (!result || !result.ok || !result.path) {
+            throw new Error(result && result.error ? result.error : 'image paste failed');
+          }
+          saved.push(`[image: ${result.path}]`);
+        }
+        ipcRenderer.send('pane-input', { id: agentId, data: saved.join(' ') });
+        return true;
+      }
+
+      const eventText = clipboardData && clipboardData.getData ? clipboardData.getData('text/plain') : '';
+      if (eventText) {
+        ipcRenderer.send('pane-input', { id: agentId, data: eventText });
+        return true;
+      }
+
       const marker = await saveNativeClipboardImageReference();
       if (marker) {
         ipcRenderer.send('pane-input', { id: agentId, data: marker });
@@ -8252,6 +8277,14 @@
 
       term.open(host);
       fitAddon.fit();
+      const handleTerminalPaste = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        pasteClipboardIntoAgentPane(agentId, ev).catch(err => {
+          term.write(`\r\n[AgentRemote] paste failed: ${err && err.message ? err.message : String(err)}\r\n`);
+        });
+      };
+      host.addEventListener('paste', handleTerminalPaste, true);
 
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
@@ -8264,7 +8297,7 @@
           && !ev.altKey;
         if (!isPaste) return true;
         ev.preventDefault();
-        pasteClipboardIntoAgentPane(agentId).catch(err => {
+        pasteClipboardIntoAgentPane(agentId, ev).catch(err => {
           term.write(`\r\n[AgentRemote] paste failed: ${err && err.message ? err.message : String(err)}\r\n`);
         });
         return false;
@@ -8283,7 +8316,7 @@
       };
       ipcRenderer.on(outputChannel, outputListener);
 
-      termState = { agentId, term, fitAddon, outputListener, outputChannel };
+      termState = { agentId, term, fitAddon, outputListener, outputChannel, handleTerminalPaste };
 
       // Open the panel in the DOM.
       document.body.classList.add('term-open');
@@ -8310,11 +8343,15 @@
     async function closeTermPanel() {
       if (!isTermOpen() && !termState.agentId) return;
 
-      const { agentId, term, outputChannel, outputListener } = termState;
+      const { agentId, term, outputChannel, outputListener, handleTerminalPaste } = termState;
 
       // Remove IPC listener first so no more output lands after close.
       if (outputChannel && outputListener) {
         ipcRenderer.removeListener(outputChannel, outputListener);
+      }
+      const host = document.getElementById('xterm-host');
+      if (host && handleTerminalPaste) {
+        host.removeEventListener('paste', handleTerminalPaste, true);
       }
 
       // Dispose the terminal.
@@ -8330,10 +8367,9 @@
       }
 
       // Reset state.
-      termState = { agentId: null, term: null, fitAddon: null, outputListener: null };
+      termState = { agentId: null, term: null, fitAddon: null, outputListener: null, handleTerminalPaste: null };
 
       // Remove the panel from the DOM.
-      const host = document.getElementById('xterm-host');
       if (host) host.innerHTML = '';
       document.body.classList.remove('term-open');
 
