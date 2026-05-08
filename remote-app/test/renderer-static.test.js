@@ -6,6 +6,44 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const registry = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agents.json'), 'utf8'));
 
+function assertProfilePresetShape(preset, context) {
+  assert.equal(typeof preset.profile_id, 'string', `${context}: profile_id`);
+  assert.ok(preset.workspace && typeof preset.workspace === 'object', `${context}: workspace`);
+  assert.ok(preset.workspace.cwd_mode, `${context}: workspace.cwd_mode`);
+  assert.ok(preset.workspace.worktree_strategy, `${context}: workspace.worktree_strategy`);
+  assert.ok(preset.local && typeof preset.local === 'object', `${context}: local`);
+  assert.ok(preset.local.mode, `${context}: local.mode`);
+  assert.ok(preset.local.attach, `${context}: local.attach`);
+  assert.ok(preset.sandbox && typeof preset.sandbox === 'object', `${context}: sandbox`);
+  assert.ok(preset.sandbox.mode, `${context}: sandbox.mode`);
+  assert.ok(preset.sandbox.approval_policy, `${context}: sandbox.approval_policy`);
+  assert.ok(preset.skills && typeof preset.skills === 'object', `${context}: skills`);
+  assert.ok(preset.skills.mode, `${context}: skills.mode`);
+  assert.ok(Array.isArray(preset.skills.allowed_skills), `${context}: skills.allowed_skills array`);
+}
+
+function assertTeamTemplateShape(template, profilePresetIds) {
+  assert.equal(template.layout, 'teams', `template ${template.template_id}: layout`);
+  assert.equal(typeof template.default_profile_preset, 'string', `template ${template.template_id}: default_profile_preset`);
+  assert.ok(
+    profilePresetIds.has(template.default_profile_preset),
+    `template ${template.template_id}: default_profile_preset ${template.default_profile_preset} must exist`
+  );
+
+  if (template.member_profile_overrides != null) {
+    assert.equal(typeof template.member_profile_overrides, 'object', `template ${template.template_id}: member_profile_overrides`);
+    assert.ok(!Array.isArray(template.member_profile_overrides), `template ${template.template_id}: member_profile_overrides is object`);
+    for (const [agentName, profilePresetId] of Object.entries(template.member_profile_overrides)) {
+      assert.equal(typeof agentName, 'string', `template ${template.template_id}: member key`);
+      assert.equal(typeof profilePresetId, 'string', `template ${template.template_id}: override for ${agentName} must be string`);
+      assert.ok(
+        profilePresetIds.has(profilePresetId),
+        `template ${template.template_id}: member override ${agentName} -> ${profilePresetId} must reference existing preset`
+      );
+    }
+  }
+}
+
 test('add-agent form contains harness logo picker and Armory import affordance', () => {
   assert.match(html, /id="f-harness-picker"/);
   assert.match(html, /id="armory-import-btn"/);
@@ -246,13 +284,12 @@ test('agent registry exposes swarm preset templates with runtime posture', () =>
     registry._team_preset_templates.map(template => template.template_id),
     ['swarmy-code-review', 'sandbox-conformance', 'xavier-swarm-assist'],
   );
+  const profilePresetIds = new Set(registry._profile_presets.map(p => p.profile_id));
   for (const preset of registry._profile_presets) {
-    assert.ok(preset.workspace.cwd_mode);
-    assert.ok(preset.workspace.worktree_strategy);
-    assert.ok(preset.local.mode);
-    assert.ok(preset.sandbox.mode);
-    assert.ok(preset.sandbox.approval_policy);
-    assert.ok(preset.skills.mode);
+    assertProfilePresetShape(preset, `profile preset ${preset.profile_id}`);
+  }
+  for (const template of registry._team_preset_templates) {
+    assertTeamTemplateShape(template, profilePresetIds);
   }
 });
 

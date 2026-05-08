@@ -33,9 +33,17 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
   an ad-hoc four-agent swarm.
 - `agents.json` also carries `_profile_presets` and `_team_preset_templates` so
   a launcher can choose a swarm by intent instead of hand-building entries. A
-  template names the built-in team, default profile preset, layout, selection
-  tags, member overrides, and the required sandbox/worktree/local/skills posture
-  that Swarmy must materialize before launch.
+  team template names the built-in team, default profile preset, layout, selection
+  tags, and member overrides. For AgentRemote, every template is now required to
+  use `layout: "teams"` and must resolve its `default_profile_preset` (plus any
+  override values) to an existing `_profile_presets` entry.
+- Profile presets are also structurally validated before being projected into
+  launch requests. Each preset must define:
+  - `workspace.cwd_mode`
+  - `workspace.worktree_strategy`
+  - `local.mode` and `local.attach`
+  - `sandbox.mode` and `sandbox.approval_policy`
+  - `skills.mode` and `skills.allowed_skills` (array)
 - AgentRemote also exposes `TABS`/`ittab`: one agent process in one tmux pane
   in one solo tmux window, surfaced through iTerm control mode. The durable unit
   is still the stable `%N` pane id recorded in `/tmp/agent-remote-panes.json`.
