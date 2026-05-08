@@ -1,7 +1,7 @@
-const LAYOUT_MODES = ['ittab', 'panes'];
-const DEPLOY_LAYOUTS = ['ittab', 'panes'];
+const LAYOUT_MODES = ['teams', 'ittab', 'panes'];
+const DEPLOY_LAYOUTS = ['teams', 'ittab', 'panes'];
 
-const DEFAULT_LAYOUT = 'ittab';
+const DEFAULT_LAYOUT = 'teams';
 
 function normalizeSpawnLayout(layout) {
   return DEPLOY_LAYOUTS.includes(layout) ? layout : DEFAULT_LAYOUT;
@@ -13,7 +13,7 @@ function layoutModeToDeployLayout(layoutMode) {
 
 function tmuxAttachCommand(sessionName, layout, options = {}) {
   const safeSession = String(sessionName || '').trim();
-  const movable = layout === 'ittab' || options.brokeOut === true;
+  const movable = layout === 'ittab' || layout === 'teams' || options.brokeOut === true;
   return movable
     ? `tmux -CC attach -t ${safeSession}`
     : `tmux attach -t ${safeSession}`;

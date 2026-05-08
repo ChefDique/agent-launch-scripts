@@ -215,11 +215,19 @@ test('floating pet chat bubble adapts above or below based on window bounds', ()
   assert.match(main, /PET_WORKAREA_SAFETY/);
 });
 
-test('deploy surface exposes separate-tabs and even-panes operator paths', () => {
+test('deploy surface exposes team, separate-tabs, and even-panes operator paths', () => {
+  assert.match(html, /data-layout="teams"/);
   assert.match(html, /data-layout="ittab"/);
   assert.match(html, /data-layout="panes"/);
+  assert.match(html, />Teams<\/button>/);
   assert.match(html, />Tabs<\/button>/);
   assert.match(html, />Panes<\/button>/);
+  assert.match(html, /id="layout-pills".*role="radiogroup"/s);
+  assert.match(html, /data-layout="teams"[^>]*role="radio"[^>]*aria-checked="true"/);
+  assert.match(html, /data-layout="ittab"[^>]*role="radio"[^>]*aria-checked="false"/);
+  assert.match(html, /data-layout="panes"[^>]*role="radio"[^>]*aria-checked="false"/);
+  assert.match(html, /class="deploy-layout-card" data-layout="teams" role="radio" aria-checked="true"/);
+  assert.match(html, /balanced team windows/);
   assert.match(html, /Separate tabs/);
   assert.match(html, /Even panes/);
   assert.match(html, /solo tmux window/);
@@ -235,13 +243,17 @@ test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', 
   assert.match(main, /SWARMY_RUNTIME_SCRIPT/);
   assert.match(main, /ai_projects', 'swarmy'/);
   assert.match(main, /agentremote_runtime\.py/);
+  assert.match(main, /function swarmyRuntimeArgs\(\.\.\.args\)\s*\{\s*return \[\s*SWARMY_RUNTIME_SCRIPT,\s*'--session',\s*RUNTIME_SESSION,\s*'--registry',\s*REGISTRY_PATH,\s*'--sidecar',\s*SIDECAR_PATH,/s);
   assert.match(main, /swarmyRuntimeArgs\('add', '--layout', layout, \.\.\.safeAgents\)/);
+  assert.match(main, /swarmyRuntimeArgs\('layout'\)/);
   assert.match(main, /swarmyRuntimeAttachCommand\(\)/);
+  assert.match(main, /`python3 \${SWARMY_RUNTIME_SCRIPT} --session \${RUNTIME_SESSION} --registry \${REGISTRY_PATH} --sidecar \${SIDECAR_PATH} attach`/);
   assert.match(main, /viewerSafetyState\(layout, RUNTIME_SESSION\)/);
   assert.match(main, /needsViewerCleanup: true/);
   assert.match(main, /viewerSafetyState\('ittab', sessionName\)/);
+  assert.match(main, /execFileP\('python3', swarmyRuntimeArgs\('add', '--layout', layout/);
   assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('stop'\)/);
-  assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('layout'\)/);
+  assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('layout'\),/);
   assert.doesNotMatch(main, /const CHQ_SCRIPT/);
   assert.doesNotMatch(main, /\\\/Users\\\/richardadair\\\/agent-launch-scripts/);
 });

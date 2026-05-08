@@ -11,6 +11,8 @@
     "sandbox": "Optional Codex sandbox mode. Defaults to danger-full-access for Codex entries launched from this local operator HUD.",
     "approval_policy": "Optional Codex approval policy. Defaults to never for Codex entries launched from this local operator HUD.",
     "runtime_args": "Optional argv array appended to the generated runtime command for runtime-specific flags.",
+    "team": "Optional runtime grouping key for Swarmy's teams layout. Agents with the same team are stacked into one balanced tmux window; omitted means default.",
+    "team_id": "Alias for team when importing from ACRM/Armory-shaped records.",
     "tmux_target": "Pane title used for broadcast + status targeting. Defaults to lowercased rename_to when present, otherwise lowercased display_name. Only set explicitly to override that derivation.",
     "cwd": "Working directory the launcher cd's into before exec. Tilde-expanded by launch-agent.sh.",
     "color": "Claude-only argument to /color. Set during Claude auto-inject; ignored by Codex/Hermes/OpenClaw.",

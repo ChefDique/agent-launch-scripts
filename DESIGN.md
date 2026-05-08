@@ -141,7 +141,7 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 - IPC: same hardened `execFile`-with-argv pattern; no shell strings
 - xterm.js + node-pty for the in-tile terminal expand (deferred — see open decisions)
 - Agent registry: reads `~/ai_projects/agent-launch-scripts/agents.json` (single source of truth — AgentRemote doesn't fork it)
-- Runtime orchestration: AgentRemote shells out to Swarmy's `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; that Swarmy adapter owns tmux layout/session lifecycle and calls `~/ai_projects/agent-launch-scripts/launch-agent.sh` as the per-agent runtime wrapper.
+- Runtime orchestration: AgentRemote shells out to Swarmy's `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; that Swarmy adapter owns tmux layout/session lifecycle and calls `~/ai_projects/agent-launch-scripts/launch-agent.sh` as the per-agent runtime wrapper. The default deploy layout is `teams`: one balanced tmux/iTerm control-mode surface per team, with `ittab` available for one-window-per-agent and `panes` available for a single joined tmux window.
 
 **Directory layout target:**
 ```

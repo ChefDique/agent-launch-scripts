@@ -7,6 +7,7 @@ This repo is Richard's local operator station for supervising agent sessions. It
 - The launcher stack must stay model/runtime agnostic across Codex, Claude, Hermes, and OpenClaw.
 - Codex is the current priority runtime because Claude session starts can waste scarce Claude tokens.
 - Swarmy's AgentRemote runtime adapter is the app runtime boundary for deploy/attach/stop/layout. `launch-agent.sh` remains the per-agent process boundary: it reads `agents.json`, builds argv arrays, and execs the configured model runtime.
+- AgentRemote's default deploy layout is `teams`: selected agents are grouped by `team`/`team_id` and each team gets a balanced tmux window surfaced through iTerm control mode. Missing team metadata falls back to one `default` team.
 - Missing `runtime` values default to Codex, not Claude.
 - `runtime: "codex"` must launch `codex`, not `claude`. Claude-only boot behavior such as `/color` and `/rename` auto-injects must stay gated to `runtime: "claude"`.
 - A `runtime: "claude"` registry entry must set `allow_claude_runtime: true`; the launcher test fails accidental Claude runtime entries.

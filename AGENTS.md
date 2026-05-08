@@ -72,7 +72,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
 - `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
 - Restart loops live in Swarmy's AgentRemote runtime or compatibility tmux orchestrators, not inside per-agent launchers.
-- Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
+- Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics. Default AgentRemote deploy is Swarmy's `teams` layout: balanced tmux/iTerm control-mode windows grouped by `agents.json` team metadata.
 - AgentRemote's intended pane style is one agent process in one tmux pane,
   isolated into its own tmux window, then surfaced by iTerm control mode. Do not
   use a normal `tmux attach` viewer or merged split-pane window as a workaround

@@ -17,7 +17,9 @@ test('tmux client parser keeps client name and control-mode flag', () => {
   ]);
 });
 
-test('ittab deploy requires a control-mode tmux client', () => {
+test('movable deploy layouts require a control-mode tmux client', () => {
+  assert.equal(hasRequiredTmuxClient('teams', [{ name: 'plain', controlMode: '0' }]), false);
+  assert.equal(hasRequiredTmuxClient('teams', [{ name: 'control', controlMode: '1' }]), true);
   assert.equal(hasRequiredTmuxClient('ittab', [{ name: 'plain', controlMode: '0' }]), false);
   assert.equal(hasRequiredTmuxClient('ittab', [{ name: 'control', controlMode: '1' }]), true);
 });
@@ -45,6 +47,10 @@ test('viewer safety catches plain clients before control-mode attach', () => {
   assert.deepEqual(plainTmuxClients(clients), [{ name: '/dev/ttys008', controlMode: '0' }]);
   assert.match(
     viewerSafetyError({ sessionName: 'chq', layout: 'ittab', sessions: [{ name: 'chq', group: 'chq' }], clients }),
+    /plain tmux clients are attached: \/dev\/ttys008/
+  );
+  assert.match(
+    viewerSafetyError({ sessionName: 'chq', layout: 'teams', sessions: [{ name: 'chq', group: 'chq' }], clients }),
     /plain tmux clients are attached: \/dev\/ttys008/
   );
   assert.equal(

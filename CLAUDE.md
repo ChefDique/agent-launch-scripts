@@ -80,7 +80,7 @@ To spawn the local team, use `python3 /Users/richardadair/ai_projects/swarmy/scr
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
 - `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
 - Restart loops live in Swarmy's AgentRemote runtime or compatibility tmux orchestrators, not inside per-agent launchers.
-- Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
+- Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics. Default AgentRemote deploy is Swarmy's `teams` layout: balanced tmux/iTerm control-mode windows grouped by `agents.json` team metadata.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.
 - Docs follow progressive disclosure: this file is the Claude supplement, `AGENTS.md` is the model-agnostic map, `docs/` is the system of record, and `.claude/memory/handoff.md` is the live continuation point.
 

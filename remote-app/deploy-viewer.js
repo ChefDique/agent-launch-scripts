@@ -11,7 +11,7 @@ function parseTmuxClientLines(output) {
 
 function hasRequiredTmuxClient(layout, clients) {
   const list = Array.isArray(clients) ? clients : [];
-  if (String(layout || '') === 'ittab') {
+  if (['ittab', 'teams'].includes(String(layout || ''))) {
     return list.some(client => String(client.controlMode) === '1');
   }
   return list.length > 0;
@@ -47,7 +47,7 @@ function viewerSafetyError({ sessionName = 'chq', layout = 'ittab', sessions = [
   if (grouped.length > 0) {
     return `refusing to open AgentRemote viewer while noncanonical grouped tmux sessions exist: ${grouped.map(s => s.name).join(', ')}`;
   }
-  if (String(layout || '') === 'ittab') {
+  if (['ittab', 'teams'].includes(String(layout || ''))) {
     const plain = plainTmuxClients(clients);
     if (plain.length > 0) {
       return `refusing to open AgentRemote control-mode viewer while plain tmux clients are attached: ${plain.map(c => c.name).join(', ')}`;
