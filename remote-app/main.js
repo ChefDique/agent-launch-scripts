@@ -1577,8 +1577,16 @@ function swarmyRuntimeArgs(...args) {
   ];
 }
 
+function shellQuoteArg(value) {
+  return `'${String(value || '').replace(/'/g, `'\\''`)}'`;
+}
+
+function shellQuoteCommand(args) {
+  return args.map(shellQuoteArg).join(' ');
+}
+
 function swarmyRuntimeAttachCommand() {
-  return `python3 ${SWARMY_RUNTIME_SCRIPT} --session ${RUNTIME_SESSION} --registry ${REGISTRY_PATH} --sidecar ${SIDECAR_PATH} attach`;
+  return shellQuoteCommand(['python3', ...swarmyRuntimeArgs('attach')]);
 }
 
 function delay(ms) {
@@ -1630,8 +1638,8 @@ async function spawnAgents(payload) {
   if (safeAgents.length === 0) return { ok: false, error: 'no deployable agents selected' };
 
   // Whitelist layout — passed through to Swarmy's AgentRemote runtime adapter.
-  // Fallback is ittab, because the operator default is draggable iTerm
-  // control-mode windows rather than one crowded split-pane tmux window.
+  // Fallback is teams, because the operator default is grouped iTerm
+  // control-mode team windows rather than one crowded split-pane tmux window.
   const layout = normalizeSpawnLayout(layoutRaw);
 
   // Emit agent_spawn_requested for each agent before launch.
@@ -1655,7 +1663,7 @@ async function spawnAgents(payload) {
 
   // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
   // every batch into a fresh iTerm tab. We now reuse an existing viewer only
-  // when tmux proves it is attached in the right mode. For ittab/EACH, plain
+  // when tmux proves it is attached in the right mode. For teams/ittab, plain
   // tmux attach is not enough; the operator path requires control mode so
   // iTerm materializes the tmux windows.
   let { error: viewerError, clients, sessions } = await viewerSafetyState(layout, RUNTIME_SESSION);
@@ -1682,7 +1690,7 @@ async function spawnAgents(payload) {
 
   clients = await waitForDeployViewer(layout);
   if (!hasRequiredTmuxClient(layout, clients)) {
-    const error = layout === 'ittab'
+    const error = ['teams', 'ittab'].includes(layout)
       ? 'deploy created chq panes but no iTerm control-mode client attached'
       : 'deploy created chq panes but no tmux client attached';
     logToOutLog(`[spawn] ${error}; clients=${JSON.stringify(clients)}`);
@@ -2180,7 +2188,7 @@ ipcMain.handle('kill-pane', async (event, id) => {
 //   1. Run `tmux select-pane -t <coord>` on the (possibly new) coord so
 //      server-side state reflects the desired active pane. select-pane with
 //      a fully-qualified coord (session:window.pane) switches the active
-//      window AND pane in one call — works across `panes`, `windows`, and
+//      window AND pane in one call — works across `teams`, `panes`, and
 //      `ittab` layouts.
 //
 //   2. Reuse the existing iTerm control-mode viewer when present. If no
@@ -2367,7 +2375,7 @@ ipcMain.handle('kill-session', async () => {
 });
 
 // get-session-layout — returns the value stashed in tmux's @chq_layout option
-// at session start time (one of 'panes' | 'windows' | 'ittab'), or '' if no
+// at session start time (one of 'teams' | 'panes' | 'ittab'), or '' if no
 // session is running.
 //
 // If the session exists but @chq_layout was never set (legacy session, or

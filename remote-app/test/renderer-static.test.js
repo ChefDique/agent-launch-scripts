@@ -244,10 +244,13 @@ test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', 
   assert.match(main, /ai_projects', 'swarmy'/);
   assert.match(main, /agentremote_runtime\.py/);
   assert.match(main, /function swarmyRuntimeArgs\(\.\.\.args\)\s*\{\s*return \[\s*SWARMY_RUNTIME_SCRIPT,\s*'--session',\s*RUNTIME_SESSION,\s*'--registry',\s*REGISTRY_PATH,\s*'--sidecar',\s*SIDECAR_PATH,/s);
+  assert.match(main, /function shellQuoteArg\(value\)/);
+  assert.match(main, /function shellQuoteCommand\(args\)/);
   assert.match(main, /swarmyRuntimeArgs\('add', '--layout', layout, \.\.\.safeAgents\)/);
   assert.match(main, /swarmyRuntimeArgs\('layout'\)/);
   assert.match(main, /swarmyRuntimeAttachCommand\(\)/);
-  assert.match(main, /`python3 \${SWARMY_RUNTIME_SCRIPT} --session \${RUNTIME_SESSION} --registry \${REGISTRY_PATH} --sidecar \${SIDECAR_PATH} attach`/);
+  assert.match(main, /shellQuoteCommand\(\['python3', \.\.\.swarmyRuntimeArgs\('attach'\)\]\)/);
+  assert.doesNotMatch(main, /`python3 \${SWARMY_RUNTIME_SCRIPT} --session \${RUNTIME_SESSION}/);
   assert.match(main, /viewerSafetyState\(layout, RUNTIME_SESSION\)/);
   assert.match(main, /needsViewerCleanup: true/);
   assert.match(main, /viewerSafetyState\('ittab', sessionName\)/);
