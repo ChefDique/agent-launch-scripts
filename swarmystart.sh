@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Start Swarmy in CHQ tmux and attach
+# Start Swarmy through Swarmy's AgentRemote runtime and attach.
 set -euo pipefail
 
-default_launch_root="${HOME}/ai_projects/agent-launch-scripts"
-legacy_launch_root="${HOME}/agent-launch-scripts"
-if [[ -n "${AGENT_LAUNCH_SCRIPTS_ROOT:-}" ]]; then
-  launch_root="${AGENT_LAUNCH_SCRIPTS_ROOT}"
-elif [[ -d "$default_launch_root" ]]; then
-  launch_root="$default_launch_root"
-else
-  launch_root="$legacy_launch_root"
-fi
+swarmy_runtime="${AGENTREMOTE_SWARMY_RUNTIME:-${HOME}/ai_projects/swarmy/scripts/agentremote_runtime.py}"
 
-bash "$launch_root/chq-tmux.sh" start swarmy
-bash "$launch_root/chq-tmux.sh" attach
+python3 "$swarmy_runtime" add overlord-swarmy
+python3 "$swarmy_runtime" attach

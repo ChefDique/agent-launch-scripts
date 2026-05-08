@@ -3906,7 +3906,7 @@
     //   panes: agent processes -> tmux panes joined in one balanced chq window
     // Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks.
     // Whitelisted on read; stale/corrupt values fall back to 'ittab'.
-    // Default flipped panes → ittab on 2026-05-03 to match chq-tmux.sh —
+    // Default flipped panes -> ittab on 2026-05-03 to match Swarmy's runtime —
     // multi-pane via iTerm windows is way more flexible than the cramped
     // horizontal-split-pane layout that piled 5+ agents into one tab.
     let layoutMode = 'ittab';
@@ -6026,7 +6026,7 @@
     // ---------------------------------------------------------------------
     // Session-layout tracking + tear-down button (Issue 2)
     // ---------------------------------------------------------------------
-    // chq-tmux.sh stashes the chosen layout in a tmux session option
+    // Swarmy's AgentRemote runtime stashes the chosen layout in a tmux session option
     // @chq_layout at start time. AgentRemote exposes TABS/ittab and
     // PANES/panes; old or externally-started sessions may still be in another
     // layout.

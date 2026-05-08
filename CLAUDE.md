@@ -6,7 +6,7 @@ This file intentionally matches the root `AGENTS.md` contract while adding Claud
 
 ## Repository Overview
 
-`agent-launch-scripts` owns Richard's local agent launch infrastructure and the lightweight AgentRemote Electron HUD. This repo is the operator-station layer: spawn and supervise local agent sessions, route messages to tmux panes, and keep the always-on desktop remote useful and polished. The canonical checkout path is `/Users/richardadair/ai_projects/agent-launch-scripts`; `/Users/richardadair/agent-launch-scripts` may exist only as a compatibility symlink.
+`agent-launch-scripts` owns Richard's local agent launch infrastructure and the lightweight AgentRemote Electron HUD. This repo is the operator-station layer: per-agent launch wrappers, registry data, desktop UI, and message delivery into tmux panes. The canonical checkout path is `/Users/richardadair/ai_projects/agent-launch-scripts`; do not route active code through `/Users/richardadair/agent-launch-scripts`.
 
 The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintainer. It is sister-level to the agent fleet, not one of the fleet panes.
 
@@ -26,7 +26,8 @@ The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintaine
 
 | Path | Purpose |
 |---|---|
-| `chq-tmux.sh`, `rnd-tmux.sh`, `trading-tmux.sh` | Tmux session orchestration and layout behavior. |
+| `/Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py` | Primary AgentRemote deploy/attach/stop/layout runtime. |
+| `chq-tmux.sh`, `rnd-tmux.sh`, `trading-tmux.sh` | Compatibility/manual tmux wrappers and project-specific sessions. |
 | `launch-agent.sh`, agent wrapper scripts | Per-agent foreground launchers and auto-inject startup flow. |
 | `agents.json` | Canonical local fleet registry consumed by scripts and AgentRemote. |
 | `remote-app/` | Current Electron AgentRemote implementation. |
@@ -35,7 +36,7 @@ The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintaine
 
 ## Current Work
 
-- Treat AgentRemote as the lightweight local operator HUD, not ACRM, Atlas, or the Swarmy worker runtime.
+- Treat AgentRemote as the lightweight local operator HUD, not ACRM or Atlas. Swarmy owns the app runtime path for deploy/attach/stop/layout.
 - Core value is fast communication with agents: select targets, type or hold-to-talk, send instantly, and trust delivery feedback.
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
 - Keep the remote model/runtime agnostic. It controls local processes and panes; it should not depend on one model vendor.
@@ -45,7 +46,7 @@ The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintaine
 
 ## Claude-Specific Role
 
-- Maintain launch infrastructure: `launch-agent.sh`, `chq-tmux.sh`, project tmux wrappers, `agents.json`, and restart-loop reliability.
+- Maintain launch infrastructure: `launch-agent.sh`, Swarmy's AgentRemote runtime adapter, project tmux wrappers, `agents.json`, and restart-loop reliability.
 - Maintain AgentRemote in `remote-app/`, especially Electron IPC, local process control, hold-to-talk flow, delivery feedback, and tmux targeting.
 - Use `.claude/agents/tmux-electron-master.md` as the local specialist reference for UI precision, motion, Electron internals, and orchestration integrity.
 - Use `claude-peers` for live peer communication when available. Match peers by cwd; messages are self-contained because peer messages do not carry this conversation context.
@@ -59,14 +60,14 @@ The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintaine
 | Gekko | `~/ai_projects/trading` | Trading lead and governance/capital workflow owner. |
 | Swarmy | `~/ai_projects/swarmy` | Multi-agent orchestration/runtime lead. |
 
-To spawn the local team from this repo, use `bash chq-tmux.sh start xavier lucius gekko swarmy` or a subset. Use `bash chq-tmux.sh attach` to attach.
+To spawn the local team, use `python3 /Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py add xavier lucius gekko overlord-swarmy` or a subset. Use `python3 /Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py attach` to attach.
 
 ## Workflow Rules
 
 - Root stack is Bash scripts plus an Electron subproject; there is no root package manager or CI.
 - Preserve user/local work. Check `git status --short --branch` before editing.
 - Treat dirty state as shared operational evidence, not a mystery. Review and classify every dirty file before and after work. If changes came from AgentRemote usage, another TMUX-MASTA lane, or app-generated registry/avatar edits, say that explicitly and either integrate them or leave a concrete reason for deferring.
-- For launcher edits, run targeted shell checks such as `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`.
+- For launcher edits, run targeted shell checks such as `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh` plus Swarmy's AgentRemote runtime tests.
 - For Electron edits, use `bash launch-remote.sh`; do not start duplicate AgentRemote instances.
 - For AgentRemote app edits, bump `remote-app/package.json` and `remote-app/package-lock.json` using SemVer before commit. The HUD must show `v<semver> <branch>@<sha>` so stale worktree apps are visually identifiable.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
@@ -78,7 +79,7 @@ To spawn the local team from this repo, use `bash chq-tmux.sh start xavier luciu
 
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
 - `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
-- Restart loops live in tmux orchestrators, not inside per-agent launchers.
+- Restart loops live in Swarmy's AgentRemote runtime or compatibility tmux orchestrators, not inside per-agent launchers.
 - Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.
 - Docs follow progressive disclosure: this file is the Claude supplement, `AGENTS.md` is the model-agnostic map, `docs/` is the system of record, and `.claude/memory/handoff.md` is the live continuation point.

@@ -5,7 +5,7 @@
 # attached tmux client, so this script:
 #   - hardcodes absolute paths for tmux and jq
 #   - resolves the target pane via /tmp/agent-remote-panes.json (the
-#     pane_id sidecar written by chq-tmux.sh at agent deploy time)
+#     pane_id sidecar written by Swarmy's AgentRemote runtime at deploy time)
 #   - never starts tmux or wakes a cold session — if the chq session or
 #     the agent's pane isn't live, this exits non-zero so the cron line
 #     surfaces in the log instead of silently launching against nothing
@@ -44,10 +44,10 @@ message=$*
 
 [[ -x "$TMUX" ]] || die "tmux not found at $TMUX" 3
 [[ -x "$JQ"   ]] || die "jq not found at $JQ"     3
-[[ -r "$SIDECAR" ]] || die "sidecar missing at $SIDECAR — is chq-tmux.sh running?" 3
+[[ -r "$SIDECAR" ]] || die "sidecar missing at $SIDECAR — is the Swarmy AgentRemote runtime running?" 3
 
 pane_id=$("$JQ" -r --arg a "$agent_id" '.[$a].pane_id // empty' "$SIDECAR")
-[[ -n "$pane_id" ]] || die "agent '$agent_id' not in sidecar — deploy it first via chq-tmux.sh" 4
+[[ -n "$pane_id" ]] || die "agent '$agent_id' not in sidecar — deploy it first via Swarmy's AgentRemote runtime" 4
 
 # tmux send-keys with -t <pane_id> works without a TMUX env var because
 # pane_ids (%N) are server-wide. If the pane has been killed since the

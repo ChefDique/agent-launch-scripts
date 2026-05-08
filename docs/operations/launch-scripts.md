@@ -8,9 +8,9 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 | Command | Use |
 |---|---|
-| `bash chq-tmux.sh start [agents...]` | Start the central multi-agent tmux session. |
-| `bash chq-tmux.sh stop` | Stop the central session. |
-| `bash chq-tmux.sh attach` | Attach to the current session. |
+| `python3 ~/ai_projects/swarmy/scripts/agentremote_runtime.py add [agents...]` | Start/add agents through the Swarmy-owned AgentRemote runtime. |
+| `python3 ~/ai_projects/swarmy/scripts/agentremote_runtime.py stop` | Stop the central AgentRemote runtime session. |
+| `python3 ~/ai_projects/swarmy/scripts/agentremote_runtime.py attach` | Attach to the current runtime session. |
 | `bash launch-agent.sh <id>` | Launch a single configured agent. |
 | `bash launch-remote.sh` | Start AgentRemote after killing a prior instance. |
 | `bash launch-remote.sh stop` | Stop AgentRemote. |
@@ -19,14 +19,18 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 ## Load-Bearing Invariants
 
-- Agent runtime identity comes from `agents.json`. Claude entries use `-n <Name>` plus `/rename`; Codex/Hermes/OpenClaw entries keep the tmux title set by `chq-tmux.sh` unless `tmux_target` overrides it.
-- The tmux restart loop belongs in `chq-tmux.sh` and related tmux orchestrators.
+- Agent runtime identity comes from `agents.json`. Claude entries use `-n <Name>` plus `/rename`; Codex/Hermes/OpenClaw entries keep the tmux title set by Swarmy's AgentRemote runtime unless `tmux_target` overrides it.
+- The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
 - Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
 - Layout state can persist in the running tmux session through `@chq_layout`.
 - Existing process controls should use argv-style calls and surface hard failures when zero panes are targeted.
 - AgentRemote Deploy uses the `EACH`/`ittab` control-mode layout. The durable
   unit is one agent process in one tmux pane, with a stable `%N` pane id recorded
   in `/tmp/agent-remote-panes.json`.
+- `chq` is the canonical tmux attach target. Grouped aliases such as
+  `chq-xavier`, `chq-swarmy`, or `chq-tmux-masta` are recovery residue unless a
+  future spec explicitly reintroduces them; AgentRemote must refuse to open a
+  viewer while they exist.
 - The intended viewing contract is "double wrapped": agent process -> tmux pane
   -> solo tmux window -> iTerm control-mode surface. Richard does not mean a
   normal `tmux attach` grid containing several agent panes in one terminal.
@@ -36,6 +40,9 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 - Do not implement Attach by opening a normal `tmux attach -t chq` iTerm window,
   splitting the current iTerm session, or otherwise showing multiple agents in
   one tmux window. That makes the panes hard to arrange, resize, or pull apart.
+- Do not target `first window` in iTerm automation. Create or reuse the marked
+  `AgentRemote CHQ Viewer` window only; unrelated Codex, Claude, or manual
+  operator windows are out of scope.
 - Separate iTerm windows/tabs are incidental UI materialization. The invariant is
   that each agent pane must be isolated in its own tmux window before iTerm
   control mode presents it.
@@ -46,14 +53,15 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
   Live validation can leave duplicate tmux clients, headless panes, or stray
   tabs. Use mocked IPC, isolated throwaway tmux sessions, or static command
   checks unless Richard explicitly requests a live desktop mutation.
-- `chq-tmux.sh` enables tmux extended keys for modified-key input such as
+- Swarmy's AgentRemote runtime enables tmux extended keys for modified-key input such as
   Shift+Enter. iTerm must also emit modified-key sequences from the active
   profile; otherwise tmux only receives a plain Enter.
 
 ## Verification
 
 ```bash
-bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh
+python3 -m pytest ~/ai_projects/swarmy/tests/test_agentremote_runtime.py -q
+bash -n launch-agent.sh launch-remote.sh scripts/cron-poke.sh
 bash test/launch-agent-runtime.test.sh
 cd remote-app && npm install
 bash ../launch-remote.sh

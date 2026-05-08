@@ -33,7 +33,7 @@ class RemoteWindow: NSPanel {
             ("X", "xavier", NSColor.systemBlue),
             ("L", "lucius", NSColor.systemOrange),
             ("G", "gekko", NSColor.systemGreen),
-            ("O", "swarmy", NSColor.systemCyan)
+            ("O", "overlord-swarmy", NSColor.systemCyan)
         ]
         
         for (label, id, color) in buttons {
@@ -65,13 +65,10 @@ class RemoteWindow: NSPanel {
         let task = Process()
         task.launchPath = "/usr/bin/env"
         let home = NSHomeDirectory()
-        let envRoot = ProcessInfo.processInfo.environment["AGENT_LAUNCH_SCRIPTS_ROOT"]
-        let canonicalRoot = "\(home)/ai_projects/agent-launch-scripts"
-        let legacyRoot = "\(home)/agent-launch-scripts"
-        let root = envRoot ?? (FileManager.default.fileExists(atPath: canonicalRoot) ? canonicalRoot : legacyRoot)
+        let runtime = ProcessInfo.processInfo.environment["AGENTREMOTE_SWARMY_RUNTIME"]
+            ?? "\(home)/ai_projects/swarmy/scripts/agentremote_runtime.py"
         
-        // Use CHQ for everything now that it's extended
-        task.arguments = ["bash", "\(root)/chq-tmux.sh", "start", id]
+        task.arguments = ["python3", runtime, "add", id]
         
         try? task.run()
         

@@ -230,6 +230,22 @@ test('deploy surface exposes separate-tabs and even-panes operator paths', () =>
   assert.doesNotMatch(html, /data-layout="windows"/);
 });
 
+test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /SWARMY_RUNTIME_SCRIPT/);
+  assert.match(main, /ai_projects', 'swarmy'/);
+  assert.match(main, /agentremote_runtime\.py/);
+  assert.match(main, /swarmyRuntimeArgs\('add', '--layout', layout, \.\.\.safeAgents\)/);
+  assert.match(main, /swarmyRuntimeAttachCommand\(\)/);
+  assert.match(main, /viewerSafetyState\(layout, RUNTIME_SESSION\)/);
+  assert.match(main, /needsViewerCleanup: true/);
+  assert.match(main, /viewerSafetyState\('ittab', sessionName\)/);
+  assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('stop'\)/);
+  assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('layout'\)/);
+  assert.doesNotMatch(main, /const CHQ_SCRIPT/);
+  assert.doesNotMatch(main, /\\\/Users\\\/richardadair\\\/agent-launch-scripts/);
+});
+
 test('scrollable HUD popups use dark themed scrollbars', () => {
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
   assert.match(html, /\*::-webkit-scrollbar-thumb/);

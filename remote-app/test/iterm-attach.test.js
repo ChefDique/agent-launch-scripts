@@ -1,26 +1,28 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildITermAttachScript, buildITermFirstWindowAttachScript, quoteAppleScriptString } = require('../iterm-attach');
+const {
+  AGENTREMOTE_ITERM_VIEWER_MARKER,
+  buildITermAttachScript,
+  quoteAppleScriptString
+} = require('../iterm-attach');
 
-test('iTerm attach script targets the newly created iTerm tab before writing attach', () => {
-  const script = buildITermAttachScript('bash /Users/richardadair/ai_projects/agent-launch-scripts/chq-tmux.sh attach');
+test('iTerm attach script creates or reuses only the marked AgentRemote viewer window', () => {
+  const script = buildITermAttachScript('python3 /Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py attach');
 
+  assert.equal(AGENTREMOTE_ITERM_VIEWER_MARKER, 'AgentRemote CHQ Viewer');
+  assert.match(script, /set markerName to "AgentRemote CHQ Viewer"/);
+  assert.match(script, /repeat with candidateWindow in windows/);
+  assert.match(script, /if \(name of candidateSession as text\) contains markerName then/);
   assert.match(script, /create window with default profile/);
   assert.match(script, /create tab with default profile/);
-  assert.match(script, /tell current session of first window/);
-  assert.match(script, /write text "bash \/Users\/richardadair\/ai_projects\/agent-launch-scripts\/chq-tmux\.sh attach"/);
+  assert.match(script, /set targetWindow to current window/);
+  assert.match(script, /tell current session of targetWindow/);
+  assert.match(script, /set name to markerName/);
+  assert.match(script, /write text "python3 \/Users\/richardadair\/ai_projects\/swarmy\/scripts\/agentremote_runtime\.py attach"/);
   assert.doesNotMatch(script, /with default profile command/);
   assert.doesNotMatch(script, /current session of newWindow/);
-});
-
-test('iTerm first-window attach script writes into the existing first window', () => {
-  const script = buildITermFirstWindowAttachScript('bash /Users/richardadair/ai_projects/agent-launch-scripts/chq-tmux.sh attach');
-
-  assert.match(script, /if \(count of windows\) is 0 then/);
-  assert.doesNotMatch(script, /create tab with default profile/);
-  assert.match(script, /tell current session of first window/);
-  assert.match(script, /write text "bash \/Users\/richardadair\/ai_projects\/agent-launch-scripts\/chq-tmux\.sh attach"/);
+  assert.doesNotMatch(script, /tell first window\\n    create tab/);
 });
 
 test('AppleScript string quoting escapes quotes and backslashes', () => {

@@ -2,15 +2,12 @@ import tkinter as tk
 import subprocess
 import os
 
-def launch_scripts_root():
-    configured = os.environ.get("AGENT_LAUNCH_SCRIPTS_ROOT")
+def swarmy_runtime_script():
+    configured = os.environ.get("AGENTREMOTE_SWARMY_RUNTIME")
     if configured:
         return os.path.expanduser(configured)
     home = os.path.expanduser("~")
-    canonical = os.path.join(home, "ai_projects", "agent-launch-scripts")
-    if os.path.isdir(canonical):
-        return canonical
-    return os.path.join(home, "agent-launch-scripts")
+    return os.path.join(home, "ai_projects", "swarmy", "scripts", "agentremote_runtime.py")
 
 class AgentRemote:
     def __init__(self, root):
@@ -25,14 +22,14 @@ class AgentRemote:
             "xavier": False,
             "lucius": False,
             "gekko": False,
-            "swarmy": False
+            "overlord-swarmy": False
         }
         
         self.colors = {
             "xavier": "#00a2ff",
             "lucius": "#ffaa00",
             "gekko": "#00ff88",
-            "swarmy": "#00ffff"
+            "overlord-swarmy": "#00ffff"
         }
 
         # Draggable logic
@@ -48,7 +45,7 @@ class AgentRemote:
             ("X", "xavier"),
             ("L", "lucius"),
             ("G", "gekko"),
-            ("S", "swarmy")
+            ("S", "overlord-swarmy")
         ]
 
         for label, id in agents:
@@ -77,8 +74,8 @@ class AgentRemote:
         if not active:
             return
             
-        # Build the chq-tmux command with all selected agents
-        cmd = ["bash", f"{launch_scripts_root()}/chq-tmux.sh", "start"] + active
+        # Route deploy through Swarmy's AgentRemote runtime adapter.
+        cmd = ["python3", swarmy_runtime_script(), "add"] + active
         
         # Launch and reset selections
         subprocess.Popen(cmd, start_new_session=True)

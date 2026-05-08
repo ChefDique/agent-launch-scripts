@@ -12,8 +12,11 @@ verified by Richard in the running app.
 - Do not validate by mutating Richard's live iTerm/tmux desktop unless he asks
   for that exact live mutation.
 - Use isolated worktrees or mocked/throwaway tmux sessions for tests.
-- Treat AgentRemote as the operator HUD. Swarmy can later own realtime protocol,
-  but this app must remain usable on its own.
+- Treat AgentRemote as the operator HUD. Swarmy owns the add/attach/layout
+  runtime adapter; AgentRemote calls that adapter and must not revive old
+  repo-local launch paths.
+- Never close unrelated operator windows as setup. Any iTerm automation must
+  create or reuse one marked AgentRemote viewer window only.
 
 ## Desired Layout Direction
 
@@ -38,6 +41,8 @@ underlay must support:
 | Ready for Richard verification | Pet chat should show only the intended chat/agent stream, not the input box, prompt chrome, statusline, or full terminal screen. | Pet chat view contains clean conversation/output stream only. |
 | Ready for Richard verification | Pet chat scrollback should let Richard scroll up without immediately yanking to the bottom. | Scroll up while new output arrives; view stays pinned unless Richard returns to bottom. |
 | Open | Visible "do not close" markers must appear on the surface Richard actually sees. Tmux window names alone are insufficient because they may not appear in iTerm chrome. | Screenshot shows obvious KEEP/OK-CLOSE guidance in the visible UI. |
+| In progress | AgentRemote viewer attach must refuse unsafe tmux viewer states before opening iTerm: noncanonical grouped sessions such as `chq-swarmy`, or plain tmux clients attached while the requested layout is iTerm control mode. | Static tests cover viewer safety classification; live deploy shows a cleanup error instead of opening more windows. |
+| In progress | iTerm attach helper must create/reuse one marked `AgentRemote CHQ Viewer` window and never target `first window`, because that can inject attach commands into unrelated operator work. | Static test confirms the AppleScript searches for the marker and writes only to `targetWindow`. |
 | Ready for Richard verification | AgentRemote must not appear frontmost-but-invisible. If DevToolsActivePort exists but is not listening, treat the HUD as stale/wedged and relaunch canonically. | Screenshot shows the HUD after summon/toggle; DevTools endpoint is reachable or stale file is cleaned. |
 | Open | Layout labels must explain the tmux wrap pattern: Tabs/Separate, Panes/Joined, and any future preset names. | Layout picker text makes the underlying tmux pattern clear. |
 | Open | Pasting pictures into this Codex chat is outside AgentRemote; do not claim AgentRemote fixes will fix Codex attachment paste. | Separate diagnosis names Codex chat paste as a harness/app issue. |

@@ -1,7 +1,7 @@
 {
-  "_comment": "Agent registry. Single source of truth for launch-agent.sh, chq-tmux.sh, and the Electron remote. Add a new agent by appending one entry — no new bash file needed.",
+  "_comment": "Agent registry. Single source of truth for launch-agent.sh, Swarmy's AgentRemote runtime adapter, and the Electron remote. Add a new agent by appending one entry — no new bash file needed.",
   "_field_docs": {
-    "id": "Stable lookup key. Used by launch-agent.sh <id>, chq-tmux.sh start <id>, and the Electron remote button id.",
+    "id": "Stable lookup key. Used by launch-agent.sh <id>, Swarmy's agentremote_runtime.py add <id>, and the Electron remote button id.",
     "display_name": "Human-facing label. Claude runtimes pass it to -n <Name>; other runtimes use it for pane labels and AgentRemote UI.",
     "runtime": "Agent CLI runtime. Supported values: codex, claude, hermes, openclaw. Defaults to codex for missing legacy entries while Claude tokens are constrained.",
     "allow_claude_runtime": "Set true only for an intentional Claude runtime entry. Tests fail any runtime=claude entry without this explicit opt-in.",
@@ -17,7 +17,7 @@
     "theme_color": "Hex color string (e.g. '#00f2ff') used by AgentRemote to generate per-agent CSS variables at runtime. Controls the active-border glow and radial-orb palette. Picked in the Add Agent modal. Falls back to --accent if omitted.",
     "rename_to": "Claude-only argument to /rename. Non-Claude runtimes keep the tmux pane title unless tmux_target is set.",
     "startup_slash": "Startup command passed to runtimes that support it. Lead agents must use /lead-gogo so repo-local /gogo files extend the global protocol instead of shadowing it. Empty string disables.",
-    "auto_restart": "If false, chq-tmux.sh's pane_loop exits after the agent quits instead of relooping after RESTART_DELAY. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
+    "auto_restart": "If false, Swarmy's AgentRemote runtime loop exits after the agent quits instead of relooping. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
     "pre_launch": "Optional path to a hook script run before execing the configured runtime. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
     "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
     "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."

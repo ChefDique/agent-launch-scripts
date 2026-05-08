@@ -141,7 +141,7 @@ The iso version is its own product, lives in ACRM under the validate-proposal tr
 - IPC: same hardened `execFile`-with-argv pattern; no shell strings
 - xterm.js + node-pty for the in-tile terminal expand (deferred — see open decisions)
 - Agent registry: reads `~/ai_projects/agent-launch-scripts/agents.json` (single source of truth — AgentRemote doesn't fork it)
-- Tmux orchestration: shells out to `~/ai_projects/agent-launch-scripts/launch-agent.sh` and `chq-tmux.sh` (AgentRemote is a UI on top of the existing scripts — doesn't reimplement them)
+- Runtime orchestration: AgentRemote shells out to Swarmy's `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; that Swarmy adapter owns tmux layout/session lifecycle and calls `~/ai_projects/agent-launch-scripts/launch-agent.sh` as the per-agent runtime wrapper.
 
 **Directory layout target:**
 ```
@@ -275,7 +275,7 @@ The renderer documents the full map in a comment block at the top of the script 
 
 ### 9.7 IPC contract
 
-- `spawn-agents` — deploy selected agents in tmux via `chq-tmux.sh add`. Hardened against shell injection (id-validated).
+- `spawn-agents` — deploy selected agents via Swarmy's AgentRemote runtime adapter. Hardened against shell injection (id-validated).
 - `broadcast-message` — send a message to selected agents' tmux panes via `tmux send-keys`. Same id-validation; pane title resolved by substring of `tmuxTarget`.
 - `transcribe-voice` — base64 audio → local whisper CLI → transcript text.
 - `add-agent` / `remove-agent` / `reorder-agents` / `update-agent` / `update-agent-cwd` — registry CRUD.

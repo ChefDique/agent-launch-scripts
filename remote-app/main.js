@@ -11,7 +11,12 @@ const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, reso
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
-const { hasRequiredTmuxClient, parseTmuxClientLines } = require('./deploy-viewer');
+const {
+  hasRequiredTmuxClient,
+  parseTmuxClientLines,
+  parseTmuxSessionGroupLines,
+  viewerSafetyError
+} = require('./deploy-viewer');
 const APP_PACKAGE = require('./package.json');
 const { bus: atlasBus } = require('./atlas-event-bus');
 
@@ -25,7 +30,10 @@ app.setName('AgentRemote');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
-const CHQ_SCRIPT = path.join(REPO_ROOT, 'chq-tmux.sh');
+const SWARMY_ROOT = process.env.SWARMY_ROOT || path.join(os.homedir(), 'ai_projects', 'swarmy');
+const SWARMY_RUNTIME_SCRIPT = process.env.AGENTREMOTE_SWARMY_RUNTIME
+  || path.join(SWARMY_ROOT, 'scripts', 'agentremote_runtime.py');
+const RUNTIME_SESSION = process.env.AGENTREMOTE_TMUX_SESSION || 'chq';
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 const DEFAULT_ACRM_ENV_PATH = path.join(os.homedir(), 'ai_projects', 'CorporateHQ', 'ACRM', '.env.local');
@@ -59,7 +67,7 @@ async function savePastedImageBuffer(bytes, mimeType = 'image/png') {
   return { ok: true, path: filePath, mimeType: normalizedMime };
 }
 
-// Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
+// Sidecar written by Swarmy's AgentRemote runtime at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
 // rather than fragile pane-title grep. pane_id survives agent auto-restart
 // (pane_loop relaunches the configured runtime in the SAME pane), so no re-write is needed on
@@ -541,7 +549,7 @@ function loadAgents() {
         displayName: a.display_name,
         // Runtime-aware targeting: Claude panes eventually get /rename'd by
         // launch-agent.sh; Codex/Hermes/OpenClaw panes keep the tmux title set by
-        // chq-tmux.sh. Explicit tmux_target wins when a registry entry needs to
+        // the Swarmy runtime adapter. Explicit tmux_target wins when a registry entry needs to
         // override either convention.
         tmuxTarget,
         cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
@@ -550,7 +558,7 @@ function loadAgents() {
         color: a.color || null,
         themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
         // Auto-restart defaults to true when the field is omitted (matches the
-        // shell-side `// true` jq fallback in chq-tmux.sh's pane_loop).
+        // shell-side `// true` fallback in Swarmy's AgentRemote runtime loop.
         autoRestart: a.auto_restart !== false,
         // Raw registry value. Kept for launcher/runtime settings; the dock
         // label follows display_name.
@@ -696,7 +704,7 @@ function writeRegistry(mutator) {
 // ---------------------------------------------------------------------------
 // Pane sidecar helpers
 // ---------------------------------------------------------------------------
-// readPaneSidecar() — parse /tmp/agent-remote-panes.json written by chq-tmux.sh.
+// readPaneSidecar() — parse /tmp/agent-remote-panes.json written by Swarmy's runtime adapter.
 // Returns an object keyed by agent id, or {} if the file is missing / unreadable.
 // Shape: { "xavier": { pane_id: "%5", session: "chq", window: 0, pane: 2, updated_at: "..." }, ... }
 function readPaneSidecar() {
@@ -1267,7 +1275,7 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
   let targets = [];
   targets = await listPanes();
 
-  // Read the sidecar written by chq-tmux.sh at pane creation time.
+  // Read the sidecar written by Swarmy's AgentRemote runtime at pane creation time.
   // Keys are agents.json ids; values carry the stable pane_id (%N).
   const sidecar = readPaneSidecar();
 
@@ -1556,6 +1564,23 @@ function execFileP(command, args, options = {}) {
   });
 }
 
+function swarmyRuntimeArgs(...args) {
+  return [
+    SWARMY_RUNTIME_SCRIPT,
+    '--session',
+    RUNTIME_SESSION,
+    '--registry',
+    REGISTRY_PATH,
+    '--sidecar',
+    SIDECAR_PATH,
+    ...args
+  ];
+}
+
+function swarmyRuntimeAttachCommand() {
+  return `python3 ${SWARMY_RUNTIME_SCRIPT} --session ${RUNTIME_SESSION} --registry ${REGISTRY_PATH} --sidecar ${SIDECAR_PATH} attach`;
+}
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -1569,13 +1594,31 @@ async function listTmuxClients(sessionName) {
   }
 }
 
+async function listTmuxSessionGroups() {
+  try {
+    const { stdout } = await execFileP('tmux', ['list-sessions', '-F', '#{session_name}\t#{session_group}']);
+    return parseTmuxSessionGroupLines(stdout);
+  } catch {
+    return [];
+  }
+}
+
+async function viewerSafetyState(layout, sessionName = RUNTIME_SESSION) {
+  const [clients, sessions] = await Promise.all([
+    listTmuxClients(sessionName),
+    listTmuxSessionGroups()
+  ]);
+  const error = viewerSafetyError({ sessionName, layout, sessions, clients });
+  return { error, clients, sessions };
+}
+
 async function waitForDeployViewer(layout, attempts = 10) {
   for (let i = 0; i < attempts; i += 1) {
-    const clients = await listTmuxClients('chq');
+    const clients = await listTmuxClients(RUNTIME_SESSION);
     if (hasRequiredTmuxClient(layout, clients)) return clients;
     await delay(250);
   }
-  return listTmuxClients('chq');
+  return listTmuxClients(RUNTIME_SESSION);
 }
 
 async function spawnAgents(payload) {
@@ -1586,7 +1629,7 @@ async function spawnAgents(payload) {
   const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
   if (safeAgents.length === 0) return { ok: false, error: 'no deployable agents selected' };
 
-  // Whitelist layout — passed through to chq-tmux.sh as CHQ_LAYOUT env var.
+  // Whitelist layout — passed through to Swarmy's AgentRemote runtime adapter.
   // Fallback is ittab, because the operator default is draggable iTerm
   // control-mode windows rather than one crowded split-pane tmux window.
   const layout = normalizeSpawnLayout(layoutRaw);
@@ -1598,14 +1641,14 @@ async function spawnAgents(payload) {
 
   let stdout = '';
   try {
-    const result = await execFileP('bash', [CHQ_SCRIPT, 'add', ...safeAgents], {
+    const result = await execFileP('python3', swarmyRuntimeArgs('add', '--layout', layout, ...safeAgents), {
       env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
     });
     stdout = result.stdout || '';
   } catch (err) {
-    const msg = err.stderr || err.message || 'chq-tmux add failed';
-    console.error(`[spawn] chq-tmux add failed: ${msg}`);
-    logToOutLog(`[spawn] chq-tmux add failed: ${msg}`);
+    const msg = err.stderr || err.message || 'swarmy runtime add failed';
+    console.error(`[spawn] swarmy runtime add failed: ${msg}`);
+    logToOutLog(`[spawn] swarmy runtime add failed: ${msg}`);
     return { ok: false, error: msg.trim(), agents: safeAgents, layout };
   }
   console.log(`[spawn] ${stdout.trim()}`);
@@ -1615,7 +1658,11 @@ async function spawnAgents(payload) {
   // when tmux proves it is attached in the right mode. For ittab/EACH, plain
   // tmux attach is not enough; the operator path requires control mode so
   // iTerm materializes the tmux windows.
-  let clients = await listTmuxClients('chq');
+  let { error: viewerError, clients, sessions } = await viewerSafetyState(layout, RUNTIME_SESSION);
+  if (viewerError) {
+    logToOutLog(`[spawn] ${viewerError}`);
+    return { ok: false, error: viewerError, agents: safeAgents, layout, clients, sessions, needsViewerCleanup: true, stdout };
+  }
   if (hasRequiredTmuxClient(layout, clients)) {
     execFile('osascript', ['-e', 'tell application "iTerm" to activate'], () => {});
     return { ok: true, agents: safeAgents, layout, reusedViewer: true, clients, stdout };
@@ -1623,7 +1670,7 @@ async function spawnAgents(payload) {
 
   // No required viewer attached — open a fresh iTerm tab/window, then write
   // the attach command into the newly created session.
-  const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
+  const apple = buildITermAttachScript(swarmyRuntimeAttachCommand());
   try {
     await execFileP('osascript', ['-e', apple]);
   } catch (err) {
@@ -1648,7 +1695,7 @@ async function spawnAgents(payload) {
 // ---------------------------------------------------------------------------
 // Spawn IPC — hardened against shell injection
 // ---------------------------------------------------------------------------
-// Use chq-tmux.sh's `add` subcommand (not `start`) — `add` creates the session
+// Use Swarmy's runtime `add` command — it creates the session
 // if missing OR appends panes to an existing one. The old `start` path bailed
 // with "Session already exists" when chq was already up, which was the root
 // cause of the "Deploy doesn't work after first deploy" bug — clicking an
@@ -1826,12 +1873,8 @@ ipcMain.handle('unhide-agent', async (event, id) => {
 });
 
 // Restart-agent IPC — non-destructive. Sends Ctrl-C to the agent's tmux pane;
-// chq-tmux.sh's restart loop respawns the configured runtime in 3s. Mirrors what
-// `chq-tmux.sh restart <name>` does, but we route through tmux directly here
-// because the chq-tmux.sh restart subcommand uses the wname (registry id) and
-// addresses the pane as `chq:0:<wname>` — which doesn't always match after
-// Claude's /rename may mutate the title. Resolving by tmux_target substring
-// (same rule as broadcast targeting) is more robust.
+// Swarmy's runtime loop respawns the configured runtime in 3s. We route through
+// the resolved pane id because pane titles can change after provider startup.
 //
 // Returns { ok: true, message } if a pane was found and SIGINT was sent.
 // { ok: false, error } if the agent isn't running anywhere.
@@ -1845,7 +1888,7 @@ ipcMain.handle('restart-agent', async (event, id) => {
     if (!agent) throw new Error(`agent "${safeId}" not in registry`);
 
     const match = (await resolveLiveAgentPanes(agent))[0];
-    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
+    if (!match) throw new Error(`${agent.displayName || safeId} isn't running in ${RUNTIME_SESSION} — Deploy it first`);
 
     await new Promise((resolve, reject) => {
       execFile('tmux', ['send-keys', '-t', match.coord, 'C-c'], (err, _o, ser) => {
@@ -2141,7 +2184,7 @@ ipcMain.handle('kill-pane', async (event, id) => {
 //      `ittab` layouts.
 //
 //   2. Reuse the existing iTerm control-mode viewer when present. If no
-//      control-mode viewer exists, launch `chq-tmux.sh attach`, which uses
+  //      control-mode viewer exists, launch Swarmy's AgentRemote runtime attach, which uses
 //      `tmux -CC attach` for the ittab layout. Do not open a normal
 //      `tmux attach -t chq` viewer here; it collapses multiple agent panes into
 //      one split-pane terminal and breaks Richard's arrange/resize workflow.
@@ -2239,9 +2282,12 @@ ipcMain.handle('attach-pane', async (event, id) => {
       });
     });
 
-    let clients = await listTmuxClients(sessionName);
+    let { error: viewerError, clients, sessions } = await viewerSafetyState('ittab', sessionName);
+    if (viewerError) {
+      throw new Error(viewerError);
+    }
     if (!hasRequiredTmuxClient('ittab', clients)) {
-      const apple = buildITermAttachScript(`bash ${CHQ_SCRIPT} attach`);
+      const apple = buildITermAttachScript(swarmyRuntimeAttachCommand());
       await new Promise((resolve, reject) => {
         execFile('osascript', ['-e', apple], (err, _o, ser) => {
           if (err) return reject(new Error(ser || err.message));
@@ -2249,6 +2295,11 @@ ipcMain.handle('attach-pane', async (event, id) => {
         });
       });
       clients = await waitForDeployViewer('ittab');
+      sessions = await listTmuxSessionGroups();
+      viewerError = viewerSafetyError({ sessionName, layout: 'ittab', sessions, clients });
+      if (viewerError) {
+        throw new Error(viewerError);
+      }
       if (!hasRequiredTmuxClient('ittab', clients)) {
         throw new Error('control-mode iTerm viewer did not attach');
       }
@@ -2281,12 +2332,11 @@ ipcMain.handle('attach-pane', async (event, id) => {
   }
 });
 
-// kill-session — destructive: tear down the entire chq tmux session via
-// `tmux kill-session -t chq`. Equivalent to `bash chq-tmux.sh stop` but skips
-// the shell wrapper and goes straight at tmux. This is the panel-level
+// kill-session — destructive: tear down the AgentRemote runtime session via
+// Swarmy's runtime adapter. This is the panel-level
 // counterpart to the per-agent kill-pane IPC.
 //
-// Why we need this: chq-tmux.sh stashes the user's chosen layout in
+// Why we need this: Swarmy's AgentRemote runtime stashes the user's chosen layout in
 // @chq_layout at session-start time, and cmd_add reads it back on every
 // subsequent Deploy. So once a session is running in (e.g.) `panes` mode,
 // flipping the WINDOWS pill in the panel and re-Deploying re-uses the
@@ -2299,18 +2349,18 @@ ipcMain.handle('attach-pane', async (event, id) => {
 // genuine failure (e.g. tmux not installed).
 ipcMain.handle('kill-session', async () => {
   return new Promise((resolve) => {
-    execFile('tmux', ['kill-session', '-t', 'chq'], (err, _o, ser) => {
+    execFile('python3', swarmyRuntimeArgs('stop'), (err, _o, ser) => {
       if (err) {
         // "no server running" or "session not found" — both are benign:
         // there was nothing to kill, the desired end-state already holds.
         const msg = ser || err.message || '';
         if (/no server running|can't find session|session not found/i.test(msg)) {
-          removePaneSidecarSession('chq');
+          removePaneSidecarSession(RUNTIME_SESSION);
           return resolve({ ok: true, killed: false });
         }
         return resolve({ ok: false, error: msg });
       }
-      removePaneSidecarSession('chq');
+      removePaneSidecarSession(RUNTIME_SESSION);
       resolve({ ok: true, killed: true });
     });
   });
@@ -2321,7 +2371,7 @@ ipcMain.handle('kill-session', async () => {
 // session is running.
 //
 // If the session exists but @chq_layout was never set (legacy session, or
-// session created outside chq-tmux.sh), returns 'unknown' — a sentinel that
+// session created outside Swarmy's AgentRemote runtime), returns 'unknown' — a sentinel that
 // tells the renderer "session is up but I can't tell what layout" so the
 // stop button still enables but the mismatch hint stays off.
 //
@@ -2331,19 +2381,13 @@ ipcMain.handle('kill-session', async () => {
 // running session". Polled alongside pane-status on the 3s status loop.
 ipcMain.handle('get-session-layout', async () => {
   return new Promise((resolve) => {
-    // First check the layout option directly — fastest path, single tmux call.
-    execFile('tmux', ['show-option', '-t', 'chq', '-v', '-q', '@chq_layout'], (err, stdout) => {
+    execFile('python3', swarmyRuntimeArgs('layout'), (err, stdout) => {
       if (err) {
-        // tmux exited non-zero → no server, no chq session, or option missing.
-        // The -q flag suppresses the "unknown option" diagnostic but doesn't
-        // change exit status; bail to "no session" by default.
         return resolve('');
       }
       const v = (stdout || '').trim();
       if (v) return resolve(v);
-      // Option came back empty. The session might still exist with an unset
-      // layout — confirm by checking session presence.
-      execFile('tmux', ['has-session', '-t', 'chq'], (err2) => {
+      execFile('tmux', ['has-session', '-t', RUNTIME_SESSION], (err2) => {
         if (err2) return resolve('');                 // genuinely no session
         return resolve('unknown');                    // session up, layout unstashed
       });

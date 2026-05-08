@@ -1,12 +1,12 @@
 # agent-launch-scripts Context
 
-This repo is Richard's local operator station for launching and supervising agent sessions. It owns the shell launchers, tmux orchestration, and the lightweight AgentRemote Electron HUD.
+This repo is Richard's local operator station for supervising agent sessions. It owns the per-agent shell launchers, registry data, and the lightweight AgentRemote Electron HUD; Swarmy owns AgentRemote's deploy/attach/stop/layout runtime.
 
 ## Runtime Policy
 
 - The launcher stack must stay model/runtime agnostic across Codex, Claude, Hermes, and OpenClaw.
 - Codex is the current priority runtime because Claude session starts can waste scarce Claude tokens.
-- `launch-agent.sh` is the runtime boundary. It reads `agents.json`, builds argv arrays, and execs the configured runtime.
+- Swarmy's AgentRemote runtime adapter is the app runtime boundary for deploy/attach/stop/layout. `launch-agent.sh` remains the per-agent process boundary: it reads `agents.json`, builds argv arrays, and execs the configured model runtime.
 - Missing `runtime` values default to Codex, not Claude.
 - `runtime: "codex"` must launch `codex`, not `claude`. Claude-only boot behavior such as `/color` and `/rename` auto-injects must stay gated to `runtime: "claude"`.
 - A `runtime: "claude"` registry entry must set `allow_claude_runtime: true`; the launcher test fails accidental Claude runtime entries.
@@ -28,6 +28,6 @@ This repo is Richard's local operator station for launching and supervising agen
 
 ## Verification Defaults
 
-- Launcher or registry edits: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, and `bash test/launch-agent-runtime.test.sh`.
+- Launcher or registry edits: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, `bash test/launch-agent-runtime.test.sh`, and `python3 -m pytest /Users/richardadair/ai_projects/swarmy/tests/test_agentremote_runtime.py -q`.
 - Electron edits: `cd remote-app && npm test`; use `bash launch-remote.sh` only when a live AgentRemote restart is needed, and avoid duplicate app instances.
 - Git hygiene: check `git status --short --branch` before editing, commit completed local work units, and push only when Richard asks.
