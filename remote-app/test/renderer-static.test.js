@@ -210,6 +210,8 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /function sanitizePaneChunk/);
   assert.match(petWindow, /function isRenderablePaneLine/);
+  assert.match(petWindow, /Improve documentation in @filename/);
+  assert.match(petWindow, /Describe your task or type/);
   assert.match(petWindow, /function cleanPaneLines/);
   assert.match(petWindow, /function restoreScrollPosition/);
   assert.match(petWindow, /function schedulePaneRender/);

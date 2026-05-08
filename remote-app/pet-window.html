@@ -670,6 +670,8 @@
       if (/\bGoal\s+(achieved|failed)\b/i.test(text)) return false;
       if (/\b(tokens on|remaining capacity|available skills)\b/i.test(text)) return false;
       if (/\bUse\s+\/skills\s+to\s+list\b/i.test(text)) return false;
+      if (/^Improve documentation in @filename$/i.test(text)) return false;
+      if (/^Describe your task or type\s+\/\s+for commands$/i.test(text)) return false;
       if (/^\d+%\s*[·.]/.test(text)) return false;
       if (/\b(Working|Context|Goal)\b.*\b(Working|Context|Goal)\b/i.test(text)) return false;
       return true;
