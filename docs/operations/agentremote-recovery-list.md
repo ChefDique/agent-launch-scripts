@@ -6,6 +6,17 @@ verified by Richard in the running app.
 
 ## Operating Rules
 
+- Swarmy is the live spawn/summon authority. Codex/TMUX-MASTA should not act as
+  the live window operator unless Richard explicitly authorizes that live
+  mutation in the current turn.
+- Do not equate "AgentRemote shows online" with "Richard has a usable terminal."
+  Operator-online means a real interactive tmux pane/process exists and can be
+  revealed, attached, killed, or relaunched through Swarmy.
+- Hermes gateway presence is not the same as an interactive agent pane. A
+  gateway-only agent must be labeled as gateway-only, not shown as a usable live
+  terminal.
+- Internal Codex subagents are invisible to AgentRemote/tmux and must not be
+  described as spawned local agents.
 - Do not use normal `tmux attach` as a workaround for AgentRemote input bugs.
 - Do not merge all live agents into one tmux pane. Preserve one agent process per
   tmux pane.
@@ -44,5 +55,7 @@ underlay must support:
 | In progress | AgentRemote viewer attach must refuse unsafe tmux viewer states before opening iTerm: noncanonical grouped sessions such as `chq-swarmy`, or plain tmux clients attached while the requested layout is iTerm control mode. | Static tests cover viewer safety classification; live deploy shows a cleanup error instead of opening more windows. |
 | In progress | iTerm attach helper must create/reuse one marked `AgentRemote CHQ Viewer` window and never target `first window`, because that can inject attach commands into unrelated operator work. | Static test confirms the AppleScript searches for the marker and writes only to `targetWindow`. |
 | Ready for Richard verification | AgentRemote must not appear frontmost-but-invisible. If DevToolsActivePort exists but is not listening, treat the HUD as stale/wedged and relaunch canonically. | Screenshot shows the HUD after summon/toggle; DevTools endpoint is reachable or stale file is cleaned. |
+| Open | AgentRemote online indicators must distinguish interactive pane alive, viewer detached, Hermes gateway-only, and dead/missing pane. | With `chq` absent and Hermes gateways running, UI must not imply Richard has usable live terminals. |
+| Open | Runtime picker must be truthful: selecting Claude launches/persists Claude, selecting Codex launches/persists Codex, and each row shows the effective launch runtime before deploy. | Static tests plus launcher resolution prove the selected runtime reaches `launch-agent.sh`; live validation only through Swarmy after Richard authorizes. |
 | Open | Layout labels must explain the tmux wrap pattern: Tabs/Separate, Panes/Joined, and any future preset names. | Layout picker text makes the underlying tmux pattern clear. |
 | Open | Pasting pictures into this Codex chat is outside AgentRemote; do not claim AgentRemote fixes will fix Codex attachment paste. | Separate diagnosis names Codex chat paste as a harness/app issue. |

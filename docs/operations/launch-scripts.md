@@ -4,6 +4,19 @@
 
 The root repo is a set of Bash launchers plus a current Electron HUD under `remote-app/`. There is no root build system. The canonical registry is `agents.json`.
 
+## Ownership Boundary
+
+Swarmy is the live runtime authority. It owns spawn, attach/reveal, kill,
+relaunch, status, layout, runtime choice, and tmux identity. AgentRemote is a
+local HUD over Swarmy state and commands. Codex/TMUX-MASTA should not manually
+repair live iTerm/tmux state, detach clients, open viewers, or spawn live agents
+unless Richard explicitly asks for that live mutation in the current turn.
+
+Do not call a system healthy because a gateway process is alive. For operator
+purposes, an agent is usable only when an interactive tmux pane/process exists
+and Swarmy can reveal or control it. Hermes gateway-only state must be labeled as
+gateway-only.
+
 ## Primary Entrypoints
 
 | Command | Use |
@@ -20,6 +33,11 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 ## Load-Bearing Invariants
 
 - Agent runtime identity comes from `agents.json`. Claude entries use `-n <Name>` plus `/rename`; Codex/Hermes/OpenClaw entries keep the tmux title set by Swarmy's AgentRemote runtime unless `tmux_target` overrides it.
+- Runtime selection must be explicit and truthful. If the UI says Claude, the
+  registry/update path must persist `runtime: "claude"` and
+  `allow_claude_runtime: true`; if the UI says Codex, it must persist
+  `runtime: "codex"` and remove Claude-only opt-in fields. Do not silently reuse
+  a stale runtime under the same display name.
 - The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
 - Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
 - Layout state can persist in the running tmux session through `@chq_layout`;

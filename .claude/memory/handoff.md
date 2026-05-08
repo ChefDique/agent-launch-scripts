@@ -2,22 +2,28 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote pet chat/image-paste stabilization, PR #6 merge cleanup, and stale worktree/branch closeout.
+**Last working on:** AgentRemote pet drag/held-animation fix, Claude/Codex runtime-selection confusion, and documentation boundary reset after live tmux/iTerm state became unusable.
 
-**State at last pause (2026-05-08T00:26:29-0700):**
-- PR #6 was reviewed, merged, pushed, and followed with guarded pipe consumer ownership so floating pets cannot tear down embedded terminal streams.
-- AgentRemote is relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app` at `v1.1.11`; Electron `--app-path` is canonical.
-- Image paste into AgentRemote chat works again; checkpoint tag `checkpoint/agentremote-image-paste-working-2026-05-08` points at the known-good image-paste state.
-- Floating pet chat is best-yet but still polishable: it filters terminal chrome/status/composer hints, flattens transcript layout, preserves scroll, and shows pasted-image markers.
-- Richard's next priority is verifying spawning/deploy behavior end-to-end before lower-priority pet fluidity/image-paste polish.
-- Stale PR #6 worktree `/Users/richardadair/.codex/worktrees/a8e0/agent-launch-scripts`, local branch `codex/pet-window-pane-stream`, local branch `codex/tmux-gogo-launch-fixes`, local `origin/pr/6` ref, and remote branch `codex/pet-window-pane-stream` were removed after proving their commits are merged into `main`.
-- `agents.json` is intentionally dirty until this closeout commit: Xavier is now explicitly `runtime: "claude"` with `allow_claude_runtime: true`; selector-tag formatting also changed from AgentRemote/JSON rewrite.
+**State at last pause (2026-05-08):**
+- Canonical checkout is `/Users/richardadair/ai_projects/agent-launch-scripts`; `/Users/richardadair/agent-launch-scripts` is only the compatibility symlink.
+- AgentRemote Electron is running from the canonical `remote-app` path, but the live interactive fleet is not healthy.
+- `chq` tmux session is gone. `/tmp/agent-remote-panes.json` is `{}`. There are zero tmux clients. Remaining tmux sessions observed were only `rnd` and `session1`; Hermes gateway processes for Lucius/Aria/Xavier may still run, but they are not interactive tmux agent panes.
+- Do not report Hermes gateway presence, AgentRemote pet presence, or an internal Codex subagent as "live interactive agent online." Online-for-operator means a real tmux pane/process exists and can be revealed, attached, killed, or relaunched through Swarmy.
+- Commit `c556998` exists locally and is ahead of origin: pet drag now uses pointer-captured IPC movement; held left/right movement uses the Nimbus/cloud row, left via horizontal flip, instead of action/running rows.
+- Dirty state exists after app/worker edits: `agents.json`, `remote-app/main.js`, `remote-app/package.json`, `remote-app/package-lock.json`, and `remote-app/test/renderer-static.test.js`. Treat this as shared state, inspect before editing, and do not blindly revert.
+- Richard is done with Codex manually operating live windows. Codex should work on frontend/repo/docs/tests; Swarmy must be the live spawn/summon authority.
 
-**Next verifiable step:** Verify AgentRemote spawning/deploy flows from the current `main`: deploy the intended team/layout without mutating unrelated live operator windows, confirm panes map through the sidecar, then test attach/send/pet visibility.
+**Current operator boundary:**
+- Swarmy owns live agent lifecycle: spawn, attach/reveal, kill, relaunch, status, layout, runtime choice, and tmux identity.
+- AgentRemote is a thin local HUD over Swarmy state and commands.
+- Codex/TMUX-MASTA must not manually repair live iTerm/tmux state, spawn live agents, detach clients, or open viewers unless Richard explicitly asks for that live mutation in the current turn.
+- When debugging from Codex, use read-only diagnosis first, then repo patches/tests. Use isolated worktrees or mocked/throwaway sessions for validation.
 
-**If that step fails:** Inspect `agents.json`, `/tmp/agent-remote-panes.json`, Swarmy adapter logs, and `remote-app/out.log`; use isolated/mocked checks first and do not open normal `tmux attach` viewers or mutate live iTerm unless Richard explicitly authorizes it.
+**Next verifiable step:** Stop trying to patch live windows from Codex. In repo only, finish and test the runtime-selection fix so selecting Claude actually persists and launches Claude, selecting Codex launches Codex, and AgentRemote shows distinct states for interactive tmux pane vs Hermes gateway-only vs detached viewer vs dead pane.
 
-**Pending uncommitted diff:** `agents.json` and `.claude/memory/handoff.md` until closeout commit lands; expected clean after `/done`.
+**If live panes are missing:** Do not improvise with `tmux attach` or manual iTerm scripting. Ask Richard whether Swarmy should redeploy the team, then run the Swarmy runtime path only if explicitly authorized.
+
+**Pending uncommitted diff:** Dirty app/runtime-selection changes listed above plus this handoff update until committed.
 
 ---
 
