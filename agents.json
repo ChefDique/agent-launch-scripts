@@ -22,8 +22,133 @@
     "auto_restart": "If false, Swarmy's AgentRemote runtime loop exits after the agent quits instead of relooping. Default true (omit the field to mean true). Editable from the Electron remote's right-click menu.",
     "pre_launch": "Optional path to a hook script run before execing the configured runtime. Tilde-expanded. Replaces the inline telegram-cleanup blocks.",
     "env": "Optional map of env vars to export before exec (e.g. KOKORO_VOICE for the telegram-voice-followup hook).",
-    "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render."
+    "avatar": "Optional avatar SVG filename inside remote-app/assets/. Defaults to <id>.svg if unset. Used by the Electron remote button render.",
+    "profile_preset": "Optional preset id from _profile_presets. Describes runtime/model/sandbox/worktree/local/skills posture before launcher-specific materialization.",
+    "workspace_mode": "Optional explicit workspace posture: repo_root, repo_subpath, worktree, or resolved_external.",
+    "worktree_strategy": "Optional explicit workspace isolation strategy: shared_cwd, dedicated_per_agent, existing_worktree, or none.",
+    "local_mode": "Optional local runtime presentation: visible_tmux or headless.",
+    "skills": "Optional skill allowlist intended for the agent profile or generated spawn brief."
   },
+  "_profile_presets": [
+    {
+      "profile_id": "isolated-visible-codex",
+      "runtime": "codex",
+      "model": "gpt-5.3-codex-spark",
+      "reasoning_effort": "low",
+      "layout": "teams",
+      "workspace": {
+        "cwd_mode": "worktree",
+        "worktree_strategy": "dedicated_per_agent"
+      },
+      "local": {
+        "mode": "visible_tmux",
+        "attach": "iterm_control_mode",
+        "auto_restart": false
+      },
+      "sandbox": {
+        "mode": "workspace-write",
+        "approval_policy": "on-request",
+        "config_isolation": "isolated_home",
+        "trust_repo": false
+      },
+      "skills": {
+        "mode": "allowlist",
+        "inherit_user_skills": false,
+        "allowed_skills": []
+      }
+    },
+    {
+      "profile_id": "isolated-visible-hermes",
+      "runtime": "hermes",
+      "model": "default",
+      "reasoning_effort": "policy-only",
+      "layout": "teams",
+      "workspace": {
+        "cwd_mode": "worktree",
+        "worktree_strategy": "dedicated_per_agent"
+      },
+      "local": {
+        "mode": "visible_tmux",
+        "attach": "iterm_control_mode",
+        "auto_restart": false
+      },
+      "sandbox": {
+        "mode": "workspace-write",
+        "approval_policy": "on-request",
+        "config_isolation": "isolated_home",
+        "trust_repo": false
+      },
+      "skills": {
+        "mode": "allowlist",
+        "inherit_user_skills": false,
+        "allowed_skills": []
+      }
+    },
+    {
+      "profile_id": "trusted-local-debug",
+      "runtime": "codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "layout": "teams",
+      "disabled_by_default": true,
+      "requires_human_approval": true,
+      "workspace": {
+        "cwd_mode": "repo_root",
+        "worktree_strategy": "shared_cwd"
+      },
+      "local": {
+        "mode": "visible_tmux",
+        "attach": "iterm_control_mode",
+        "auto_restart": false
+      },
+      "sandbox": {
+        "mode": "danger-full-access",
+        "approval_policy": "never",
+        "config_isolation": "inherit",
+        "trust_repo": true
+      },
+      "skills": {
+        "mode": "inherit",
+        "inherit_user_skills": true,
+        "allowed_skills": []
+      }
+    }
+  ],
+  "_team_preset_templates": [
+    {
+      "template_id": "swarmy-code-review",
+      "team_slug": "runtime-hardening-squad",
+      "default_profile_preset": "isolated-visible-codex",
+      "layout": "teams",
+      "selection_tags": ["code-review", "runtime", "security"],
+      "use_when": "Review Swarmy runtime, launcher, validation, or manifest changes before claiming PASS.",
+      "member_profile_overrides": {
+        "runtime-cli-prober": "isolated-visible-hermes"
+      }
+    },
+    {
+      "template_id": "sandbox-conformance",
+      "team_slug": "sandbox-conformance-squad",
+      "default_profile_preset": "isolated-visible-codex",
+      "layout": "teams",
+      "selection_tags": ["sandbox", "governance", "fake-canary"],
+      "use_when": "Prove spawned workers cannot reach denied vault, sibling, secret, or ambient capability surfaces.",
+      "member_profile_overrides": {
+        "leak-evidence-auditor": "isolated-visible-hermes"
+      }
+    },
+    {
+      "template_id": "xavier-swarm-assist",
+      "team_slug": "xavier-swarm-assist",
+      "default_profile_preset": "isolated-visible-codex",
+      "layout": "teams",
+      "selection_tags": ["xavier", "handoff", "registry"],
+      "use_when": "Help Xavier package or verify reusable Swarmy team manifests and registry imports.",
+      "member_profile_overrides": {
+        "handoff-verifier": "isolated-visible-hermes"
+      }
+    }
+  ],
   "agents": [
     {
       "id": "xavier",

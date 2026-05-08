@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const registry = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agents.json'), 'utf8'));
 
 test('add-agent form contains harness logo picker and Armory import affordance', () => {
   assert.match(html, /id="f-harness-picker"/);
@@ -236,6 +237,23 @@ test('deploy surface exposes team, separate-tabs, and even-panes operator paths'
   assert.match(html, /Deploy failed/);
   assert.doesNotMatch(html, /ipcRenderer\.send\('spawn-agents'/);
   assert.doesNotMatch(html, /data-layout="windows"/);
+});
+
+test('agent registry exposes swarm preset templates with runtime posture', () => {
+  assert.equal(registry._profile_presets.length, 3);
+  assert.equal(registry._team_preset_templates.length, 3);
+  assert.deepEqual(
+    registry._team_preset_templates.map(template => template.template_id),
+    ['swarmy-code-review', 'sandbox-conformance', 'xavier-swarm-assist'],
+  );
+  for (const preset of registry._profile_presets) {
+    assert.ok(preset.workspace.cwd_mode);
+    assert.ok(preset.workspace.worktree_strategy);
+    assert.ok(preset.local.mode);
+    assert.ok(preset.sandbox.mode);
+    assert.ok(preset.sandbox.approval_policy);
+    assert.ok(preset.skills.mode);
+  }
 });
 
 test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', () => {
