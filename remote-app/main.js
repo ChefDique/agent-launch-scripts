@@ -2758,11 +2758,14 @@ ipcMain.handle('start-pane-pipe', async (_event, agentId) => {
     const readStream = fs.createReadStream(fifoPath, { flags: 'r', autoClose: true });
 
     readStream.on('data', (chunk) => {
+      const payload = chunk.toString('base64');
       if (mainWindow && !mainWindow.isDestroyed()) {
         try {
-          mainWindow.webContents.send(`pane-output:${safeId}`, chunk.toString('base64'));
+          mainWindow.webContents.send(`pane-output:${safeId}`, payload);
         } catch { /* renderer gone — stream still drains */ }
       }
+      // Keep floating pet windows in sync with the same stream.
+      notifyPetWindows(`pane-output:${safeId}`, payload);
     });
     readStream.on('error', (err) => {
       // FIFO was unlinked (collapse) or tmux pipe closed — this is expected on teardown.

@@ -484,12 +484,20 @@
     const params = new URLSearchParams(window.location.search);
     const agentId = params.get('agentId') || '';
     let config = null;
+    const outputChannel = `pane-output:${agentId}`;
+    const MAX_PET_PANE_LINES = 18;
     let chatTailOffset = 0;
     let historyLoaded = false;
     let pollHandle = null;
     let moodTimer = null;
     let resizeDrag = null;
-    let lastPaneTailFingerprint = '';
+    let paneOutputListener = null;
+    let paneOutputLines = [];
+    let paneOutputCarry = '';
+    let paneStreamHandle = null;
+    let paneStreamLastSeenAt = 0;
+    let paneStreamRecovering = false;
+    let lastPaneTailReplayFingerprint = '';
 
     const nameEl = document.getElementById('agent-name');
     const logEl = document.getElementById('log');
@@ -633,6 +641,51 @@
       logEl.appendChild(empty);
     }
 
+    function clearLogRowsForSource(source) {
+      if (!logEl) return;
+      for (const row of Array.from(logEl.children)) {
+        if (!row.dataset || row.dataset.source !== source) continue;
+        row.remove();
+      }
+    }
+
+    function hasLogRowsForSource(source) {
+      if (!logEl) return false;
+      return Array.from(logEl.children).some((row) => row.dataset && row.dataset.source === source);
+    }
+
+    function sanitizePaneChunk(raw) {
+      return String(raw || '')
+        .replace(/\r\n?/g, '\n')
+        .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+        .replace(/\x1b\][^\x07]*\x07/g, '')
+        .replace(/\x08/g, '')
+        .replace(/[^\x20-\x7E\n]/g, ' ');
+    }
+
+    function appendPaneChunk(rawChunk) {
+      const text = sanitizePaneChunk(rawChunk);
+      if (!text) return 0;
+      const combined = paneOutputCarry + text;
+      const split = combined.split('\n');
+      paneOutputCarry = split.pop() || '';
+      let added = 0;
+      for (const line of split) {
+        const trimmed = String(line || '').trim();
+        if (!trimmed) continue;
+        paneOutputLines.push(trimmed);
+        added += 1;
+      }
+      if (paneOutputLines.length > MAX_PET_PANE_LINES * 4) {
+        paneOutputLines = paneOutputLines.slice(-MAX_PET_PANE_LINES * 2);
+      }
+      if (paneOutputLines.length === 0) return 0;
+      if (added > 0 || !hasLogRowsForSource('pane')) {
+        renderPaneLines(paneOutputLines);
+      }
+      return added;
+    }
+
     function boundedWindowSize(width, height) {
       return {
         width: Math.max(PET_WINDOW_GEOMETRY.minWidth, Math.min(PET_WINDOW_GEOMETRY.maxWidth, Math.round(width))),
@@ -695,7 +748,7 @@
     function renderMessages(envelopes, append = false) {
       const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-20);
       const shouldStickToBottom = !append || isNearLogBottom();
-      if (!append) logEl.innerHTML = '';
+      if (!append) clearLogRowsForSource('chat');
       if (!filtered.length && !append && logEl.children.length === 0) {
         renderEmpty();
         return 0;
@@ -715,6 +768,7 @@
         body.textContent = String(env.message || '');
         row.appendChild(from);
         row.appendChild(body);
+        row.dataset.source = 'chat';
         logEl.appendChild(row);
       }
       while (logEl.children.length > 20) logEl.removeChild(logEl.firstElementChild);
@@ -724,14 +778,15 @@
 
     function renderPaneLines(lines) {
       const trimmed = (Array.isArray(lines) ? lines : []).map(line => String(line || '').trim()).filter(Boolean).slice(-18);
+      clearLogRowsForSource('pane');
       if (!trimmed.length) {
-        renderEmpty();
+        if (!hasLogRowsForSource('chat')) renderEmpty();
         return 0;
       }
-      logEl.innerHTML = '';
       for (const line of trimmed) {
         const row = document.createElement('div');
         row.className = 'msg';
+        row.dataset.source = 'pane';
         const body = document.createElement('span');
         body.className = 'text';
         body.textContent = line;
@@ -748,15 +803,85 @@
         if (force) renderEmpty(res && res.error ? res.error : 'agent pane unavailable');
         return 0;
       }
-      const lines = Array.isArray(res.lines) ? res.lines : [];
-      const fingerprint = lines.join('\n');
-      if (!fingerprint) {
-        if (force) renderEmpty();
+      const lines = Array.isArray(res.lines) ? res.lines.map((line) => String(line || '').trim()).filter(Boolean).slice(-18) : [];
+      const payload = lines.join('\n');
+      if (!payload) {
+        if (force && !hasLogRowsForSource('chat')) renderEmpty();
+        if (force) lastPaneTailReplayFingerprint = '';
         return 0;
       }
-      if (!force && fingerprint === lastPaneTailFingerprint) return 0;
-      lastPaneTailFingerprint = fingerprint;
+      lastPaneTailReplayFingerprint = payload;
+      paneOutputLines = lines;
+      paneOutputCarry = '';
       return renderPaneLines(lines);
+    }
+
+    async function startPaneStream() {
+      if (!config || !agentId || paneOutputListener) return false;
+      const safeHandler = (_event, b64) => {
+        try {
+          const text = atob(b64);
+          paneStreamLastSeenAt = Date.now();
+          appendPaneChunk(text);
+        } catch (err) {
+          console.warn('[pet] failed to decode pane output:', err && err.message ? err.message : err);
+        }
+      };
+      paneOutputListener = safeHandler;
+      ipcRenderer.on(outputChannel, safeHandler);
+      const res = await ipcRenderer.invoke('start-pane-pipe', agentId);
+      if (!res || !res.ok) {
+        ipcRenderer.removeListener(outputChannel, safeHandler);
+        paneOutputListener = null;
+        paneStreamLastSeenAt = 0;
+        if (!hasLogRowsForSource('chat') && !hasLogRowsForSource('pane')) {
+          renderEmpty(res && res.error ? res.error : 'agent pane unavailable');
+        }
+        return false;
+      }
+      paneStreamLastSeenAt = Date.now();
+      return true;
+    }
+
+    async function stopPaneStream() {
+      if (!paneOutputListener) return;
+      ipcRenderer.removeListener(outputChannel, paneOutputListener);
+      paneOutputListener = null;
+      paneStreamLastSeenAt = 0;
+      try {
+        await ipcRenderer.invoke('stop-pane-pipe', agentId);
+      } catch {
+        // Ignore.
+      }
+    }
+
+    async function ensurePaneStream() {
+      if (!agentId) return;
+      if (!paneOutputListener) {
+        const started = await startPaneStream();
+        if (!started && !paneStreamRecovering) {
+          await refreshPaneTail(true);
+        }
+        return;
+      }
+      if (paneStreamRecovering) return;
+      if (!paneStreamLastSeenAt) return;
+      if (Date.now() - paneStreamLastSeenAt < 12000) return;
+      const res = await ipcRenderer.invoke('pet-pane-tail', { agentId });
+      const lines = res && res.ok && Array.isArray(res.lines) ? res.lines : [];
+      const payload = lines.map((line) => String(line || '').trim()).filter(Boolean).slice(-18).join('\n');
+      if (!payload || payload === lastPaneTailReplayFingerprint) return;
+
+      paneStreamRecovering = true;
+      try {
+        await stopPaneStream();
+        paneOutputLines = [];
+        paneOutputCarry = '';
+        await refreshPaneTail(true);
+        await startPaneStream();
+      } finally {
+        paneStreamRecovering = false;
+      }
     }
 
     async function loadHistory() {
@@ -795,6 +920,11 @@
       }
       applyConfig(res.config);
       await loadHistory();
+      await refreshPaneTail(true);
+      await startPaneStream();
+      paneStreamHandle = setInterval(() => {
+        void ensurePaneStream();
+      }, 4500);
       pollHandle = setInterval(tailRefresh, 4000);
     }
 
@@ -985,7 +1115,9 @@
     });
     window.addEventListener('beforeunload', () => {
       if (pollHandle) clearInterval(pollHandle);
+      if (paneStreamHandle) clearInterval(paneStreamHandle);
       if (moodTimer) clearTimeout(moodTimer);
+      void stopPaneStream();
     });
     try { setCollapsed(localStorage.getItem(collapseKey) === '1'); } catch {}
     try { setExpanded(localStorage.getItem(expandKey) === '1'); } catch {}
