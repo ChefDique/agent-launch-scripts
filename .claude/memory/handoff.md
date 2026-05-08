@@ -2,22 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote tmux layout recovery, saved Tabs/Panes layout choices, and comms recovery SOP review dispatch.
+**Last working on:** AgentRemote pet chat/image-paste stabilization, PR #6 merge cleanup, and stale worktree/branch closeout.
 
-**State at last pause (2026-05-07T16:57:28-0700):**
-- AgentRemote is relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app` at `v1.1.0`; Electron `--app-path` is canonical.
-- Live `chq` is currently in Richard-arranged joined-columns shape: `chq:0` has Xavier `%136`, Swarmy `%175`, and TMUX-MASTA `%137` as separate tmux panes in one window; `scratch-shell` remains separate in `chq:1`.
-- AgentRemote now exposes `Tabs` (`ittab`: process -> pane -> solo tmux window -> iTerm control mode) and `Panes` (`panes`: processes -> joined balanced tmux window) layout choices.
-- Attach IPC was corrected to preserve control-mode focus and stop opening normal `tmux attach` split viewers.
-- Docs now record the pane contract in `AGENTS.md`, `remote-app/AGENTS.md`, and `docs/operations/launch-scripts.md`.
-- Comms recovery SOP review was sent to Aria and Lucius via message-agent; both returned `202 Accepted`.
-- Known follow-up remains: pet chat pane-tail exists, but needs scroll preservation and terminal-chrome filtering before it is clean.
+**State at last pause (2026-05-08T00:26:29-0700):**
+- PR #6 was reviewed, merged, pushed, and followed with guarded pipe consumer ownership so floating pets cannot tear down embedded terminal streams.
+- AgentRemote is relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app` at `v1.1.11`; Electron `--app-path` is canonical.
+- Image paste into AgentRemote chat works again; checkpoint tag `checkpoint/agentremote-image-paste-working-2026-05-08` points at the known-good image-paste state.
+- Floating pet chat is best-yet but still polishable: it filters terminal chrome/status/composer hints, flattens transcript layout, preserves scroll, and shows pasted-image markers.
+- Richard's next priority is verifying spawning/deploy behavior end-to-end before lower-priority pet fluidity/image-paste polish.
+- Stale PR #6 worktree `/Users/richardadair/.codex/worktrees/a8e0/agent-launch-scripts`, local branch `codex/pet-window-pane-stream`, local branch `codex/tmux-gogo-launch-fixes`, local `origin/pr/6` ref, and remote branch `codex/pet-window-pane-stream` were removed after proving their commits are merged into `main`.
+- `agents.json` is intentionally dirty until this closeout commit: Xavier is now explicitly `runtime: "claude"` with `allow_claude_runtime: true`; selector-tag formatting also changed from AgentRemote/JSON rewrite.
 
-**Next verifiable step:** Implement the stable tmux pane-border/header labels from sidecar/registry mappings without joining or splitting panes, then verify labels on the current joined-columns shape.
+**Next verifiable step:** Verify AgentRemote spawning/deploy flows from the current `main`: deploy the intended team/layout without mutating unrelated live operator windows, confirm panes map through the sidecar, then test attach/send/pet visibility.
 
-**If that step fails:** Inspect `tmux pane-border-format`, `/tmp/agent-remote-panes.json`, and `agents.json`; do not open a normal `tmux attach` viewer as a workaround.
+**If that step fails:** Inspect `agents.json`, `/tmp/agent-remote-panes.json`, Swarmy adapter logs, and `remote-app/out.log`; use isolated/mocked checks first and do not open normal `tmux attach` viewers or mutate live iTerm unless Richard explicitly authorizes it.
 
-**Pending uncommitted diff:** expected to be none after the AgentRemote layout recovery commit is pushed.
+**Pending uncommitted diff:** `agents.json` and `.claude/memory/handoff.md` until closeout commit lands; expected clean after `/done`.
 
 ---
 
@@ -58,5 +58,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-07-SESSION_2: `/gogo` startup verified canonical AgentRemote runtime, opened the `tmux-masta` pet through the HUD, reproduced lower-display off-screen release, patched pet-window bounds clamping, bumped AgentRemote to `v1.0.20`, and verified tests/live relaunch — commits: current clamp-fix commit — gated on Richard: none
 - 2026-05-07-SESSION_3: AgentRemote pet selection moved into agent settings, main HUD pet click became show/hide only, floating pet chat was compacted and changed to EOF-only live tailing, and ARB-003 AtlasEventBus dirty work was preserved into the cleanup commit — commits: current cleanup commit — gated on Richard: none
 - 2026-05-07-SESSION_4: AgentRemote repo migration, tmux/iTerm recovery, control-mode Attach correction, Tabs/Panes deploy choices, pet pane-tail/image-paste groundwork, and comms recovery SOP review dispatch to Aria/Lucius — commits: current layout recovery commit — gated on Richard: none
+- 2026-05-08-SESSION: PR #6 merged, AgentRemote pet chat/image-paste/pane-stream polished through `v1.1.11`, checkpoint tag saved for image-paste-working state, stale merged worktrees/branches removed, and Xavier Claude runtime opt-in made explicit in `agents.json` — commits: `a3cd7bf` plus `/done` closeout commit — gated on Richard: verify spawn/deploy behavior next
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->

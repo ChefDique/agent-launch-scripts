@@ -120,7 +120,11 @@
       "team_slug": "runtime-hardening-squad",
       "default_profile_preset": "isolated-visible-codex",
       "layout": "teams",
-      "selection_tags": ["code-review", "runtime", "security"],
+      "selection_tags": [
+        "code-review",
+        "runtime",
+        "security"
+      ],
       "use_when": "Review Swarmy runtime, launcher, validation, or manifest changes before claiming PASS.",
       "member_profile_overrides": {
         "runtime-cli-prober": "isolated-visible-hermes"
@@ -131,7 +135,11 @@
       "team_slug": "sandbox-conformance-squad",
       "default_profile_preset": "isolated-visible-codex",
       "layout": "teams",
-      "selection_tags": ["sandbox", "governance", "fake-canary"],
+      "selection_tags": [
+        "sandbox",
+        "governance",
+        "fake-canary"
+      ],
       "use_when": "Prove spawned workers cannot reach denied vault, sibling, secret, or ambient capability surfaces.",
       "member_profile_overrides": {
         "leak-evidence-auditor": "isolated-visible-hermes"
@@ -142,7 +150,11 @@
       "team_slug": "xavier-swarm-assist",
       "default_profile_preset": "isolated-visible-codex",
       "layout": "teams",
-      "selection_tags": ["xavier", "handoff", "registry"],
+      "selection_tags": [
+        "xavier",
+        "handoff",
+        "registry"
+      ],
       "use_when": "Help Xavier package or verify reusable Swarmy team manifests and registry imports.",
       "member_profile_overrides": {
         "handoff-verifier": "isolated-visible-hermes"
@@ -153,7 +165,8 @@
     {
       "id": "xavier",
       "display_name": "Xavier",
-      "runtime": "codex",
+      "runtime": "claude",
+      "allow_claude_runtime": true,
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#00f2ff",
