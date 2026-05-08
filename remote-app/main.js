@@ -34,6 +34,7 @@ const SWARMY_ROOT = process.env.SWARMY_ROOT || path.join(os.homedir(), 'ai_proje
 const SWARMY_RUNTIME_SCRIPT = process.env.AGENTREMOTE_SWARMY_RUNTIME
   || path.join(SWARMY_ROOT, 'scripts', 'agentremote_runtime.py');
 const RUNTIME_SESSION = process.env.AGENTREMOTE_TMUX_SESSION || 'chq';
+const DEFAULT_LEAD_STARTUP_SLASH = '/lead-gogo';
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 const DEFAULT_ACRM_ENV_PATH = path.join(os.homedir(), 'ai_projects', 'CorporateHQ', 'ACRM', '.env.local');
@@ -979,17 +980,18 @@ function watchToggleFile() {
   });
 }
 
-// Re-position the window so it surfaces on the primary operator display, then
-// show + focus. Cursor-based placement can strand the HUD on a secondary
-// monitor while Richard is looking at the laptop display.
+// Re-position the window so it surfaces on the display where Richard is
+// currently working, then show + focus. The global shortcut should follow the
+// cursor/active monitor, not force the HUD back to the laptop/primary display.
 function showAtCursorDisplay() {
   try {
-    const display = screen.getPrimaryDisplay();
+    const cursor = screen.getCursorScreenPoint();
+    const display = screen.getDisplayNearestPoint(cursor);
     const work = display.workArea;
     const [winW, winH] = mainWindow.getSize();
     const x = Math.round(work.x + (work.width  - winW) / 2);
     const y = Math.round(work.y + work.height * 0.3);
-    logToOutLog(`showAtCursorDisplay: primary workArea=${JSON.stringify(work)} next=${JSON.stringify({ x, y, width: winW, height: winH })}`);
+    logToOutLog(`showAtCursorDisplay: cursor=${JSON.stringify(cursor)} workArea=${JSON.stringify(work)} next=${JSON.stringify({ x, y, width: winW, height: winH })}`);
     mainWindow.setBounds({ x, y, width: winW, height: winH });
   } catch (err) {
     // If anything goes sideways with multi-display geometry, just show in place.
@@ -1735,7 +1737,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
       ? String(payload.themeColor).trim()
       : null;
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
-      ? '/gogo'
+      ? DEFAULT_LEAD_STARTUP_SLASH
       : String(payload.startupSlash).trim();
     const autoRestart = payload.autoRestart === false ? false : true;
     const rawRuntime = String(payload.runtime || 'codex').trim().toLowerCase();

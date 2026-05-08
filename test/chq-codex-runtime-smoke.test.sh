@@ -44,7 +44,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/gogo",
+      "startup_slash": "/lead-gogo",
       "auto_restart": false,
       "env": {
         "PATH": "$TMP_DIR/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -74,7 +74,7 @@ fi
 grep -qx 'COMMAND:codex' "$TMP_DIR/command.log"
 grep -qx 'ARG:gpt-5.5' "$TMP_DIR/command.log"
 grep -qx 'ARG:model_reasoning_effort="high"' "$TMP_DIR/command.log"
-grep -qx 'ARG:/gogo' "$TMP_DIR/command.log"
+grep -qx 'ARG:/lead-gogo' "$TMP_DIR/command.log"
 if grep -q 'COMMAND:claude' "$TMP_DIR/command.log"; then
   echo "chq smoke launched claude" >&2
   cat "$TMP_DIR/command.log" >&2

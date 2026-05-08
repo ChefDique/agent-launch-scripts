@@ -3550,7 +3550,7 @@
       </div>
       <div class="form-row">
         <label>startup</label>
-        <input id="f-slash" value="/gogo" />
+        <input id="f-slash" value="/lead-gogo" />
       </div>
       <div class="form-row">
         <label>avatar</label>
@@ -5316,7 +5316,7 @@
         <div class="settings-row">
           <label for="set-slash">Startup</label>
           <input type="text" id="set-slash" value="${escapeHtml(agent.startupSlash || '')}"
-                 placeholder="/gogo (empty = none)" autocomplete="off" spellcheck="false" />
+                 placeholder="/lead-gogo (empty = none)" autocomplete="off" spellcheck="false" />
         </div>
       `;
 
@@ -6247,7 +6247,7 @@
 
     function resetAgentForm() {
       ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
-      document.getElementById('f-slash').value = '/gogo';
+      document.getElementById('f-slash').value = '/lead-gogo';
       document.getElementById('f-color').value = '#00f2ff';
       document.getElementById('f-autorestart').checked = true;
       document.getElementById('f-error').textContent = '';
