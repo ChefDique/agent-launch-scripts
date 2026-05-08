@@ -163,6 +163,14 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /send-keys', '-t', coord, 'C-m'/);
 });
 
+test('global AgentRemote toggle follows the cursor display, not the primary laptop display', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /function showAtCursorDisplay\(\)/);
+  assert.match(main, /screen\.getCursorScreenPoint\(\)/);
+  assert.match(main, /screen\.getDisplayNearestPoint\(cursor\)/);
+  assert.doesNotMatch(main, /showAtCursorDisplay[\s\S]*?screen\.getPrimaryDisplay\(\)[\s\S]*?mainWindow\.show\(\)/);
+});
+
 test('chat input paste persists clipboard images as local file references', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(html, /addEventListener\('paste', handleChatImagePaste\)/);

@@ -10,6 +10,9 @@ mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
 cat > "$TMP_DIR/bin/codex" <<'SH'
 #!/usr/bin/env bash
 echo "COMMAND:codex"
+for name in SWARMY_PROFILE_PRESET SWARMY_WORKSPACE_MODE SWARMY_WORKTREE_STRATEGY SWARMY_LOCAL_MODE SWARMY_LOCAL_ATTACH; do
+  [[ -n "${!name:-}" ]] && echo "ENV:${name}=${!name}"
+done
 for arg in "$@"; do
   echo "ARG:${arg}"
 done
@@ -27,6 +30,28 @@ chmod +x "$TMP_DIR/bin/claude"
 
 cat > "$TMP_DIR/agents.json" <<JSON
 {
+  "_profile_presets": [
+    {
+      "profile_id": "runtime-presets",
+      "runtime": "codex",
+      "model": "gpt-4o-mini",
+      "reasoning_effort": "low",
+      "workspace": {
+        "cwd_mode": "worktree",
+        "worktree_strategy": "dedicated_per_agent"
+      },
+      "local": {
+        "mode": "visible_tmux",
+        "attach": "iterm_control_mode"
+      },
+      "sandbox": {
+        "mode": "workspace-write",
+        "approval_policy": "on-request",
+        "config_isolation": "isolated_home",
+        "trust_repo": false
+      }
+    }
+  ],
   "agents": [
     {
       "id": "codex",
@@ -43,6 +68,34 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "id": "legacy",
       "display_name": "Legacy",
       "cwd": "$TMP_DIR/legacy-runtime-cwd"
+    },
+    {
+      "id": "preset-codex",
+      "display_name": "Preset Codex",
+      "cwd": "$TMP_DIR/codex-cwd",
+      "runtime": "codex",
+      "profile_preset": "runtime-presets",
+      "startup_slash": "/lead-gogo"
+    },
+    {
+      "id": "preset-override",
+      "display_name": "Preset Override",
+      "cwd": "$TMP_DIR/codex-cwd",
+      "runtime": "codex",
+      "profile_preset": "runtime-presets",
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "startup_slash": "/lead-gogo"
+    },
+    {
+      "id": "preset-unknown",
+      "display_name": "Preset Unknown",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "codex",
+      "profile_preset": "does-not-exist",
+      "startup_slash": "/lead-gogo"
     },
     {
       "id": "intentional-runtime",
@@ -81,6 +134,27 @@ grep -qx 'ARG:model_reasoning_effort="high"' <<< "$codex_output"
 grep -qx 'ARG:--no-alt-screen' <<< "$codex_output"
 grep -qx 'ARG:/lead-gogo' <<< "$codex_output"
 
+preset_output="$(run_agent preset-codex)"
+grep -qx 'COMMAND:codex' <<< "$preset_output"
+grep -qx 'ARG:--model' <<< "$preset_output"
+grep -qx 'ARG:gpt-4o-mini' <<< "$preset_output"
+grep -qx 'ARG:model_reasoning_effort="low"' <<< "$preset_output"
+grep -qx 'ARG:--ask-for-approval' <<< "$preset_output"
+grep -qx 'ARG:on-request' <<< "$preset_output"
+grep -qx 'ARG:--sandbox' <<< "$preset_output"
+grep -qx 'ARG:workspace-write' <<< "$preset_output"
+grep -qx 'ENV:SWARMY_PROFILE_PRESET=runtime-presets' <<< "$preset_output"
+grep -qx 'ENV:SWARMY_WORKSPACE_MODE=worktree' <<< "$preset_output"
+grep -qx 'ENV:SWARMY_WORKTREE_STRATEGY=dedicated_per_agent' <<< "$preset_output"
+grep -qx 'ENV:SWARMY_LOCAL_MODE=visible_tmux' <<< "$preset_output"
+grep -qx 'ENV:SWARMY_LOCAL_ATTACH=iterm_control_mode' <<< "$preset_output"
+
+override_output="$(run_agent preset-override)"
+grep -qx 'ARG:gpt-5.5' <<< "$override_output"
+grep -qx 'ARG:model_reasoning_effort="high"' <<< "$override_output"
+grep -qx 'ARG:danger-full-access' <<< "$override_output"
+grep -qx 'ARG:never' <<< "$override_output"
+
 legacy_output="$(run_agent legacy)"
 grep -qx 'COMMAND:codex' <<< "$legacy_output"
 grep -qx 'ARG:gpt-5.5' <<< "$legacy_output"
@@ -96,6 +170,12 @@ if blocked_runtime_output="$(run_agent blocked-claude-runtime 2>&1)"; then
   exit 1
 fi
 grep -q "allow_claude_runtime=true" <<< "$blocked_runtime_output"
+
+if preset_unknown_output="$(run_agent preset-unknown 2>&1)"; then
+  echo "expected missing profile_preset to fail" >&2
+  exit 1
+fi
+grep -q "unknown profile_preset" <<< "$preset_unknown_output"
 
 ! grep -q 'submit_tmux_text' "$REPO_ROOT/launch-agent.sh"
 ! grep -q 'tmux send-keys' "$REPO_ROOT/launch-agent.sh"

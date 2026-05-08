@@ -42,6 +42,25 @@ ENTRY="$(jq --arg id "$AGENT_ID" '.agents[] | select(.id == $id)' "$REGISTRY")"
 
 # Helper: read a string field, treating null/missing as empty.
 field() { jq -r --arg k "$1" '.[$k] // empty' <<< "$ENTRY"; }
+PROFILE_PRESET="$(field profile_preset)"
+
+if [[ -n "$PROFILE_PRESET" ]]; then
+  PRESET="$(jq --arg preset "$PROFILE_PRESET" '(.["_profile_presets"] // [])[] | select(.profile_id == $preset)' "$REGISTRY")"
+  if [[ -z "$PRESET" ]]; then
+    echo "launch-agent: unknown profile_preset '$PROFILE_PRESET' for agent '$AGENT_ID'" >&2
+    exit 2
+  fi
+else
+  PRESET='{}'
+fi
+
+preset_field() {
+  jq -r --arg p "$1" '.[$p] // empty' <<< "$PRESET"
+}
+
+preset_nested_field() {
+  jq -r "($1 // empty)" <<< "$PRESET"
+}
 
 DISPLAY_NAME="$(field display_name)"
 [[ -n "$DISPLAY_NAME" ]] || { echo "launch-agent: agent '$AGENT_ID' missing display_name" >&2; exit 1; }
@@ -53,6 +72,9 @@ CWD="${PROJECT_ROOT:-${RAW_CWD/#\~/$HOME}}"
 
 COLOR="$(field color)"
 RUNTIME="$(field runtime)"
+if [[ -z "$RUNTIME" ]]; then
+  RUNTIME="$(preset_field runtime)"
+fi
 [[ -z "$RUNTIME" ]] && RUNTIME="codex"
 ALLOW_CLAUDE_RUNTIME="$(jq -r '.allow_claude_runtime // false' <<< "$ENTRY")"
 if [[ "$RUNTIME" == "claude" && "$ALLOW_CLAUDE_RUNTIME" != "true" ]]; then
@@ -62,9 +84,38 @@ fi
 MODEL="$(field model)"
 REASONING_EFFORT="$(field reasoning_effort)"
 [[ -z "$REASONING_EFFORT" ]] && REASONING_EFFORT="$(field effort)"
+if [[ -z "$MODEL" ]]; then
+  MODEL="$(preset_field model)"
+fi
+if [[ -z "$REASONING_EFFORT" ]]; then
+  REASONING_EFFORT="$(preset_nested_field '.reasoning_effort')"
+fi
 PROVIDER="$(field provider)"
 SANDBOX="$(field sandbox)"
 APPROVAL_POLICY="$(field approval_policy)"
+if [[ -z "$SANDBOX" ]]; then
+  SANDBOX="$(preset_nested_field '.sandbox.mode')"
+fi
+if [[ -z "$APPROVAL_POLICY" ]]; then
+  APPROVAL_POLICY="$(preset_nested_field '.sandbox.approval_policy')"
+fi
+
+WORKSPACE_MODE="$(field workspace_mode)"
+WORKTREE_STRATEGY="$(field worktree_strategy)"
+LOCAL_MODE="$(field local_mode)"
+LOCAL_ATTACH="$(field local_attach)"
+if [[ -z "$WORKSPACE_MODE" ]]; then
+  WORKSPACE_MODE="$(preset_nested_field '.workspace.cwd_mode')"
+fi
+if [[ -z "$WORKTREE_STRATEGY" ]]; then
+  WORKTREE_STRATEGY="$(preset_nested_field '.workspace.worktree_strategy')"
+fi
+if [[ -z "$LOCAL_MODE" ]]; then
+  LOCAL_MODE="$(preset_nested_field '.local.mode')"
+fi
+if [[ -z "$LOCAL_ATTACH" ]]; then
+  LOCAL_ATTACH="$(preset_nested_field '.local.attach')"
+fi
 # rename_to defaults to display_name uppercased to match the legacy per-agent
 # scripts (xavier.sh wrote /rename XAVIER, lucius.sh /rename LUCIUS, etc).
 RENAME_TO="$(field rename_to)"
@@ -107,6 +158,12 @@ while IFS=$'\t' read -r k v; do
   [[ -z "$k" ]] && continue
   export "$k=$v"
 done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)\t\(.value)"' <<< "$ENTRY")
+
+[[ -n "$PROFILE_PRESET" ]] && export SWARMY_PROFILE_PRESET="$PROFILE_PRESET"
+[[ -n "$WORKSPACE_MODE" ]] && export SWARMY_WORKSPACE_MODE="$WORKSPACE_MODE"
+[[ -n "$WORKTREE_STRATEGY" ]] && export SWARMY_WORKTREE_STRATEGY="$WORKTREE_STRATEGY"
+[[ -n "$LOCAL_MODE" ]] && export SWARMY_LOCAL_MODE="$LOCAL_MODE"
+[[ -n "$LOCAL_ATTACH" ]] && export SWARMY_LOCAL_ATTACH="$LOCAL_ATTACH"
 
 if [[ "$RUNTIME" == "codex" && -x "${SCRIPT_DIR}/scripts/codex-mcp-cleanup.sh" ]]; then
   "${SCRIPT_DIR}/scripts/codex-mcp-cleanup.sh" || echo "[launch-agent] codex MCP cleanup returned non-zero (continuing)" >&2
