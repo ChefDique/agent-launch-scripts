@@ -617,6 +617,14 @@
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function isNearLogBottom() {
+      return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 36;
+    }
+
+    function maybeScrollToBottom(force = false) {
+      if (force || isNearLogBottom()) scrollToBottom();
+    }
+
     function renderEmpty(message = 'waiting for agent output') {
       logEl.innerHTML = '';
       const empty = document.createElement('div');
@@ -686,6 +694,7 @@
 
     function renderMessages(envelopes, append = false) {
       const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-20);
+      const shouldStickToBottom = !append || isNearLogBottom();
       if (!append) logEl.innerHTML = '';
       if (!filtered.length && !append && logEl.children.length === 0) {
         renderEmpty();
@@ -709,7 +718,7 @@
         logEl.appendChild(row);
       }
       while (logEl.children.length > 20) logEl.removeChild(logEl.firstElementChild);
-      scrollToBottom();
+      maybeScrollToBottom(shouldStickToBottom);
       return filtered.length;
     }
 
@@ -756,7 +765,6 @@
       chatTailOffset = res.offset || 0;
       historyLoaded = true;
       renderMessages([], false);
-      await refreshPaneTail(true);
     }
 
     async function tailRefresh() {
@@ -764,8 +772,7 @@
       const res = await ipcRenderer.invoke('chat-tail-read', { offset: chatTailOffset });
       if (!res || !res.ok) return;
       chatTailOffset = typeof res.offset === 'number' ? res.offset : chatTailOffset;
-      const rendered = renderMessages(res.envelopes || [], true);
-      if (!rendered) await refreshPaneTail(false);
+      renderMessages(res.envelopes || [], true);
     }
 
     function applyConfig(next) {
@@ -842,13 +849,27 @@
       });
     }
 
+    async function saveNativeClipboardImageReference() {
+      const result = await ipcRenderer.invoke('save-native-clipboard-image');
+      if (!result || !result.ok || !result.path) return null;
+      return `[image: ${result.path}]`;
+    }
+
     async function handleReplyImagePaste(ev) {
       const items = Array.from((ev.clipboardData && ev.clipboardData.items) || []);
       const images = items
         .filter(item => item.kind === 'file' && /^image\//.test(item.type || ''))
         .map(item => item.getAsFile())
         .filter(Boolean);
-      if (!images.length) return;
+      if (!images.length) {
+        const marker = await saveNativeClipboardImageReference();
+        if (!marker) return;
+        ev.preventDefault();
+        setMood('review', 900);
+        appendReplyText(marker);
+        inputEl.focus();
+        return;
+      }
       ev.preventDefault();
       setMood('review', 900);
       for (const image of images) {

@@ -129,21 +129,36 @@ test('chat input paste persists clipboard images as local file references', () =
   assert.match(html, /function handleChatImagePaste/);
   assert.match(html, /item\.kind === 'file' && \/\^image\\\//);
   assert.match(html, /ipcRenderer\.invoke\('save-pasted-image'/);
+  assert.match(html, /ipcRenderer\.invoke\('save-native-clipboard-image'/);
   assert.match(html, /\[image: \$\{result\.path\}\]/);
   assert.match(main, /ipcMain\.handle\('save-pasted-image'/);
+  assert.match(main, /ipcMain\.handle\('save-native-clipboard-image'/);
+  assert.match(main, /clipboard\.readImage\(\)/);
   assert.match(main, /agentremote-pasted-images/);
 });
 
-test('floating pet chat tails tmux output and supports pasted images', () => {
+test('embedded terminal intercepts paste and sends clipboard text or image references to the agent pane', () => {
+  assert.match(html, /function pasteClipboardIntoAgentPane/);
+  assert.match(html, /term\.attachCustomKeyEventHandler/);
+  assert.match(html, /read-clipboard-text/);
+  assert.match(html, /saveNativeClipboardImageReference/);
+  assert.match(html, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
+});
+
+test('floating pet chat uses clean team chat stream and supports pasted images', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
   assert.match(main, /ipcMain\.handle\('pet-pane-tail'/);
   assert.match(main, /capture-pane', '-p', '-J', '-S', '-80'/);
-  assert.match(petWindow, /refreshPaneTail\(true\)/);
+  assert.doesNotMatch(petWindow, /await refreshPaneTail\(true\)/);
+  assert.doesNotMatch(petWindow, /await refreshPaneTail\(false\)/);
+  assert.match(petWindow, /function maybeScrollToBottom/);
+  assert.match(petWindow, /isNearLogBottom/);
   assert.match(petWindow, /lastPaneTailFingerprint/);
   assert.match(petWindow, /addEventListener\('paste', handleReplyImagePaste\)/);
   assert.match(petWindow, /item\.kind === 'file' && \/\^image\\\//);
   assert.match(petWindow, /ipcRenderer\.invoke\('save-pasted-image'/);
+  assert.match(petWindow, /ipcRenderer\.invoke\('save-native-clipboard-image'/);
   assert.match(petWindow, /\[image: \$\{result\.path\}\]/);
 });
 
@@ -189,7 +204,7 @@ test('floating pet chat bubble adapts above or below based on window bounds', ()
   assert.match(petWindow, /body\.bubble-below \.sprite-wrap/);
   assert.match(petWindow, /body\.bubble-below \.bubble/);
   assert.match(petWindow, /classList\.toggle\('bubble-below', below\)/);
-  assert.match(main, /screen\.getDisplayMatching\(bounds\)/);
+  assert.match(main, /screen\.getPrimaryDisplay\(\)/);
   assert.match(main, /sendToPetWindow\(agent\.id, 'pet-window-bounds', movePayload\)/);
   assert.match(main, /sendPetWindowGeometry\(agentId, win\)/);
   assert.match(main, /function clampPetWindowBoundsToVisibleDisplay\(bounds\)/);

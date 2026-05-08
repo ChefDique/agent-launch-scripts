@@ -5659,6 +5659,30 @@
       });
     }
 
+    async function saveNativeClipboardImageReference() {
+      const result = await ipcRenderer.invoke('save-native-clipboard-image');
+      if (!result || !result.ok || !result.path) return null;
+      return `[image: ${result.path}]`;
+    }
+
+    async function readNativeClipboardText() {
+      const result = await ipcRenderer.invoke('read-clipboard-text');
+      return result && result.ok && typeof result.text === 'string' ? result.text : '';
+    }
+
+    async function pasteClipboardIntoAgentPane(agentId) {
+      const marker = await saveNativeClipboardImageReference();
+      if (marker) {
+        ipcRenderer.send('pane-input', { id: agentId, data: marker });
+        return true;
+      }
+
+      const text = await readNativeClipboardText();
+      if (!text) return false;
+      ipcRenderer.send('pane-input', { id: agentId, data: text });
+      return true;
+    }
+
     async function handleChatImagePaste(event) {
       const input = event.currentTarget;
       const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
@@ -5666,7 +5690,19 @@
         .filter(item => item.kind === 'file' && /^image\//i.test(item.type || ''))
         .map(item => item.getAsFile())
         .filter(Boolean);
-      if (imageFiles.length === 0) return;
+      if (imageFiles.length === 0) {
+        const marker = await saveNativeClipboardImageReference();
+        if (!marker) return;
+        event.preventDefault();
+        insertChatText(input, marker);
+        showVoiceToast({
+          kind: 'ok',
+          target: 'image pasted',
+          snippet: marker,
+          ms: 2600
+        });
+        return;
+      }
 
       event.preventDefault();
       try {
@@ -8220,6 +8256,18 @@
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
         ipcRenderer.send('pane-input', { id: agentId, data });
+      });
+      term.attachCustomKeyEventHandler((ev) => {
+        const isPaste = ev.type === 'keydown'
+          && (ev.key === 'v' || ev.key === 'V')
+          && (ev.metaKey || (ev.ctrlKey && ev.shiftKey))
+          && !ev.altKey;
+        if (!isPaste) return true;
+        ev.preventDefault();
+        pasteClipboardIntoAgentPane(agentId).catch(err => {
+          term.write(`\r\n[AgentRemote] paste failed: ${err && err.message ? err.message : String(err)}\r\n`);
+        });
+        return false;
       });
 
       // Register pane-output IPC listener. The channel is per-agent so

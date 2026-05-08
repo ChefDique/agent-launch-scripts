@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, session, dialog, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, globalShortcut, screen, clipboard } = require('electron');
 const { execFile, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -41,6 +41,23 @@ const PASTED_IMAGE_EXTENSIONS = {
   'image/gif': 'gif',
   'image/webp': 'webp'
 };
+
+async function savePastedImageBuffer(bytes, mimeType = 'image/png') {
+  const normalizedMime = String(mimeType || 'image/png').toLowerCase();
+  const ext = PASTED_IMAGE_EXTENSIONS[normalizedMime] || 'png';
+  if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+    return { ok: false, error: 'image clipboard data empty' };
+  }
+  if (bytes.length > 25 * 1024 * 1024) {
+    return { ok: false, error: 'image paste is larger than 25MB' };
+  }
+
+  await fsp.mkdir(PASTED_IMAGES_DIR, { recursive: true });
+  const filename = `paste-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+  const filePath = path.join(PASTED_IMAGES_DIR, filename);
+  await fsp.writeFile(filePath, bytes, { flag: 'wx' });
+  return { ok: true, path: filePath, mimeType: normalizedMime };
+}
 
 // Sidecar written by chq-tmux.sh at pane creation time. Maps agent id → stable
 // pane_id (%N notation). AgentRemote reads this to target broadcasts via pane_id
@@ -342,7 +359,7 @@ function clampPetWindowBoundsToWorkArea(bounds, workArea) {
 function clampPetWindowBoundsToVisibleDisplay(bounds) {
   const normalized = normalizePetWindowBounds(bounds);
   try {
-    const display = screen.getDisplayMatching(normalized);
+    const display = screen.getPrimaryDisplay();
     return clampPetWindowBoundsToWorkArea(normalized, display && display.workArea);
   } catch {
     return normalized;
@@ -441,6 +458,7 @@ function showAgentPetWindow(agentId, petId) {
   win.loadFile(PET_WINDOW_FILE, { query: { agentId: agent.id } });
   win.once('ready-to-show', () => {
     if (win.isDestroyed()) return;
+    settlePetWindowBounds(agent.id, win);
     win.showInactive();
     sendPetWindowGeometry(agent.id, win);
   });
@@ -779,6 +797,7 @@ function createWindow() {
     height: 240,
     minWidth: 380,
     minHeight: 180,
+    show: false,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -792,8 +811,22 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
-  mainWindow.center();
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  mainWindow.webContents.once('did-finish-load', () => {
+    setTimeout(() => {
+      logToOutLog('main window did-finish-load — forcing show at cursor display');
+      showAtCursorDisplay();
+    }, 50);
+  });
+  mainWindow.once('ready-to-show', () => {
+    logToOutLog('main window ready-to-show — forcing show at cursor display');
+    showAtCursorDisplay();
+  });
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
+    logToOutLog('main window startup timer — forcing show at cursor display');
+    showAtCursorDisplay();
+  }, 1000);
   mainWindow.webContents.on('console-message', (_e, level, message, line, source) => {
     logToOutLog(`[renderer ${level}] ${message} @ ${source.split('/').pop()}:${line}`);
   });
@@ -938,18 +971,17 @@ function watchToggleFile() {
   });
 }
 
-// Re-position the window so it surfaces on the display the cursor is on,
-// then show + focus. Center horizontally; place the panel at ~30% of the
-// display height so it sits comfortably above center on a typical screen
-// (Richard's been using it as a floating HUD).
+// Re-position the window so it surfaces on the primary operator display, then
+// show + focus. Cursor-based placement can strand the HUD on a secondary
+// monitor while Richard is looking at the laptop display.
 function showAtCursorDisplay() {
   try {
-    const cursor = screen.getCursorScreenPoint();
-    const display = screen.getDisplayNearestPoint(cursor);
+    const display = screen.getPrimaryDisplay();
     const work = display.workArea;
     const [winW, winH] = mainWindow.getSize();
     const x = Math.round(work.x + (work.width  - winW) / 2);
     const y = Math.round(work.y + work.height * 0.3);
+    logToOutLog(`showAtCursorDisplay: primary workArea=${JSON.stringify(work)} next=${JSON.stringify({ x, y, width: winW, height: winH })}`);
     mainWindow.setBounds({ x, y, width: winW, height: winH });
   } catch (err) {
     // If anything goes sideways with multi-display geometry, just show in place.
@@ -1360,20 +1392,25 @@ ipcMain.on('broadcast-message', async (event, payload) => {
 
 ipcMain.handle('save-pasted-image', async (_event, payload = {}) => {
   const mimeType = String(payload.mimeType || 'image/png').toLowerCase();
-  const ext = PASTED_IMAGE_EXTENSIONS[mimeType] || 'png';
   const encoded = String(payload.base64 || '');
   if (!encoded) return { ok: false, error: 'image clipboard data missing' };
 
   const bytes = Buffer.from(encoded, 'base64');
-  if (bytes.length === 0) return { ok: false, error: 'image clipboard data empty' };
-  if (bytes.length > 25 * 1024 * 1024) return { ok: false, error: 'image paste is larger than 25MB' };
-
-  await fsp.mkdir(PASTED_IMAGES_DIR, { recursive: true });
-  const filename = `paste-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-  const filePath = path.join(PASTED_IMAGES_DIR, filename);
-  await fsp.writeFile(filePath, bytes, { flag: 'wx' });
-  return { ok: true, path: filePath, mimeType };
+  return savePastedImageBuffer(bytes, mimeType);
 });
+
+ipcMain.handle('save-native-clipboard-image', async () => {
+  const image = clipboard.readImage();
+  if (!image || image.isEmpty()) {
+    return { ok: false, error: 'clipboard has no image' };
+  }
+  return savePastedImageBuffer(image.toPNG(), 'image/png');
+});
+
+ipcMain.handle('read-clipboard-text', async () => ({
+  ok: true,
+  text: clipboard.readText() || ''
+}));
 
 // listPanes() — promise wrapper around `tmux list-panes -a -F '...'`. Returns
 // [{ coord, title }, ...]. Uses a tab separator inside the format string so
