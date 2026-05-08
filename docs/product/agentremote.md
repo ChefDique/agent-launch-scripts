@@ -26,6 +26,7 @@ Do not over-invest in speculative platform surfaces before the core remote feels
 
 ## Current Sources
 
+- `../operations/agentremote-operator-contract.md` for the canonical spawn/layout/runtime/window behavior Richard expects preserved.
 - `../exec-plans/active/agentremote-v1-pivot-plan.md` for active work priority.
 - `../../DESIGN.md` for design tokens and current architecture notes.
 - `../../remote-app/` for the shipping prototype.

@@ -36,7 +36,8 @@ bash ../launch-remote.sh
 
 ## Checklist
 
-- Read `../AGENTS.md`, `../docs/README.md`, and `../docs/exec-plans/active/agentremote-v1-pivot-plan.md`.
+- Read `../AGENTS.md`, `../docs/README.md`, `../docs/operations/agentremote-operator-contract.md`, and `../docs/exec-plans/active/agentremote-v1-pivot-plan.md`.
+- The operator contract is the canonical "what Richard wants" source for spawn, attach, runtime selection, tmux/iTerm windows, pet chat, paste, and closeout behavior.
 - Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another TMUX-MASTA lane; classify them explicitly and merge them into the current understanding.
 - Launch AgentRemote after UI or IPC changes.
 - Verify the running Electron process points at `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`, not the compatibility symlink or a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.

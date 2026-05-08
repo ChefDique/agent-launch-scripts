@@ -4,6 +4,10 @@ This is the live punch list for recurring AgentRemote, tmux, iTerm, and pet-chat
 regressions Richard has had to restate. Keep it current until each item is
 verified by Richard in the running app.
 
+The canonical requirements live in
+`docs/operations/agentremote-operator-contract.md`. This recovery list tracks
+open/recurring failures against that contract.
+
 ## Operating Rules
 
 - Swarmy is the live spawn/summon authority. Codex/TMUX-MASTA should not act as

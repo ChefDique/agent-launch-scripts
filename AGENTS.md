@@ -16,10 +16,11 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 2. `context.md` — current model/runtime and ACRM operating contract.
 3. `docs/README.md` — durable docs map.
 4. `docs/product/agentremote.md` — product boundary and money-path focus.
-5. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-6. `DESIGN.md` — AgentRemote visual system and migration target.
-7. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
-8. `remote-app/AGENTS.md` — required before UI or IPC edits.
+5. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
+6. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+7. `DESIGN.md` — AgentRemote visual system and migration target.
+8. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
+9. `remote-app/AGENTS.md` — required before UI or IPC edits.
 
 ## Index of scoped AGENTS.md
 
@@ -41,6 +42,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 
 - Treat AgentRemote as the lightweight local operator HUD, not ACRM or Atlas. Swarmy owns the app runtime path for deploy/attach/stop/layout.
 - Core value is fast communication with agents: select targets, type or hold-to-talk, send instantly, and trust delivery feedback.
+- `docs/operations/agentremote-operator-contract.md` is the canonical AgentRemote behavior contract. Do not claim an AgentRemote, launch, runtime, tmux/iTerm, or pet-chat task is complete if it violates that contract.
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
 - Keep the remote model/runtime agnostic. It controls local processes and panes; it should not depend on one model vendor.
 - Codex is the priority runtime while Claude tokens are constrained. Preserve Claude, Hermes, and OpenClaw support, but do not launch Claude from a Codex path unless the registry explicitly asks for `runtime: "claude"`.
@@ -58,6 +60,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
 - Do not validate attach/deploy behavior by mutating Richard's live iTerm desktop unless he explicitly asks for that live mutation. Use static tests, mocked IPC, or isolated throwaway tmux sessions first.
 - For AgentRemote UI, any scrollable modal, picker, popover, overlay, roster, log, or pet window must use the dark HUD scrollbar styling. Native white scrollbars are regressions.
+- Before AgentRemote implementation work, check `.learnings/LEARNINGS.md` and promote any recurring correction into docs or runtime gates before coding around it again.
 - Commit completed work units with clear messages. Push only when Richard asks.
 
 ## Session-End Cleanup

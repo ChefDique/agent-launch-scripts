@@ -2,28 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote pet drag/held-animation fix, Claude/Codex runtime-selection confusion, and documentation boundary reset after live tmux/iTerm state became unusable.
+**Last working on:** Closeout after promoting Richard's repeated AgentRemote requirements into a durable operator contract.
 
-**State at last pause (2026-05-08):**
+**State at last pause (2026-05-08T01:52:34-0700):**
 - Canonical checkout is `/Users/richardadair/ai_projects/agent-launch-scripts`; `/Users/richardadair/agent-launch-scripts` is only the compatibility symlink.
-- AgentRemote Electron is running from the canonical `remote-app` path, but the live interactive fleet is not healthy.
-- `chq` tmux session is gone. `/tmp/agent-remote-panes.json` is `{}`. There are zero tmux clients. Remaining tmux sessions observed were only `rnd` and `session1`; Hermes gateway processes for Lucius/Aria/Xavier may still run, but they are not interactive tmux agent panes.
-- Do not report Hermes gateway presence, AgentRemote pet presence, or an internal Codex subagent as "live interactive agent online." Online-for-operator means a real tmux pane/process exists and can be revealed, attached, killed, or relaunched through Swarmy.
-- Commit `c556998` exists locally and is ahead of origin: pet drag now uses pointer-captured IPC movement; held left/right movement uses the Nimbus/cloud row, left via horizontal flip, instead of action/running rows.
-- Dirty state exists after app/worker edits: `agents.json`, `remote-app/main.js`, `remote-app/package.json`, `remote-app/package-lock.json`, and `remote-app/test/renderer-static.test.js`. Treat this as shared state, inspect before editing, and do not blindly revert.
-- Richard is done with Codex manually operating live windows. Codex should work on frontend/repo/docs/tests; Swarmy must be the live spawn/summon authority.
+- Created `docs/operations/agentremote-operator-contract.md` as the canonical "what Richard wants" contract for AgentRemote spawn/layout/runtime/window/input/pet/closeout behavior.
+- Created `.learnings/LEARNINGS.md` entry `LRN-20260508-001` and promoted it to the operator contract control surface.
+- Linked the contract from `AGENTS.md`, `CLAUDE.md`, `docs/README.md`, `docs/product/agentremote.md`, `docs/operations/agentremote-recovery-list.md`, and `remote-app/AGENTS.md`.
+- Verified `git diff --check` and contract-link search passed.
+- Live state observed during closeout: AgentRemote Electron is running from canonical `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`; only tmux session observed was detached `session1`; `/tmp/agent-remote-panes.json` was `{}`; no `tmux -CC`, `agentremote_runtime.py`, `codex --model`, or `/lead-gogo` process was observed outside the current check command.
+- Codex/TMUX-MASTA did not mutate live iTerm/tmux/AgentRemote during this closeout.
 
-**Current operator boundary:**
-- Swarmy owns live agent lifecycle: spawn, attach/reveal, kill, relaunch, status, layout, runtime choice, and tmux identity.
-- AgentRemote is a thin local HUD over Swarmy state and commands.
-- Codex/TMUX-MASTA must not manually repair live iTerm/tmux state, spawn live agents, detach clients, or open viewers unless Richard explicitly asks for that live mutation in the current turn.
-- When debugging from Codex, use read-only diagnosis first, then repo patches/tests. Use isolated worktrees or mocked/throwaway sessions for validation.
+**Next verifiable step:** Coordinate with Swarmy before touching runtime files; then resolve the deferred runtime-selection/Claude-Codex contamination diff without violating `docs/operations/agentremote-operator-contract.md`.
 
-**Next verifiable step:** Stop trying to patch live windows from Codex. In repo only, finish and test the runtime-selection fix so selecting Claude actually persists and launches Claude, selecting Codex launches Codex, and AgentRemote shows distinct states for interactive tmux pane vs Hermes gateway-only vs detached viewer vs dead pane.
+**If that step fails:** Stop and inspect the effective launch path across `remote-app/index.html`, `remote-app/main.js`, `launch-agent.sh`, `agents.json`, and Swarmy's `agentremote_runtime.py`; do not live-summon or open/close iTerm windows without Richard explicitly authorizing that mutation.
 
-**If live panes are missing:** Do not improvise with `tmux attach` or manual iTerm scripting. Ask Richard whether Swarmy should redeploy the team, then run the Swarmy runtime path only if explicitly authorized.
-
-**Pending uncommitted diff:** Dirty app/runtime-selection changes listed above plus this handoff update until committed.
+**Pending uncommitted diff:** deferred implementation files remain dirty: `launch-agent.sh`, `remote-app/index.html`, `remote-app/main.js`, `remote-app/package*.json`, `remote-app/test/renderer-static.test.js`, and `test/launch-agent-runtime.test.sh`.
 
 ---
 
@@ -65,5 +59,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-07-SESSION_3: AgentRemote pet selection moved into agent settings, main HUD pet click became show/hide only, floating pet chat was compacted and changed to EOF-only live tailing, and ARB-003 AtlasEventBus dirty work was preserved into the cleanup commit — commits: current cleanup commit — gated on Richard: none
 - 2026-05-07-SESSION_4: AgentRemote repo migration, tmux/iTerm recovery, control-mode Attach correction, Tabs/Panes deploy choices, pet pane-tail/image-paste groundwork, and comms recovery SOP review dispatch to Aria/Lucius — commits: current layout recovery commit — gated on Richard: none
 - 2026-05-08-SESSION: PR #6 merged, AgentRemote pet chat/image-paste/pane-stream polished through `v1.1.11`, checkpoint tag saved for image-paste-working state, stale merged worktrees/branches removed, and Xavier Claude runtime opt-in made explicit in `agents.json` — commits: `a3cd7bf` plus `/done` closeout commit — gated on Richard: verify spawn/deploy behavior next
+- 2026-05-08-SESSION_2: Richard's repeated AgentRemote requirements promoted into `docs/operations/agentremote-operator-contract.md` plus `.learnings/LEARNINGS.md`, with startup/checklist docs linked; implementation diff deferred to avoid colliding with Swarmy — commits: current closeout docs commit — gated on Richard: coordinate with Swarmy before runtime edits
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
