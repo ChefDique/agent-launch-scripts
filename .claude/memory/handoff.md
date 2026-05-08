@@ -2,22 +2,19 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote launcher/runtime cleanup merge and Neo docs/vault closeout.
+**Last working on:** None — AgentRemote launcher cleanup, docs/vault update, worktree cleanup, and push are closed.
 
-**State at last pause (2026-05-08T05:06:47-0700):**
-- Canonical AgentRemote was relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app` at `v1.1.19`.
-- Fixed and verified targeted renderer behavior: Ctrl+V image paste guard, pet chat direct from/to routing, statusline filtering, collapsed pet tabs showing agent names, black chat surfaces, per-agent deploy runtime choice, explicit runtime-save policy, and double-Return AgentRemote send submit.
-- Integrated the sibling launcher patches into canonical `main`: Claude tmux launches again schedule the warning Enter, `/color`, `/rename`, and `startup_slash` auto-inject path; `chq-tmux.sh` uses `display_name` for visible tmux labels and blocks app title escape overwrites with `allow-set-title off`.
-- Updated `agents.json` visible display name for `tmux-masta` to `Neo`; the id remains `tmux-masta` because sidecar/targeting keys are load-bearing.
-- Xavier, Lucius, and Swarmy are intentional Claude runtime entries with `allow_claude_runtime: true`; Codex-specific model/profile/sandbox fields were removed from those Claude entries so the registry validation gate passes.
-- Logged high-priority learning controls in `.learnings/LEARNINGS.md` for Claude auto-inject, worktree hygiene, xterm image paste, and pet chat routing; each has Control Surface, Loop Owner, and Verification fields.
-- Updated repo docs so Neo is the visible operator-station name while `tmux-masta` remains the stable id; updated vault note `01-System-Architecture/Neo Operator Station Lane.md` and linked it from the architecture maps.
-- Ran `qmd update && qmd embed` from `/Users/richardadair/ai_projects`; QMD indexed the new vault note and embedded 79 chunks from 38 documents.
-- Validation passed: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `bash test/launch-agent-runtime.test.sh`, `npm test` in `remote-app`, and `git diff --check`.
+**State at last pause (2026-05-08T05:56:48-0700):**
+- `main` is clean and pushed at `f5d748b` (`origin/main` matches local `main`).
+- AgentRemote launcher/runtime cleanup is merged: Claude warning/color/rename/startup auto-inject restored, runtime contamination guards added, tmux labels use `display_name`, and AgentRemote app remains `v1.1.19`.
+- Neo is the visible lane name; stable id remains `tmux-masta` for sidecars, tmux targeting, compatibility references, and registry identity.
+- Stale sibling worktrees `agent-launch-scripts-claude-warning` and `agent-launch-scripts-title-fix` were removed after preserving patch backups in `/tmp/agent-launch-scripts-*.f5d748b.integrated.patch`.
+- Vault note `01-System-Architecture/Neo Operator Station Lane.md` is linked from the Start Here and Architecture maps; `qmd update && qmd embed` was run after the vault edits.
+- Validation passed before commit: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `bash test/launch-agent-runtime.test.sh`, `npm test` in `remote-app`, and `git diff --check`.
 
-**Next verifiable step:** If Richard asks for more launcher work, start from canonical `main`; the old sibling worktree patches have been folded into this checkout and should not be treated as separate source-of-truth.
+**Next verifiable step:** Wait for Richard's next direction. If launcher/runtime work resumes, start from canonical `/Users/richardadair/ai_projects/agent-launch-scripts` on clean `main`.
 
-**If that step fails:** Inspect `git diff --stat`, `git worktree list --porcelain`, `remote-app` version/process path, and Swarmy's runtime adapter before changing live tmux/iTerm state.
+**If that step fails:** Recheck `git status --short --branch`, `git worktree list --porcelain`, `remote-app` version/process path, and Swarmy's runtime adapter before changing live tmux/iTerm state.
 
 **Pending uncommitted diff:** none expected after the merge/cleanup commit; vault files updated under `/Users/richardadair/ai_projects/00-Start-Here` and `/Users/richardadair/ai_projects/01-System-Architecture` are outside this git repo.
 
@@ -63,5 +60,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-08-SESSION: PR #6 merged, AgentRemote pet chat/image-paste/pane-stream polished through `v1.1.11`, checkpoint tag saved for image-paste-working state, stale merged worktrees/branches removed, and Xavier Claude runtime opt-in made explicit in `agents.json` — commits: `a3cd7bf` plus `/done` closeout commit — gated on Richard: verify spawn/deploy behavior next
 - 2026-05-08-SESSION_2: Richard's repeated AgentRemote requirements promoted into `docs/operations/agentremote-operator-contract.md` plus `.learnings/LEARNINGS.md`, with startup/checklist docs linked; implementation diff deferred to avoid colliding with Swarmy — commits: current closeout docs commit — gated on Richard: coordinate with Swarmy before runtime edits
 - 2026-05-08-SESSION_3: AgentRemote operator-fix burst through `v1.1.19`: Claude warning auto-inject restored, runtime contamination guards added, terminal image paste/0x16 guard, pet chat direct-routing/statusline filters, black chat backgrounds, collapsed pet tabs named by agent, `tmux-masta` display renamed to Neo, send path hardened with a second Return, docs/vault updated, and dirty sibling patches folded into canonical main — commits: current cleanup merge commit — gated on Richard: none
+- 2026-05-08-SESSION_4: `/done` closeout verified clean pushed `main`, single canonical worktree, no dirty sibling branches, and restart withheld because the parent process is Codex rather than a proven tmux restart loop — commits: current handoff closeout commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
