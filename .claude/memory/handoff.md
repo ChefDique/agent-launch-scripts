@@ -1,23 +1,25 @@
-# Handoff — TMUX-MASTA
+# Handoff — Neo (`tmux-masta`)
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Closeout after promoting Richard's repeated AgentRemote requirements into a durable operator contract.
+**Last working on:** AgentRemote launcher/runtime cleanup merge and Neo docs/vault closeout.
 
-**State at last pause (2026-05-08T01:52:34-0700):**
-- Canonical checkout is `/Users/richardadair/ai_projects/agent-launch-scripts`; `/Users/richardadair/agent-launch-scripts` is only the compatibility symlink.
-- Created `docs/operations/agentremote-operator-contract.md` as the canonical "what Richard wants" contract for AgentRemote spawn/layout/runtime/window/input/pet/closeout behavior.
-- Created `.learnings/LEARNINGS.md` entry `LRN-20260508-001` and promoted it to the operator contract control surface.
-- Linked the contract from `AGENTS.md`, `CLAUDE.md`, `docs/README.md`, `docs/product/agentremote.md`, `docs/operations/agentremote-recovery-list.md`, and `remote-app/AGENTS.md`.
-- Verified `git diff --check` and contract-link search passed.
-- Live state observed during closeout: AgentRemote Electron is running from canonical `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`; only tmux session observed was detached `session1`; `/tmp/agent-remote-panes.json` was `{}`; no `tmux -CC`, `agentremote_runtime.py`, `codex --model`, or `/lead-gogo` process was observed outside the current check command.
-- Codex/TMUX-MASTA did not mutate live iTerm/tmux/AgentRemote during this closeout.
+**State at last pause (2026-05-08T05:06:47-0700):**
+- Canonical AgentRemote was relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app` at `v1.1.19`.
+- Fixed and verified targeted renderer behavior: Ctrl+V image paste guard, pet chat direct from/to routing, statusline filtering, collapsed pet tabs showing agent names, black chat surfaces, per-agent deploy runtime choice, explicit runtime-save policy, and double-Return AgentRemote send submit.
+- Integrated the sibling launcher patches into canonical `main`: Claude tmux launches again schedule the warning Enter, `/color`, `/rename`, and `startup_slash` auto-inject path; `chq-tmux.sh` uses `display_name` for visible tmux labels and blocks app title escape overwrites with `allow-set-title off`.
+- Updated `agents.json` visible display name for `tmux-masta` to `Neo`; the id remains `tmux-masta` because sidecar/targeting keys are load-bearing.
+- Xavier, Lucius, and Swarmy are intentional Claude runtime entries with `allow_claude_runtime: true`; Codex-specific model/profile/sandbox fields were removed from those Claude entries so the registry validation gate passes.
+- Logged high-priority learning controls in `.learnings/LEARNINGS.md` for Claude auto-inject, worktree hygiene, xterm image paste, and pet chat routing; each has Control Surface, Loop Owner, and Verification fields.
+- Updated repo docs so Neo is the visible operator-station name while `tmux-masta` remains the stable id; updated vault note `01-System-Architecture/Neo Operator Station Lane.md` and linked it from the architecture maps.
+- Ran `qmd update && qmd embed` from `/Users/richardadair/ai_projects`; QMD indexed the new vault note and embedded 79 chunks from 38 documents.
+- Validation passed: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `bash test/launch-agent-runtime.test.sh`, `npm test` in `remote-app`, and `git diff --check`.
 
-**Next verifiable step:** Coordinate with Swarmy before touching runtime files; then resolve the deferred runtime-selection/Claude-Codex contamination diff without violating `docs/operations/agentremote-operator-contract.md`.
+**Next verifiable step:** If Richard asks for more launcher work, start from canonical `main`; the old sibling worktree patches have been folded into this checkout and should not be treated as separate source-of-truth.
 
-**If that step fails:** Stop and inspect the effective launch path across `remote-app/index.html`, `remote-app/main.js`, `launch-agent.sh`, `agents.json`, and Swarmy's `agentremote_runtime.py`; do not live-summon or open/close iTerm windows without Richard explicitly authorizing that mutation.
+**If that step fails:** Inspect `git diff --stat`, `git worktree list --porcelain`, `remote-app` version/process path, and Swarmy's runtime adapter before changing live tmux/iTerm state.
 
-**Pending uncommitted diff:** deferred implementation files remain dirty: `launch-agent.sh`, `remote-app/index.html`, `remote-app/main.js`, `remote-app/package*.json`, `remote-app/test/renderer-static.test.js`, and `test/launch-agent-runtime.test.sh`.
+**Pending uncommitted diff:** none expected after the merge/cleanup commit; vault files updated under `/Users/richardadair/ai_projects/00-Start-Here` and `/Users/richardadair/ai_projects/01-System-Architecture` are outside this git repo.
 
 ---
 
@@ -28,16 +30,16 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 ## Open priorities
 
 - [DEFER] ALS-008 — per-project orchestrator (launchd plist filtered to project=agent-launch-scripts). Bumped to high by Xavier; durable fix for the dispatch friction this session (cherry-pick rescue + one worker bypassing PR path). Pick up next session.
-- [PENDING-RICHARD] Telegram bot for TMUX-MASTA channel returns 401 from `getMe`. Token in `~/.claude/channels/telegram-tmux-masta/.env` is revoked or wrong. Needs reissue via @BotFather + replace token before Telegram pings work; until then status updates land in Claude Code.
+- [PENDING-RICHARD] Telegram bot for Neo/`tmux-masta` channel returns 401 from `getMe`. Token in `~/.claude/channels/telegram-tmux-masta/.env` is revoked or wrong. Needs reissue via @BotFather + replace token before Telegram pings work; until then status updates land in Claude Code.
 - [DEFER] ALS-001/002/003 — pre-session tickets still in `dispatch_pending`; waiting on ALS-008 to unblock auto-claim. CHQ orchestrator is project-scoped to CorporateHQ.
-- [DEFER] Atlas-of-Atlas-Island migration — AgentRemote product evolution moves to Atlas post-session per Xavier 2026-05-03; TMUX-MASTA retains the tmux script management lane (chq-tmux.sh, launch-agent.sh, agents.json).
+- [DEFER] Atlas-of-Atlas-Island migration — AgentRemote product evolution moves to Atlas post-session per Xavier 2026-05-03; Neo/`tmux-masta` retains the tmux script management lane (chq-tmux.sh, launch-agent.sh, agents.json).
 - [DEFER] Cron-monitor popup, tmux command palette, layout-preset selector — Atlas-lane backlog per CLAUDE.md.
 
 ## Cross-session comms
 
 - 2026-05-04 Xavier: filed OPS-104 (`--add-artifact` FK constraint on cross-project tasks) + OPS-105 (`--check-criterion --evidence` Phase G SyntaxError JSONB sync); bumped ALS-008 to high; per 2026-05-03 rule each lead owns their queue end-to-end.
 - 2026-05-04 Richard: skip rollback; collapse 3 detach controls into one layout-aware Attach (shipped as ALS-010); reminded about the auto-restart wrapper preserving across break-pane (verified live — pane_pid stable).
-- 2026-05-03 Xavier: AgentRemote product evolution moves to Atlas post-session; TMUX-MASTA keeps the tmux script lane.
+- 2026-05-03 Xavier: AgentRemote product evolution moves to Atlas post-session; Neo/`tmux-masta` keeps the tmux script lane.
 
 ## Session log
 
@@ -60,5 +62,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-07-SESSION_4: AgentRemote repo migration, tmux/iTerm recovery, control-mode Attach correction, Tabs/Panes deploy choices, pet pane-tail/image-paste groundwork, and comms recovery SOP review dispatch to Aria/Lucius — commits: current layout recovery commit — gated on Richard: none
 - 2026-05-08-SESSION: PR #6 merged, AgentRemote pet chat/image-paste/pane-stream polished through `v1.1.11`, checkpoint tag saved for image-paste-working state, stale merged worktrees/branches removed, and Xavier Claude runtime opt-in made explicit in `agents.json` — commits: `a3cd7bf` plus `/done` closeout commit — gated on Richard: verify spawn/deploy behavior next
 - 2026-05-08-SESSION_2: Richard's repeated AgentRemote requirements promoted into `docs/operations/agentremote-operator-contract.md` plus `.learnings/LEARNINGS.md`, with startup/checklist docs linked; implementation diff deferred to avoid colliding with Swarmy — commits: current closeout docs commit — gated on Richard: coordinate with Swarmy before runtime edits
+- 2026-05-08-SESSION_3: AgentRemote operator-fix burst through `v1.1.19`: Claude warning auto-inject restored, runtime contamination guards added, terminal image paste/0x16 guard, pet chat direct-routing/statusline filters, black chat backgrounds, collapsed pet tabs named by agent, `tmux-masta` display renamed to Neo, send path hardened with a second Return, docs/vault updated, and dirty sibling patches folded into canonical main — commits: current cleanup merge commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->

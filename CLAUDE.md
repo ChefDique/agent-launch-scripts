@@ -8,7 +8,10 @@ This file intentionally matches the root `AGENTS.md` contract while adding Claud
 
 `agent-launch-scripts` owns Richard's local agent launch infrastructure and the lightweight AgentRemote Electron HUD. This repo is the operator-station layer: per-agent launch wrappers, registry data, desktop UI, and message delivery into tmux panes. The canonical checkout path is `/Users/richardadair/ai_projects/agent-launch-scripts`; do not route active code through `/Users/richardadair/agent-launch-scripts`.
 
-The Claude running here is TMUX-MASTA: the meta-agent/operator-station maintainer. It is sister-level to the agent fleet, not one of the fleet panes.
+This lane's visible name is Neo. The stable registry id remains `tmux-masta`
+because sidecar keys, tmux targeting, and historical docs depend on it. Neo is
+the meta-agent/operator-station maintainer: sister-level to the agent fleet, not
+one of the fleet panes.
 
 ## Startup Read Order
 
@@ -68,7 +71,7 @@ To spawn the local team, use `python3 /Users/richardadair/ai_projects/swarmy/scr
 
 - Root stack is Bash scripts plus an Electron subproject; there is no root package manager or CI.
 - Preserve user/local work. Check `git status --short --branch` before editing.
-- Treat dirty state as shared operational evidence, not a mystery. Review and classify every dirty file before and after work. If changes came from AgentRemote usage, another TMUX-MASTA lane, or app-generated registry/avatar edits, say that explicitly and either integrate them or leave a concrete reason for deferring.
+- Treat dirty state as shared operational evidence, not a mystery. Review and classify every dirty file before and after work. If changes came from AgentRemote usage, another Neo/`tmux-masta` lane, or app-generated registry/avatar edits, say that explicitly and either integrate them or leave a concrete reason for deferring.
 - For launcher edits, run targeted shell checks such as `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh` plus Swarmy's AgentRemote runtime tests.
 - For Electron edits, use `bash launch-remote.sh`; do not start duplicate AgentRemote instances.
 - For AgentRemote app edits, bump `remote-app/package.json` and `remote-app/package-lock.json` using SemVer before commit. The HUD must show `v<semver> <branch>@<sha>` so stale worktree apps are visually identifiable.

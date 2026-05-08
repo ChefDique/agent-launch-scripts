@@ -38,20 +38,22 @@ shell_quote() {
 
 DEPARTMENTS=()
 if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
-  # Pull id|cwd from the registry. The DEPARTMENTS entry uses `id` for both
-  # the dept slug AND the initial pane title (wname) — Claude's /rename
-  # may overwrite that title afterward, while Codex/Hermes/OpenClaw keep it.
+  # Pull id|cwd|display_name from the registry. The DEPARTMENTS entry uses
+  # `id` for the stable dept slug and `display_name` for the visible pane
+  # title. Claude may overwrite that title afterward, while Codex/Hermes/
+  # OpenClaw keep it.
   # Broadcast targeting (Electron remote) reads tmux_target
   # from the registry directly, so the initial wname only matters for the
   # CLI (chq-tmux.sh start <name>) and the pane-border-format display.
-  while IFS=$'\t' read -r id cwd; do
+  while IFS=$'\t' read -r id cwd display_name; do
     [[ -z "$id" ]] && continue
     cwd="${cwd/#\~/$HOME}"
+    [[ -n "$display_name" ]] || display_name="$id"
     q_registry=$(shell_quote "$REGISTRY")
     q_launch_agent=$(shell_quote "$LAUNCH_AGENT")
     q_id=$(shell_quote "$id")
-    DEPARTMENTS+=("${id}|${cwd}|${id}|AGENT_REGISTRY=${q_registry} bash ${q_launch_agent} ${q_id}")
-  done < <(jq -r '.agents[] | [.id, .cwd] | @tsv' "$REGISTRY")
+    DEPARTMENTS+=("${id}|${cwd}|${display_name}|AGENT_REGISTRY=${q_registry} bash ${q_launch_agent} ${q_id}")
+  done < <(jq -r '.agents[] | [.id, .cwd, (.display_name // .id)] | @tsv' "$REGISTRY")
 else
   echo "WARN: agents.json registry not found or jq missing — registry agents unavailable" >&2
 fi
@@ -350,6 +352,7 @@ cmd_start() {
 
   tmux set -t "$SESSION" pane-border-status top
   tmux set -t "$SESSION" pane-border-format " #T "
+  tmux set-option -t "$SESSION" -q allow-set-title off
   # Apply the chosen pane layout. `tiled` auto-balances into a grid; `panes`
   # keeps the historical even-horizontal split. `windows`/`ittab` only have
   # one pane in chq:0, so even-horizontal is a no-op for them but harmless.
@@ -481,6 +484,7 @@ cmd_add() {
   if [[ "$stored_layout" != "$layout" ]]; then
     tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
   fi
+  tmux set-option -t "$SESSION" -q allow-set-title off
 
   # Existing-titles check — substring match across ALL panes in the session
   # (not just chq:0) so an agent already in a detached window isn't re-spawned.
@@ -490,7 +494,7 @@ cmd_add() {
   for entry in "${selected_entries[@]}"; do
     IFS='|' read -r dept cwd wname script <<< "$entry"
     # Skip if a pane with this title exists anywhere in the session.
-    if grep -qi "${wname}" <<< "$existing_titles" 2>/dev/null; then
+    if grep -Fqi -- "${wname}" <<< "$existing_titles" 2>/dev/null; then
       echo "  ${wname} already running — skipping."
       continue
     fi

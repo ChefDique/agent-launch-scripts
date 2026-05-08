@@ -165,35 +165,26 @@
     {
       "id": "xavier",
       "display_name": "Xavier",
-      "runtime": "codex",
+      "runtime": "claude",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#00f2ff",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "profile_preset": "trusted-local-debug",
       "workspace_mode": "repo_root",
       "worktree_strategy": "shared_cwd",
       "local_mode": "visible_tmux",
       "local_attach": "iterm_control_mode",
       "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
-      "rename_to": "XAVIER"
+      "rename_to": "XAVIER",
+      "allow_claude_runtime": true
     },
     {
       "id": "lucius",
       "display_name": "Lucius",
-      "runtime": "codex",
+      "runtime": "claude",
       "cwd": "~/ai_projects/research-and-development",
       "color": "purple",
       "theme_color": "#ffaa00",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "profile_preset": "trusted-local-debug",
       "workspace_mode": "repo_root",
       "worktree_strategy": "shared_cwd",
       "local_mode": "visible_tmux",
@@ -203,7 +194,8 @@
       "env": {
         "KOKORO_VOICE": "am_michael"
       },
-      "rename_to": "LUCIUS"
+      "rename_to": "LUCIUS",
+      "allow_claude_runtime": true
     },
     {
       "id": "gekko",
@@ -229,15 +221,10 @@
     {
       "id": "overlord-swarmy",
       "display_name": "swarmy",
-      "runtime": "codex",
+      "runtime": "claude",
       "cwd": "~/ai_projects/swarmy",
       "color": "red",
       "theme_color": "#ff77cc",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "profile_preset": "trusted-local-debug",
       "workspace_mode": "repo_root",
       "worktree_strategy": "shared_cwd",
       "local_mode": "visible_tmux",
@@ -245,11 +232,12 @@
       "rename_to": "OVERLORDSWARMY",
       "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
-      "avatar": "swarmy.svg"
+      "avatar": "swarmy.svg",
+      "allow_claude_runtime": true
     },
     {
       "id": "tmux-masta",
-      "display_name": "TMUX-MASTA",
+      "display_name": "Neo",
       "runtime": "codex",
       "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
       "color": "cyan",
@@ -281,7 +269,7 @@
       "id": "aria-hermes-tmux",
       "display_name": "ARIA",
       "runtime": "hermes",
-      "cwd": "/Users/richardadair/ai_projects",
+      "cwd": "/Users/richardadair/ai_projects/aria",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "theme_color": "#6bdef5",
@@ -290,7 +278,8 @@
       "workspace_mode": "worktree",
       "worktree_strategy": "dedicated_per_agent",
       "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode"
+      "local_attach": "iterm_control_mode",
+      "auto_restart": false
     },
     {
       "id": "goku",

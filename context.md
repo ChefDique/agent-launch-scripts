@@ -2,6 +2,10 @@
 
 This repo is Richard's local operator station for supervising agent sessions. It owns the per-agent shell launchers, registry data, and the lightweight AgentRemote Electron HUD; Swarmy owns AgentRemote's deploy/attach/stop/layout runtime.
 
+The visible operator-station lane name is Neo. The stable registry id remains
+`tmux-masta`; do not rename it casually because sidecars, tmux targeting, and
+historical docs depend on that id.
+
 ## Runtime Policy
 
 - The launcher stack must stay model/runtime agnostic across Codex, Claude, Hermes, and OpenClaw.

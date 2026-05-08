@@ -1911,6 +1911,23 @@
       background: rgba(52, 208, 88, 0.10);
       border-color: rgba(52, 208, 88, 0.32);
     }
+    .deploy-runtime-picker {
+      flex: 0 0 auto;
+      gap: 2px;
+      padding: 2px;
+    }
+    .deploy-runtime-picker.harness-picker.compact .harness-card {
+      width: 28px;
+      height: 28px;
+      padding: 2px;
+    }
+    .deploy-runtime-picker.harness-picker.compact .harness-logo-wrap {
+      width: 20px;
+      height: 20px;
+    }
+    .deploy-runtime-picker.harness-picker.compact .harness-label {
+      display: none;
+    }
 
     /* Section label that sits above the layout grid + the actions row. */
     .deploy-section-label {
@@ -2666,9 +2683,9 @@
       /* Glass — same family as .radial-settings, very slightly more opaque
          because the chat surface needs sustained legibility (you're reading
          it for minutes, not glancing for seconds). */
-      background: rgba(10, 10, 16, 0.86);
-      backdrop-filter: blur(34px) saturate(150%);
-      -webkit-backdrop-filter: blur(34px) saturate(150%);
+      background: #000;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
       border: 1px solid var(--border-medium);
       border-radius: 14px;
       box-shadow:
@@ -2840,7 +2857,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      background: transparent;
+      background: #000;
     }
     /* Day separator: thin centered rule with a label in the middle. Sits
        above its day's first message group, breathing 8px above and below. */
@@ -5828,6 +5845,7 @@
     // spawn-agents and closes immediately.
     let deployPendingIds = null;       // ids the overlay is currently confirming
     let deployPreviewLayout = null;    // user's choice in the overlay (defaults to layoutMode)
+    let deployRuntimeOverrides = {};   // per-agent launch-time runtime choice
 
     function pillLayoutToOverlayLayout(m) {
       return layoutModeToDeployLayout(m);
@@ -5838,6 +5856,11 @@
       if (!overlay || !ids || ids.length === 0) return;
       deployPendingIds = ids.slice();
       deployPreviewLayout = pillLayoutToOverlayLayout(layoutMode);
+      deployRuntimeOverrides = {};
+      deployPendingIds.forEach(id => {
+        const agent = agents[id];
+        if (agent) deployRuntimeOverrides[id] = { runtime: normalizeRuntime(agent.runtime || 'codex') };
+      });
       renderDeployRoster(deployPendingIds);
       renderDeployLayoutGrid();
       // Update count + pluralization in the title.
@@ -5868,6 +5891,7 @@
         overlay.setAttribute('aria-hidden', 'true');
         overlay.classList.remove('closing');
         deployPendingIds = null;
+        deployRuntimeOverrides = {};
       }, 150);
     }
 
@@ -5906,6 +5930,21 @@
         status.className = 'row-status' + (a.running ? ' running' : '');
         status.textContent = a.running ? 'live' : 'new';
         row.appendChild(status);
+
+        const runtimePicker = document.createElement('div');
+        runtimePicker.className = 'harness-picker compact deploy-runtime-picker';
+        runtimePicker.setAttribute('role', 'radiogroup');
+        runtimePicker.setAttribute('aria-label', `${labelTextFor(a)} launch harness`);
+        renderHarnessPicker(
+          runtimePicker,
+          (deployRuntimeOverrides[id] && deployRuntimeOverrides[id].runtime) || a.runtime || 'codex',
+          runtime => {
+            deployRuntimeOverrides[id] = { runtime: normalizeRuntime(runtime) };
+            renderDeployRoster(deployPendingIds || ids);
+          },
+          { compact: true }
+        );
+        row.appendChild(runtimePicker);
 
         roster.appendChild(row);
       });
@@ -5986,10 +6025,15 @@
       }
       const ids = deployPendingIds.slice();
       const layout = deployPreviewLayout || pillLayoutToOverlayLayout(layoutMode);
+      const runtimeOverrides = {};
+      ids.forEach(id => {
+        const runtime = deployRuntimeOverrides[id] && deployRuntimeOverrides[id].runtime;
+        if (runtime) runtimeOverrides[id] = { runtime };
+      });
       const confirm = document.getElementById('deploy-confirm');
       if (confirm) confirm.disabled = true;
       try {
-        const result = await ipcRenderer.invoke('spawn-agents', { agents: ids, layout });
+        const result = await ipcRenderer.invoke('spawn-agents', { agents: ids, layout, runtimeOverrides });
         if (!result || !result.ok) {
           showVoiceToast({
             kind: 'error',
@@ -8310,12 +8354,16 @@
 
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
+        // Ctrl+V can arrive from xterm as the literal SYN byte before Chromium
+        // emits a paste event. Treat paste as AgentRemote-owned so images become
+        // [image: ...] references instead of leaking 0x16 into the agent pane.
+        if (data === '\x16') return;
         ipcRenderer.send('pane-input', { id: agentId, data });
       });
       term.attachCustomKeyEventHandler((ev) => {
         const isPaste = ev.type === 'keydown'
           && (ev.key === 'v' || ev.key === 'V')
-          && (ev.metaKey || (ev.ctrlKey && ev.shiftKey))
+          && (ev.metaKey || ev.ctrlKey)
           && !ev.altKey;
         if (!isPaste) return true;
         ev.preventDefault();

@@ -8,9 +8,12 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 Swarmy is the live runtime authority. It owns spawn, attach/reveal, kill,
 relaunch, status, layout, runtime choice, and tmux identity. AgentRemote is a
-local HUD over Swarmy state and commands. Codex/TMUX-MASTA should not manually
+local HUD over Swarmy state and commands. Neo/`tmux-masta` should not manually
 repair live iTerm/tmux state, detach clients, open viewers, or spawn live agents
 unless Richard explicitly asks for that live mutation in the current turn.
+If the canonical checkout already has unrelated dirty AgentRemote/runtime state,
+open an isolated worktree for the new fix before editing so title/runtime
+patches do not get mixed into shared live evidence.
 
 Do not call a system healthy because a gateway process is alive. For operator
 purposes, an agent is usable only when an interactive tmux pane/process exists
@@ -32,14 +35,24 @@ gateway-only.
 
 ## Load-Bearing Invariants
 
-- Agent runtime identity comes from `agents.json`. Claude entries use `-n <Name>` plus `/rename`; Codex/Hermes/OpenClaw entries keep the tmux title set by Swarmy's AgentRemote runtime unless `tmux_target` overrides it.
+- Agent runtime identity comes from `agents.json`. Visible tmux pane/window
+  labels must come from `display_name`. Claude entries still pass `-n <Name>`
+  and may use `/rename`; Codex can keep its own terminal title config, but
+  AgentRemote-owned tmux sessions set `allow-set-title off` so application title
+  escape sequences cannot overwrite the top tmux pane label.
 - Runtime selection must be explicit and truthful. If the UI says Claude, the
   registry/update path must persist `runtime: "claude"` and
   `allow_claude_runtime: true`; if the UI says Codex, it must persist
   `runtime: "codex"` and remove Claude-only opt-in fields. Do not silently reuse
   a stale runtime under the same display name.
 - The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
-- Per-agent scripts should launch the agent and schedule boot-time auto-injects, not own nested restart loops.
+- Per-agent scripts launch the configured runtime, clean stale Claude delayed
+  injection jobs, and schedule Claude-only boot-time warning/color/rename/startup
+  injections. They must not own nested restart loops.
+- Claude runtime launches in tmux must schedule the legacy boot-time injections:
+  warning ack, optional `/color` + `/rename`, and `startup_slash`. Do not remove
+  that path just because generic validation dislikes broad `tmux send-keys`; the
+  send-keys behavior is scoped to Claude startup only.
 - Layout state can persist in the running tmux session through `@chq_layout`;
   Swarmy also records browser-safe team layout metadata in
   `@swarmy_team_layout`.

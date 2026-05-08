@@ -10,7 +10,7 @@ open/recurring failures against that contract.
 
 ## Operating Rules
 
-- Swarmy is the live spawn/summon authority. Codex/TMUX-MASTA should not act as
+- Swarmy is the live spawn/summon authority. Neo/`tmux-masta` should not act as
   the live window operator unless Richard explicitly authorizes that live
   mutation in the current turn.
 - Do not equate "AgentRemote shows online" with "Richard has a usable terminal."
@@ -52,8 +52,8 @@ underlay must support:
 | Status | Item | Verification |
 |---|---|---|
 | Ready for Richard verification | Image paste into AgentRemote chat should insert `[image: /tmp/... ]` reliably even when Chromium exposes only a native clipboard image, not a clipboard file item. | Paste a screenshot/image into the main chat input and send to a selected test target. |
-| Ready for Richard verification | Image/text paste into the embedded xterm viewer should not forward `Ctrl+V` garbage like `0x16`; it should paste clipboard text or an image reference into the target pane. | Open an agent terminal panel, paste text and an image, confirm pane receives readable content. |
-| Ready for Richard verification | Pet chat should show only the intended chat/agent stream, not the input box, prompt chrome, statusline, or full terminal screen. | Pet chat view contains clean conversation/output stream only. |
+| Code fixed; needs Richard live verification | Image/text paste into the embedded xterm viewer should not forward `Ctrl+V` garbage like `0x16`; it should paste clipboard text or an image reference into the target pane. | Open an agent terminal panel, paste text and an image, confirm pane receives readable content. Static renderer test now covers Ctrl+V plus `0x16` suppression. |
+| Code fixed; needs Richard live verification | Pet chat should show only the intended chat/agent stream, not the input box, prompt chrome, statusline, or full terminal screen. | Pet chat view contains clean conversation/output stream only. Team chat mention filtering now ignores unrelated agents merely mentioning the agent by name. |
 | Ready for Richard verification | Pet chat scrollback should let Richard scroll up without immediately yanking to the bottom. | Scroll up while new output arrives; view stays pinned unless Richard returns to bottom. |
 | Open | Visible "do not close" markers must appear on the surface Richard actually sees. Tmux window names alone are insufficient because they may not appear in iTerm chrome. | Screenshot shows obvious KEEP/OK-CLOSE guidance in the visible UI. |
 | In progress | AgentRemote viewer attach must refuse unsafe tmux viewer states before opening iTerm: noncanonical grouped sessions such as `chq-swarmy`, or plain tmux clients attached while the requested layout is iTerm control mode. | Static tests cover viewer safety classification; live deploy shows a cleanup error instead of opening more windows. |

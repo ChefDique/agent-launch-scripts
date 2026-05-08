@@ -116,6 +116,8 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /id="close"/);
   assert.match(petWindow, /id="collapse"/);
   assert.match(petWindow, /id="chat-tab"/);
+  assert.match(petWindow, /chatTabBtn\.textContent = agentName/);
+  assert.match(petWindow, /Show \$\{agentName\} chat/);
   assert.match(petWindow, /id="reply-toggle"/);
   assert.match(petWindow, /id="reply"/);
   assert.match(petWindow, /chat-expanded/);
@@ -161,6 +163,19 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /send-keys', '-t', coord, '-l', message/);
   assert.match(main, /setTimeout\(\(\) => \{/);
   assert.match(main, /send-keys', '-t', coord, 'C-m'/);
+  assert.match(main, /send-keys', '-t', coord, 'Enter'/);
+  assert.match(main, /typed but not sent/);
+});
+
+test('deploy button carries per-agent runtime choices to Swarmy without rewriting defaults', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(html, /let deployRuntimeOverrides = \{\}/);
+  assert.match(html, /deployRuntimeOverrides\[id\] = \{ runtime: normalizeRuntime\(agent\.runtime \|\| 'codex'\) \}/);
+  assert.match(html, /className = 'harness-picker compact deploy-runtime-picker'/);
+  assert.match(html, /ipcRenderer\.invoke\('spawn-agents', \{ agents: ids, layout, runtimeOverrides \}\)/);
+  assert.match(main, /payload\.runtimeOverrides/);
+  assert.match(main, /--runtime-overrides-json/);
+  assert.match(main, /JSON\.stringify\(runtimeOverrides\)/);
 });
 
 test('global AgentRemote toggle follows the cursor display, not the primary laptop display', () => {
@@ -190,6 +205,8 @@ test('embedded terminal intercepts paste and sends clipboard text or image refer
   assert.match(html, /host\.addEventListener\('paste', handleTerminalPaste, true\)/);
   assert.match(html, /clipboardData\.getData\('text\/plain'\)/);
   assert.match(html, /term\.attachCustomKeyEventHandler/);
+  assert.match(html, /ev\.metaKey \|\| ev\.ctrlKey/);
+  assert.match(html, /data === '\\x16'/);
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);
   assert.match(html, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
@@ -201,6 +218,8 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(main, /ipcMain\.handle\('pet-pane-tail'/);
   assert.match(main, /capture-pane', '-p', '-J', '-S', '-80'/);
   assert.doesNotMatch(petWindow, /await refreshPaneTail\(false\)/);
+  assert.match(petWindow, /if \(petNames\.includes\(to\)\) return true;\s*return false;/);
+  assert.doesNotMatch(petWindow, /return messageMentionsAlias\(env\.message, aliases\) \|\| messageMentionsAlias\(env\.message, petNames\)/);
   assert.match(main, /function normalizePanePipeRequest/);
   assert.match(main, /consumers: new Set\(\[consumer\]\)/);
   assert.match(main, /consumers\.delete\(consumer\)/);
@@ -210,6 +229,9 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /function sanitizePaneChunk/);
   assert.match(petWindow, /function isRenderablePaneLine/);
+  assert.match(petWindow, /Opus\|Sonnet\|Claude\|Codex\|GPT/);
+  assert.match(petWindow, /bypass permissions on/);
+  assert.ok(petWindow.includes("\\$[0-9.]+"));
   assert.match(petWindow, /Improve documentation in @filename/);
   assert.match(petWindow, /Describe your task or type/);
   assert.match(petWindow, /function cleanPaneLines/);
@@ -267,6 +289,8 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
   assert.match(petWindow, /pet-picked-up/);
   assert.match(petWindow, /'moving-right': 'held-right'/);
   assert.match(petWindow, /'moving-left': 'held-left'/);
+  assert.doesNotMatch(petWindow, /'moving-right':\s+'running-right'/);
+  assert.doesNotMatch(petWindow, /'moving-left':\s+'running-left'/);
   assert.match(petWindow, /released: 'idle'/);
   assert.match(petWindow, /setPointerCapture\(ev\.pointerId\)/);
   assert.match(petWindow, /ipcRenderer\.send\('pet-drag-window'/);
@@ -274,6 +298,7 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
   assert.match(main, /petWindowGeometryPayload/);
   assert.match(main, /petMoveWindowFromPointer/);
   assert.match(main, /ipcMain\.on\('pet-drag-window'/);
+  assert.match(main, /ipcMain\.on\('pet-drag-end'/);
   assert.match(main, /PET_BUBBLE_EDGE_THRESHOLD/);
   assert.match(main, /bubblePlacement = topGap <= PET_BUBBLE_EDGE_THRESHOLD/);
   assert.match(html, /sendPetWindowMood/);
@@ -344,7 +369,9 @@ test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', 
   assert.match(main, /function swarmyRuntimeArgs\(\.\.\.args\)\s*\{\s*return \[\s*SWARMY_RUNTIME_SCRIPT,\s*'--session',\s*RUNTIME_SESSION,\s*'--registry',\s*REGISTRY_PATH,\s*'--sidecar',\s*SIDECAR_PATH,/s);
   assert.match(main, /function shellQuoteArg\(value\)/);
   assert.match(main, /function shellQuoteCommand\(args\)/);
-  assert.match(main, /swarmyRuntimeArgs\('add', '--layout', layout, \.\.\.safeAgents\)/);
+  assert.match(main, /const runtimeArgs = \['add', '--layout', layout\]/);
+  assert.match(main, /runtimeArgs\.push\('--runtime-overrides-json', JSON\.stringify\(runtimeOverrides\)\)/);
+  assert.match(main, /runtimeArgs\.push\(\.\.\.safeAgents\)/);
   assert.match(main, /swarmyRuntimeArgs\('layout'\)/);
   assert.match(main, /swarmyRuntimeAttachCommand\(\)/);
   assert.match(main, /shellQuoteCommand\(\['python3', \.\.\.swarmyRuntimeArgs\('attach'\)\]\)/);
@@ -352,7 +379,7 @@ test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', 
   assert.match(main, /viewerSafetyState\(layout, RUNTIME_SESSION\)/);
   assert.match(main, /needsViewerCleanup: true/);
   assert.match(main, /viewerSafetyState\('ittab', sessionName\)/);
-  assert.match(main, /execFileP\('python3', swarmyRuntimeArgs\('add', '--layout', layout/);
+  assert.match(main, /execFileP\('python3', swarmyRuntimeArgs\(\.\.\.runtimeArgs\)/);
   assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('stop'\)/);
   assert.match(main, /execFile\('python3', swarmyRuntimeArgs\('layout'\),/);
   assert.doesNotMatch(main, /const CHQ_SCRIPT/);
@@ -378,4 +405,23 @@ test('edit form allows agent id edits until the agent is running', () => {
   assert.match(html, /Stop this agent before changing its id/);
   assert.match(html, /originalId: editingAgentId/);
   assert.doesNotMatch(html, /idInput\.readOnly = agentFormMode === 'edit'/);
+});
+
+test('AgentRemote preserves Claude runtime opt-in when saving harness settings', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /function applyRuntimePolicy\(entry, runtime\)/);
+  assert.match(main, /if \(runtime === 'claude'\) \{\s*entry\.allow_claude_runtime = true;/);
+  assert.match(main, /delete entry\.profile_preset;/);
+  assert.match(main, /delete entry\.allow_claude_runtime;/);
+  assert.match(main, /applyRuntimePolicy\(entry, runtime\)/);
+  assert.match(main, /if \(cleanPatch\.runtime\) applyRuntimePolicy\(entry, cleanPatch\.runtime\)/);
+});
+
+test('runtime updates are explicit in add/save flows and persist through launch-agent runtime dispatch', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /payload\.runtime = addFormRuntime;/);
+  assert.match(html, /ipcRenderer\.invoke\('update-agent', \{ id, patch: \{ runtime: next \} \}\);/);
+  assert.match(main, /const hasExplicitRuntime = Object\.prototype\.hasOwnProperty\.call\(payload, 'runtime'\);/);
+  assert.match(main, /if \(hasExplicitRuntime && runtime\) \{\s*entry\.runtime = runtime;/);
 });

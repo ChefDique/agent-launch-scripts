@@ -13,14 +13,16 @@
 #   1. Look up <id> in agents.json. cwd into the agent's project root.
 #   2. Run the optional pre_launch hook (typically telegram-cleanup --pre-launch).
 #   3. Export any per-agent env vars from the registry's "env" map.
-#   4. For Claude runtimes only, clear stale auto-inject subshells left by older
-#      launcher versions. This launcher does not type delayed commands into a
-#      live tmux pane.
+#   4. For Claude runtimes only, schedule the boot-time tmux auto-injects:
+#      warning ack at 4s, /color + /rename at 10s, startup_slash at 12s.
+#      Stale subshell PID cleanup runs first.
 #   5. exec the configured runtime command (claude, codex, hermes, openclaw).
 #
 # Pivot knobs — env overrides for shell aliases that want to repoint an agent:
 #   PROJECT_ROOT   — overrides the registry cwd
 #   STARTUP_SLASH  — overrides the registry startup_slash (empty disables)
+#   SWARMY_RUNTIME_OVERRIDE / SWARMY_MODEL_OVERRIDE /
+#   SWARMY_REASONING_EFFORT_OVERRIDE — launch-time overrides from AgentRemote.
 #
 # These mirror what xavier.sh / gekko.sh exposed before. They're agent-agnostic.
 # ============================================================================
@@ -71,33 +73,72 @@ CWD="${PROJECT_ROOT:-${RAW_CWD/#\~/$HOME}}"
 [[ -d "$CWD" ]] || { echo "launch-agent: cwd does not exist: $CWD" >&2; exit 1; }
 
 COLOR="$(field color)"
-RUNTIME="$(field runtime)"
+ENTRY_RUNTIME="$(field runtime)"
+PRESET_RUNTIME="$(preset_field runtime)"
+REGISTRY_RUNTIME="$ENTRY_RUNTIME"
+if [[ -z "$REGISTRY_RUNTIME" ]]; then
+  REGISTRY_RUNTIME="$PRESET_RUNTIME"
+fi
+[[ -z "$REGISTRY_RUNTIME" ]] && REGISTRY_RUNTIME="codex"
+
+RUNTIME_OVERRIDE="${SWARMY_RUNTIME_OVERRIDE:-}"
+RUNTIME="$RUNTIME_OVERRIDE"
 if [[ -z "$RUNTIME" ]]; then
-  RUNTIME="$(preset_field runtime)"
+  RUNTIME="$REGISTRY_RUNTIME"
 fi
 [[ -z "$RUNTIME" ]] && RUNTIME="codex"
 ALLOW_CLAUDE_RUNTIME="$(jq -r '.allow_claude_runtime // false' <<< "$ENTRY")"
-if [[ "$RUNTIME" == "claude" && "$ALLOW_CLAUDE_RUNTIME" != "true" ]]; then
+if [[ "$RUNTIME" == "claude" && "$ALLOW_CLAUDE_RUNTIME" != "true" && -z "$RUNTIME_OVERRIDE" ]]; then
   echo "launch-agent: agent '$AGENT_ID' sets runtime=claude without allow_claude_runtime=true" >&2
   exit 2
 fi
-MODEL="$(field model)"
-REASONING_EFFORT="$(field reasoning_effort)"
-[[ -z "$REASONING_EFFORT" ]] && REASONING_EFFORT="$(field effort)"
-if [[ -z "$MODEL" ]]; then
-  MODEL="$(preset_field model)"
+MODEL="${SWARMY_MODEL_OVERRIDE:-}"
+REASONING_EFFORT="${SWARMY_REASONING_EFFORT_OVERRIDE:-}"
+PROVIDER="${SWARMY_PROVIDER_OVERRIDE:-}"
+SANDBOX="${SWARMY_SANDBOX_OVERRIDE:-}"
+APPROVAL_POLICY="${SWARMY_APPROVAL_POLICY_OVERRIDE:-}"
+if [[ -z "$RUNTIME_OVERRIDE" || "$RUNTIME_OVERRIDE" == "$REGISTRY_RUNTIME" ]]; then
+  [[ -z "$MODEL" ]] && MODEL="$(field model)"
+  if [[ -z "$REASONING_EFFORT" ]]; then
+    REASONING_EFFORT="$(field reasoning_effort)"
+    [[ -z "$REASONING_EFFORT" ]] && REASONING_EFFORT="$(field effort)"
+  fi
+  [[ -z "$PROVIDER" ]] && PROVIDER="$(field provider)"
+  [[ -z "$SANDBOX" ]] && SANDBOX="$(field sandbox)"
+  [[ -z "$APPROVAL_POLICY" ]] && APPROVAL_POLICY="$(field approval_policy)"
+  if [[ -z "$MODEL" && ( -z "$ENTRY_RUNTIME" || "$ENTRY_RUNTIME" == "$PRESET_RUNTIME" ) ]]; then
+    MODEL="$(preset_field model)"
+  fi
+  if [[ -z "$REASONING_EFFORT" && ( -z "$ENTRY_RUNTIME" || "$ENTRY_RUNTIME" == "$PRESET_RUNTIME" ) ]]; then
+    REASONING_EFFORT="$(preset_nested_field '.reasoning_effort')"
+  fi
+  if [[ -z "$SANDBOX" && ( -z "$ENTRY_RUNTIME" || "$ENTRY_RUNTIME" == "$PRESET_RUNTIME" ) ]]; then
+    SANDBOX="$(preset_nested_field '.sandbox.mode')"
+  fi
+  if [[ -z "$APPROVAL_POLICY" && ( -z "$ENTRY_RUNTIME" || "$ENTRY_RUNTIME" == "$PRESET_RUNTIME" ) ]]; then
+    APPROVAL_POLICY="$(preset_nested_field '.sandbox.approval_policy')"
+  fi
 fi
-if [[ -z "$REASONING_EFFORT" ]]; then
-  REASONING_EFFORT="$(preset_nested_field '.reasoning_effort')"
-fi
-PROVIDER="$(field provider)"
-SANDBOX="$(field sandbox)"
-APPROVAL_POLICY="$(field approval_policy)"
-if [[ -z "$SANDBOX" ]]; then
-  SANDBOX="$(preset_nested_field '.sandbox.mode')"
-fi
-if [[ -z "$APPROVAL_POLICY" ]]; then
-  APPROVAL_POLICY="$(preset_nested_field '.sandbox.approval_policy')"
+if [[ "$RUNTIME" == "claude" ]]; then
+  if [[ "$MODEL" == gpt-* || "$MODEL" == *codex* ]]; then
+    echo "launch-agent: ignoring Codex model '$MODEL' for Claude runtime agent '$AGENT_ID'" >&2
+    MODEL=""
+  fi
+  if [[ "$REASONING_EFFORT" == "low" || "$REASONING_EFFORT" == "medium" || "$REASONING_EFFORT" == "high" ]]; then
+    echo "launch-agent: ignoring Codex reasoning_effort '$REASONING_EFFORT' for Claude runtime agent '$AGENT_ID'" >&2
+    REASONING_EFFORT=""
+  fi
+  SANDBOX=""
+  APPROVAL_POLICY=""
+elif [[ "$RUNTIME" == "codex" ]]; then
+  if [[ "$MODEL" == claude-* ]]; then
+    echo "launch-agent: ignoring Claude model '$MODEL' for Codex runtime agent '$AGENT_ID'" >&2
+    MODEL=""
+  fi
+  if [[ "$REASONING_EFFORT" == "max" ]]; then
+    echo "launch-agent: ignoring Claude effort '$REASONING_EFFORT' for Codex runtime agent '$AGENT_ID'" >&2
+    REASONING_EFFORT=""
+  fi
 fi
 
 WORKSPACE_MODE="$(field workspace_mode)"
@@ -239,10 +280,10 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
   # working without orphaning.
   PIDFILE="/tmp/${AGENT_ID}-bg-${TMUX_PANE//%/_}.pids"
 
-  # Stale-pid cleanup for older launcher versions that scheduled delayed tmux
-  # input. Order is load-bearing: SIGKILL the subshell BEFORE its sleep child.
-  # If we kill sleep first, bash unblocks and runs the delayed command into the
-  # active session. SIGKILL (not SIGTERM) because bash can trap SIGTERM.
+  # Stale-pid cleanup. Order is load-bearing: SIGKILL the subshell BEFORE its
+  # sleep child. If we kill sleep first, bash unblocks and runs a delayed
+  # command into the new Claude session mid-boot. SIGKILL (not SIGTERM) because
+  # bash can trap SIGTERM.
   if [[ -f "$PIDFILE" ]]; then
     while IFS= read -r pid; do
       [[ -n "$pid" ]] || continue
@@ -250,6 +291,25 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
       pkill -9 -P "$pid" 2>/dev/null || true
     done < "$PIDFILE"
     rm -f "$PIDFILE"
+  fi
+
+  CLAUDE_WARNING_ACK_DELAY="${CLAUDE_WARNING_ACK_DELAY:-4}"
+  CLAUDE_RENAME_DELAY="${CLAUDE_RENAME_DELAY:-10}"
+  CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-12}"
+
+  # Stage 1: dismiss the --dangerously-load-development-channels warning.
+  ( sleep "$CLAUDE_WARNING_ACK_DELAY"; tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
+
+  # Stage 2: pane color + rename. Matches the legacy 10s+0.5s spacing.
+  if [[ -n "$COLOR" ]]; then
+    ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/color $COLOR" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
+  else
+    ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
+  fi
+
+  # Stage 3: startup slash. Skip if empty.
+  if [[ -n "$STARTUP" ]]; then
+    ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
   fi
 fi
 

@@ -1387,19 +1387,26 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
-  // Two send-keys calls: first type the literal message, then press Enter as a
-  // separate keystroke. The small delay matters for full-screen agent TUIs:
-  // tmux can accept the literal text before the app has processed it, causing
-  // the submit key to land early and leave the text sitting in the input box.
+  // First type the literal message, then press Return as separate keystrokes.
+  // The stagger matters for full-screen agent TUIs: tmux can accept the literal
+  // text before the app has processed it, causing one submit key to land early
+  // and leave the text sitting in the input box. A second Return is harmless
+  // after a successful submit, but recovers the common "typed but not sent"
+  // state Richard sees in AgentRemote.
   return new Promise((resolve, reject) => {
     execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
       if (err) return reject(new Error(ser || err.message));
       setTimeout(() => {
         execFile('tmux', ['send-keys', '-t', coord, 'C-m'], (err2, _o2, ser2) => {
           if (err2) return reject(new Error(ser2 || err2.message));
-          resolve(coord);
+          setTimeout(() => {
+            execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err3, _o3, ser3) => {
+              if (err3) return reject(new Error(ser3 || err3.message));
+              resolve(coord);
+            });
+          }, 140);
         });
-      }, 120);
+      }, 180);
     });
   });
 }
@@ -1716,6 +1723,24 @@ async function spawnAgents(payload) {
   const layoutRaw = (payload && payload.layout) || '';
   const safeAgents = (agents || []).filter(a => /^[a-z0-9_-]+$/i.test(a));
   if (safeAgents.length === 0) return { ok: false, error: 'no deployable agents selected' };
+  const runtimeOverrides = {};
+  const rawRuntimeOverrides = payload && typeof payload.runtimeOverrides === 'object'
+    ? payload.runtimeOverrides
+    : {};
+  for (const agentId of safeAgents) {
+    const rawSpec = rawRuntimeOverrides[agentId];
+    const spec = typeof rawSpec === 'string'
+      ? { runtime: rawSpec }
+      : (rawSpec && typeof rawSpec === 'object' ? rawSpec : null);
+    if (!spec) continue;
+    const runtime = normalizeRuntime(spec.runtime);
+    runtimeOverrides[agentId] = { runtime };
+    for (const key of ['model', 'reasoning_effort', 'provider', 'sandbox', 'approval_policy']) {
+      if (spec[key] === undefined || spec[key] === null) continue;
+      const value = String(spec[key]).trim();
+      if (value && !/[\r\n]/.test(value)) runtimeOverrides[agentId][key] = value;
+    }
+  }
 
   // Whitelist layout — passed through to Swarmy's AgentRemote runtime adapter.
   // Fallback is teams, because the operator default is grouped iTerm
@@ -1729,7 +1754,12 @@ async function spawnAgents(payload) {
 
   let stdout = '';
   try {
-    const result = await execFileP('python3', swarmyRuntimeArgs('add', '--layout', layout, ...safeAgents), {
+    const runtimeArgs = ['add', '--layout', layout];
+    if (Object.keys(runtimeOverrides).length > 0) {
+      runtimeArgs.push('--runtime-overrides-json', JSON.stringify(runtimeOverrides));
+    }
+    runtimeArgs.push(...safeAgents);
+    const result = await execFileP('python3', swarmyRuntimeArgs(...runtimeArgs), {
       env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
     });
     stdout = result.stdout || '';
@@ -2013,6 +2043,15 @@ const UPDATABLE_FIELDS = {
 function applyRuntimePolicy(entry, runtime) {
   if (runtime === 'claude') {
     entry.allow_claude_runtime = true;
+    delete entry.profile_preset;
+    delete entry.sandbox;
+    delete entry.approval_policy;
+    if (!entry.model || entry.model.startsWith('gpt-') || entry.model.includes('codex')) {
+      entry.model = 'claude-opus-4-7[1m]';
+    }
+    if (!entry.reasoning_effort || entry.reasoning_effort === 'high' || entry.reasoning_effort === 'medium' || entry.reasoning_effort === 'low') {
+      entry.reasoning_effort = 'max';
+    }
     return;
   }
 
@@ -2029,16 +2068,20 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
   try {
     const originalId = String(payload.originalId || payload.id || '').trim().toLowerCase();
     const safeId = String(payload.id || '').trim().toLowerCase();
+    const hasExplicitRuntime = Object.prototype.hasOwnProperty.call(payload, 'runtime');
     if (!/^[a-z0-9_-]+$/.test(originalId)) throw new Error('invalid original id');
     if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid id');
     const displayName = String(payload.displayName || '').trim();
     if (!displayName) throw new Error('display_name required');
     const cwd = String(payload.cwd || '').trim();
     if (!cwd) throw new Error('cwd required');
-    const rawRuntime = String(payload.runtime || 'codex').trim().toLowerCase();
-    const runtime = normalizeRuntime(rawRuntime);
-    if (rawRuntime && !HARNESS_RUNTIME_IDS.includes(rawRuntime)) {
-      throw new Error('runtime must be codex, claude, hermes, or openclaw');
+    let runtime = null;
+    if (hasExplicitRuntime) {
+      const rawRuntime = String(payload.runtime || '').trim().toLowerCase();
+      runtime = normalizeRuntime(rawRuntime);
+      if (rawRuntime && !HARNESS_RUNTIME_IDS.includes(rawRuntime)) {
+        throw new Error('runtime must be codex, claude, hermes, or openclaw');
+      }
     }
     const themeColor = payload.themeColor && /^#[0-9a-fA-F]{3,8}$/.test(String(payload.themeColor))
       ? String(payload.themeColor).trim()
@@ -2077,14 +2120,16 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       entry.id = safeId;
       entry.display_name = displayName;
       entry.cwd = cwd;
-      entry.runtime = runtime;
+      if (hasExplicitRuntime && runtime) {
+        entry.runtime = runtime;
+        applyRuntimePolicy(entry, runtime);
+      }
       entry.startup_slash = startupSlash;
       if (themeColor) entry.theme_color = themeColor;
       else delete entry.theme_color;
       if (autoRestart) delete entry.auto_restart;
       else entry.auto_restart = false;
       if (avatarFilename) entry.avatar = avatarFilename;
-      applyRuntimePolicy(entry, runtime);
       updatedEntry = entry;
     });
     return { ok: true, entry: updatedEntry };
