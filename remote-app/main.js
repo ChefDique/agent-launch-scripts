@@ -266,7 +266,9 @@ function defaultPetForAgent(agent) {
 }
 
 function defaultPetBounds(agentId) {
-  const display = screen.getPrimaryDisplay();
+  const display = mainWindow && !mainWindow.isDestroyed()
+    ? screen.getDisplayMatching(mainWindow.getBounds())
+    : screen.getPrimaryDisplay();
   const work = display.workArea;
   let x = work.x + Math.round(work.width / 2) - 200;
   let y = work.y + 80;
@@ -282,6 +284,29 @@ function defaultPetBounds(agentId) {
     width: PET_WINDOW_GEOMETRY.defaultWidth,
     height: PET_WINDOW_GEOMETRY.defaultHeight
   };
+}
+
+function petWindowDisplayForBounds(bounds = {}) {
+  const candidate = {
+    x: Number.isFinite(Number(bounds.x)) ? Math.round(Number(bounds.x)) : 0,
+    y: Number.isFinite(Number(bounds.y)) ? Math.round(Number(bounds.y)) : 0,
+    width: Math.max(1, Number.isFinite(Number(bounds.width)) ? Math.round(Number(bounds.width)) : PET_WINDOW_GEOMETRY.defaultWidth),
+    height: Math.max(1, Number.isFinite(Number(bounds.height)) ? Math.round(Number(bounds.height)) : PET_WINDOW_GEOMETRY.defaultHeight)
+  };
+
+  try {
+    const byBounds = screen.getDisplayMatching(candidate);
+    if (byBounds && byBounds.workArea) return byBounds;
+  } catch {}
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      const byMain = screen.getDisplayMatching(mainWindow.getBounds());
+      if (byMain && byMain.workArea) return byMain;
+    } catch {}
+  }
+
+  return screen.getPrimaryDisplay();
 }
 
 function persistPetBounds(agentId, bounds) {
@@ -368,7 +393,7 @@ function clampPetWindowBoundsToWorkArea(bounds, workArea) {
 function clampPetWindowBoundsToVisibleDisplay(bounds) {
   const normalized = normalizePetWindowBounds(bounds);
   try {
-    const display = screen.getPrimaryDisplay();
+    const display = petWindowDisplayForBounds(normalized);
     return clampPetWindowBoundsToWorkArea(normalized, display && display.workArea);
   } catch {
     return normalized;
