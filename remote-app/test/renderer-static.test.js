@@ -209,6 +209,13 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /ipcRenderer\.invoke\('stop-pane-pipe', \{ agentId, consumer: 'pet-window' \}\)/);
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /function sanitizePaneChunk/);
+  assert.match(petWindow, /function isRenderablePaneLine/);
+  assert.match(petWindow, /function cleanPaneLines/);
+  assert.match(petWindow, /function restoreScrollPosition/);
+  assert.match(petWindow, /renderMessages\(res\.envelopes \|\| \[\], false\)/);
+  assert.match(petWindow, /await loadHistory\(\);\s*await startPaneStream\(\);/);
+  assert.match(petWindow, /scrollbar-gutter: stable/);
+  assert.match(petWindow, /\.resize-grip \{\s*display: none;/);
   assert.match(petWindow, /ipcRenderer\.on\(outputChannel, safeHandler\)/);
   assert.match(petWindow, /row\.dataset\.source = 'pane'/);
   assert.match(petWindow, /row\.dataset\.source = 'chat'/);

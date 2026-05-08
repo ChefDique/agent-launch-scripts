@@ -111,10 +111,16 @@
       min-height: 44px;
       max-height: min(96px, calc(100vh - 112px));
       overflow: hidden;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 14px;
+      background: rgba(8, 8, 14, 0.50);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(18px) saturate(122%);
       -webkit-app-region: no-drag;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       transition:
         max-height 0.2s var(--ease),
         min-height 0.2s var(--ease),
@@ -210,7 +216,7 @@
       min-height: 36px;
       max-height: min(62px, calc(100vh - 176px));
       overflow: auto;
-      padding: 2px 50px 2px 2px;
+      padding: 0 34px 0 0;
       display: flex;
       flex-direction: column;
       gap: 5px;
@@ -218,13 +224,14 @@
       font-size: 10px;
       line-height: 1.34;
       user-select: text;
+      scrollbar-gutter: stable;
       transition: max-height 0.2s var(--ease);
     }
     body.chat-expanded .log {
       min-height: 104px;
       max-height: min(160px, calc(100vh - 232px));
-      padding-top: 2px;
-      padding-right: 54px;
+      padding-top: 0;
+      padding-right: 34px;
       font-size: 11px;
       line-height: 1.38;
     }
@@ -324,27 +331,10 @@
       filter: grayscale(0.4);
     }
     .resize-grip {
-      position: fixed;
-      right: 10px;
-      bottom: 10px;
-      width: 26px;
-      height: 26px;
-      cursor: nwse-resize;
-      opacity: 0.72;
-      pointer-events: auto;
-      -webkit-app-region: no-drag;
-      z-index: 6;
+      display: none;
     }
     .resize-grip::after {
-      content: "";
-      position: absolute;
-      right: 6px;
-      bottom: 6px;
-      width: 13px;
-      height: 13px;
-      border-right: 1px solid rgba(255, 255, 255, 0.30);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.30);
-      border-radius: 0 0 3px 0;
+      content: none;
     }
     .chat-tab {
       display: none;
@@ -633,6 +623,11 @@
       if (force || isNearLogBottom()) scrollToBottom();
     }
 
+    function restoreScrollPosition(previousScrollTop) {
+      if (typeof previousScrollTop !== 'number') return;
+      logEl.scrollTop = previousScrollTop;
+    }
+
     function renderEmpty(message = 'waiting for agent output') {
       logEl.innerHTML = '';
       const empty = document.createElement('div');
@@ -663,6 +658,30 @@
         .replace(/[^\x20-\x7E\n]/g, ' ');
     }
 
+    function isRenderablePaneLine(line) {
+      const text = String(line || '').trim();
+      if (!text) return false;
+      if (/^[\s|+\-=_`~.,:;'"()[\]{}<>^*#]+$/.test(text)) return false;
+      if (/^[v0x16\s]+$/i.test(text)) return false;
+      if (/^\s*[›>]\s*/.test(text)) return false;
+      if (/^[\w.-]+@[\w.-]+\s+.*\s+[%$#]\s*$/.test(text)) return false;
+      if (/^gpt-[\w.-]+\s+(low|medium|high)\b.*\s~\s/i.test(text)) return false;
+      if (/\bContext\s+\d+%/i.test(text)) return false;
+      if (/\bweek\(\w+\)\s+\d+%/i.test(text)) return false;
+      if (/\bGoal\s+(achieved|failed)\b/i.test(text)) return false;
+      if (/\b(tokens on|remaining capacity|available skills)\b/i.test(text)) return false;
+      if (/\bUse\s+\/skills\s+to\s+list\b/i.test(text)) return false;
+      if (/^\d+%\s*[·.]/.test(text)) return false;
+      if (/\b(Working|Context|Goal)\b.*\b(Working|Context|Goal)\b/i.test(text)) return false;
+      return true;
+    }
+
+    function cleanPaneLines(lines) {
+      return (Array.isArray(lines) ? lines : [])
+        .map((line) => sanitizePaneChunk(line).trim())
+        .filter(isRenderablePaneLine);
+    }
+
     function appendPaneChunk(rawChunk) {
       const text = sanitizePaneChunk(rawChunk);
       if (!text) return 0;
@@ -672,7 +691,7 @@
       let added = 0;
       for (const line of split) {
         const trimmed = String(line || '').trim();
-        if (!trimmed) continue;
+        if (!isRenderablePaneLine(trimmed)) continue;
         paneOutputLines.push(trimmed);
         added += 1;
       }
@@ -748,6 +767,7 @@
     function renderMessages(envelopes, append = false) {
       const filtered = (Array.isArray(envelopes) ? envelopes : []).filter(messageBelongsHere).slice(-20);
       const shouldStickToBottom = !append || isNearLogBottom();
+      const previousScrollTop = logEl.scrollTop;
       if (!append) clearLogRowsForSource('chat');
       if (!filtered.length && !append && logEl.children.length === 0) {
         renderEmpty();
@@ -772,12 +792,15 @@
         logEl.appendChild(row);
       }
       while (logEl.children.length > 20) logEl.removeChild(logEl.firstElementChild);
-      maybeScrollToBottom(shouldStickToBottom);
+      if (shouldStickToBottom) scrollToBottom();
+      else restoreScrollPosition(previousScrollTop);
       return filtered.length;
     }
 
     function renderPaneLines(lines) {
-      const trimmed = (Array.isArray(lines) ? lines : []).map(line => String(line || '').trim()).filter(Boolean).slice(-18);
+      const shouldStickToBottom = isNearLogBottom();
+      const previousScrollTop = logEl.scrollTop;
+      const trimmed = cleanPaneLines(lines).slice(-18);
       clearLogRowsForSource('pane');
       if (!trimmed.length) {
         if (!hasLogRowsForSource('chat')) renderEmpty();
@@ -793,7 +816,8 @@
         row.appendChild(body);
         logEl.appendChild(row);
       }
-      scrollToBottom();
+      if (shouldStickToBottom) scrollToBottom();
+      else restoreScrollPosition(previousScrollTop);
       return trimmed.length;
     }
 
@@ -803,7 +827,7 @@
         if (force) renderEmpty(res && res.error ? res.error : 'agent pane unavailable');
         return 0;
       }
-      const lines = Array.isArray(res.lines) ? res.lines.map((line) => String(line || '').trim()).filter(Boolean).slice(-18) : [];
+      const lines = cleanPaneLines(res.lines).slice(-18);
       const payload = lines.join('\n');
       if (!payload) {
         if (force && !hasLogRowsForSource('chat')) renderEmpty();
@@ -868,8 +892,8 @@
       if (!paneStreamLastSeenAt) return;
       if (Date.now() - paneStreamLastSeenAt < 12000) return;
       const res = await ipcRenderer.invoke('pet-pane-tail', { agentId });
-      const lines = res && res.ok && Array.isArray(res.lines) ? res.lines : [];
-      const payload = lines.map((line) => String(line || '').trim()).filter(Boolean).slice(-18).join('\n');
+      const lines = res && res.ok && Array.isArray(res.lines) ? cleanPaneLines(res.lines) : [];
+      const payload = lines.slice(-18).join('\n');
       if (!payload || payload === lastPaneTailReplayFingerprint) return;
 
       paneStreamRecovering = true;
@@ -889,7 +913,7 @@
       if (!res || !res.ok) return;
       chatTailOffset = res.offset || 0;
       historyLoaded = true;
-      renderMessages([], false);
+      renderMessages(res.envelopes || [], false);
     }
 
     async function tailRefresh() {
@@ -920,7 +944,6 @@
       }
       applyConfig(res.config);
       await loadHistory();
-      await refreshPaneTail(true);
       await startPaneStream();
       paneStreamHandle = setInterval(() => {
         void ensurePaneStream();
