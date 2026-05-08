@@ -829,7 +829,7 @@
       };
       paneOutputListener = safeHandler;
       ipcRenderer.on(outputChannel, safeHandler);
-      const res = await ipcRenderer.invoke('start-pane-pipe', agentId);
+      const res = await ipcRenderer.invoke('start-pane-pipe', { agentId, consumer: 'pet-window' });
       if (!res || !res.ok) {
         ipcRenderer.removeListener(outputChannel, safeHandler);
         paneOutputListener = null;
@@ -849,7 +849,7 @@
       paneOutputListener = null;
       paneStreamLastSeenAt = 0;
       try {
-        await ipcRenderer.invoke('stop-pane-pipe', agentId);
+        await ipcRenderer.invoke('stop-pane-pipe', { agentId, consumer: 'pet-window' });
       } catch {
         // Ignore.
       }

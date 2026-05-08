@@ -2721,10 +2721,11 @@ app.on('before-quit', () => {
 //   collapse: unlink FIFO + tmux pipe-pane -t <pane_id> (no second arg = stop)
 //   stdin: renderer sends 'pane-input' {id, data}  →  tmux send-keys -t <pane_id> <data>
 //
-// One entry in activePipeReaders per expanded agent. Keyed by agent id.
-// Value: { fifoPath, readStream, paneId }
+// One entry in activePipeReaders per streamed agent. Keyed by agent id.
+// Value: { fifoPath, readStream, paneId, consumers }
 
 const activePipeReaders = {};
+const DEFAULT_PIPE_CONSUMER = 'terminal';
 
 // Build the FIFO path for an agent id.
 function pipeFifoPath(agentId) {
@@ -2740,22 +2741,49 @@ async function resolvePaneForAgentId(agentId) {
   return (await resolveLiveAgentPanes(agent))[0] || null;
 }
 
-// start-pane-pipe — called by renderer when a tile is expanded.
-// 1. Cleans up any prior entry for this agent.
+function normalizePanePipeRequest(payload, defaultConsumer = DEFAULT_PIPE_CONSUMER) {
+  const rawAgentId = payload && typeof payload === 'object' ? payload.agentId : payload;
+  const rawConsumer = payload && typeof payload === 'object' ? payload.consumer : defaultConsumer;
+  const safeId = String(rawAgentId || '').trim().toLowerCase();
+  if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agent id');
+  const consumer = String(rawConsumer || defaultConsumer)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || defaultConsumer;
+  return { safeId, consumer };
+}
+
+function ensurePipeConsumers(entry) {
+  if (!entry) return new Set();
+  if (!(entry.consumers instanceof Set)) entry.consumers = new Set([DEFAULT_PIPE_CONSUMER]);
+  return entry.consumers;
+}
+
+// start-pane-pipe — called by renderer when a terminal tile or pet stream opens.
+// 1. Reuses an existing pipe for this agent when another consumer already owns it.
 // 2. Creates a FIFO at /tmp/agent-remote-pipe-<id>.
 // 3. Registers tmux pipe-pane -t <pane_id> to write to that FIFO.
 // 4. Opens a read-stream on the FIFO and forwards bytes via IPC.
-ipcMain.handle('start-pane-pipe', async (_event, agentId) => {
+ipcMain.handle('start-pane-pipe', async (_event, payload) => {
   try {
-    const safeId = String(agentId || '').trim().toLowerCase();
-    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agent id');
-
-    // Clean up any prior pipe for this agent first.
-    await teardownPipePaneForAgent(safeId);
+    const { safeId, consumer } = normalizePanePipeRequest(payload);
 
     const pane = await resolvePaneForAgentId(safeId);
     const paneId = pane && pane.paneId;
     if (!paneId) throw new Error(`no running pane for agent "${safeId}" — Deploy it first`);
+
+    const existing = activePipeReaders[safeId];
+    if (existing && existing.paneId === paneId && existing.readStream && !existing.readStream.destroyed) {
+      const consumers = ensurePipeConsumers(existing);
+      consumers.add(consumer);
+      logToOutLog(`[pipe:${safeId}] reused on ${paneId} for ${consumer}; consumers=${consumers.size}`);
+      return { ok: true, reused: true, consumers: consumers.size };
+    }
+
+    // Clean up a stale or retargeted pipe for this agent before opening a new one.
+    await teardownPipePaneForAgent(safeId);
 
     const fifoPath = pipeFifoPath(safeId);
 
@@ -2814,18 +2842,27 @@ ipcMain.handle('start-pane-pipe', async (_event, agentId) => {
       });
     });
 
-    activePipeReaders[safeId] = { fifoPath, readStream, paneId };
-    logToOutLog(`[pipe:${safeId}] started on ${paneId} → ${fifoPath}`);
-    return { ok: true };
+    activePipeReaders[safeId] = { fifoPath, readStream, paneId, consumers: new Set([consumer]) };
+    logToOutLog(`[pipe:${safeId}] started on ${paneId} → ${fifoPath} for ${consumer}`);
+    return { ok: true, consumers: 1 };
   } catch (err) {
-    logToOutLog(`[pipe] start-pane-pipe failed for "${agentId}": ${err.message}`);
+    logToOutLog(`[pipe] start-pane-pipe failed: ${err.message}`);
     return { ok: false, error: err.message };
   }
 });
 
 // stop-pane-pipe — called by renderer when a tile is collapsed.
-ipcMain.handle('stop-pane-pipe', async (_event, agentId) => {
-  const safeId = String(agentId || '').trim().toLowerCase();
+ipcMain.handle('stop-pane-pipe', async (_event, payload) => {
+  const { safeId, consumer } = normalizePanePipeRequest(payload);
+  const entry = activePipeReaders[safeId];
+  if (entry) {
+    const consumers = ensurePipeConsumers(entry);
+    consumers.delete(consumer);
+    if (consumers.size > 0) {
+      logToOutLog(`[pipe:${safeId}] retained after ${consumer} stop; consumers=${consumers.size}`);
+      return { ok: true, retained: true, consumers: consumers.size };
+    }
+  }
   await teardownPipePaneForAgent(safeId);
   return { ok: true };
 });
