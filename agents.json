@@ -165,8 +165,7 @@
     {
       "id": "xavier",
       "display_name": "Xavier",
-      "runtime": "claude",
-      "allow_claude_runtime": true,
+      "runtime": "codex",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#00f2ff",

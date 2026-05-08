@@ -92,6 +92,7 @@ let mainWindow;
 const petWindows = new Map();
 const petWindowConfigs = new Map();
 const petMoveTimers = new Map();
+const petPointerDragAgents = new Set();
 const PET_WINDOW_GEOMETRY = {
   minWidth: 300,
   minHeight: 340,
@@ -404,6 +405,38 @@ function boundsChanged(a, b) {
   return a.x !== b.x || a.y !== b.y || a.width !== b.width || a.height !== b.height;
 }
 
+function finitePayloadNumber(value) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+}
+
+function petMoveWindowFromPointer(agentId, payload = {}) {
+  const id = String(agentId || '');
+  const win = petWindows.get(id);
+  if (!win || win.isDestroyed()) return { ok: false, error: 'pet window not found' };
+  const screenX = finitePayloadNumber(payload.screenX);
+  const screenY = finitePayloadNumber(payload.screenY);
+  const grabOffsetX = finitePayloadNumber(payload.grabOffsetX);
+  const grabOffsetY = finitePayloadNumber(payload.grabOffsetY);
+  if ([screenX, screenY, grabOffsetX, grabOffsetY].some(value => value == null)) {
+    return { ok: false, error: 'invalid drag payload' };
+  }
+  const current = win.getBounds();
+  petPointerDragAgents.add(id);
+  const nextBounds = clampPetWindowBoundsToVisibleDisplay({
+    x: Math.round(screenX - grabOffsetX),
+    y: Math.round(screenY - grabOffsetY),
+    width: current.width,
+    height: current.height
+  });
+  win.setBounds(nextBounds, false);
+  const direction = payload.direction === 'left' ? 'left' : 'right';
+  const movePayload = petWindowGeometryPayload(win, { moving: true, direction });
+  sendToPetWindow(id, 'pet-window-moving', movePayload);
+  sendToPetWindow(id, 'pet-window-bounds', movePayload);
+  return { ok: true, bounds: win.getBounds() };
+}
+
 function settlePetWindowBounds(agentId, win) {
   if (!win || win.isDestroyed()) return null;
   const current = win.getBounds();
@@ -511,12 +544,14 @@ function showAgentPetWindow(agentId, petId) {
     if (petMoveTimers.has(agent.id)) clearTimeout(petMoveTimers.get(agent.id));
     petMoveTimers.set(agent.id, setTimeout(() => {
       petMoveTimers.delete(agent.id);
+      if (petPointerDragAgents.has(agent.id)) return;
       const settledPayload = petWindowGeometryPayload(win, { moving: false });
       sendToPetWindow(agent.id, 'pet-window-moving', settledPayload);
       sendToPetWindow(agent.id, 'pet-window-bounds', settledPayload);
     }, 180));
   });
   win.on('moved', () => {
+    if (petPointerDragAgents.has(agent.id)) return;
     if (!win.isDestroyed()) {
       settlePetWindowBounds(agent.id, win);
       const settledPayload = petWindowGeometryPayload(win, { moving: false });
@@ -532,6 +567,7 @@ function showAgentPetWindow(agentId, petId) {
       clearTimeout(petMoveTimers.get(agent.id));
       petMoveTimers.delete(agent.id);
     }
+    petPointerDragAgents.delete(agent.id);
     petWindows.delete(agent.id);
     petWindowConfigs.delete(agent.id);
     if (isQuitting) return;
@@ -1174,6 +1210,23 @@ ipcMain.handle('pet-resize-window', (_event, payload = {}) => {
   return { ok: true, bounds: win.getBounds() };
 });
 
+ipcMain.on('pet-drag-window', (_event, payload = {}) => {
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  if (!agentId) return;
+  petMoveWindowFromPointer(agentId, payload);
+});
+
+ipcMain.on('pet-drag-end', (_event, payload = {}) => {
+  const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
+  if (agentId) petPointerDragAgents.delete(agentId);
+  const win = petWindows.get(agentId);
+  if (!agentId || !win || win.isDestroyed()) return;
+  settlePetWindowBounds(agentId, win);
+  const settledPayload = petWindowGeometryPayload(win, { moving: false });
+  sendToPetWindow(agentId, 'pet-window-moving', settledPayload);
+  sendToPetWindow(agentId, 'pet-window-bounds', settledPayload);
+});
+
 ipcMain.on('pet-set-mood', (_event, payload = {}) => {
   const agentId = typeof payload.agentId === 'string' ? payload.agentId : '';
   if (!agentId) return;
@@ -1796,12 +1849,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
         color,
         startup_slash: startupSlash
       };
-      if (runtime === 'codex') {
-        entry.model = 'gpt-5.5';
-        entry.reasoning_effort = 'high';
-        entry.sandbox = 'danger-full-access';
-        entry.approval_policy = 'never';
-      }
+      applyRuntimePolicy(entry, runtime);
       if (themeColor) entry.theme_color = themeColor;
       if (!autoRestart) entry.auto_restart = false;
       if (avatarFilename) entry.avatar = avatarFilename;
@@ -1962,6 +2010,21 @@ const UPDATABLE_FIELDS = {
   startup_slash: v => String(v || '').trim()
 };
 
+function applyRuntimePolicy(entry, runtime) {
+  if (runtime === 'claude') {
+    entry.allow_claude_runtime = true;
+    return;
+  }
+
+  delete entry.allow_claude_runtime;
+  if (runtime === 'codex') {
+    if (!entry.model) entry.model = 'gpt-5.5';
+    if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
+    if (!entry.sandbox) entry.sandbox = 'danger-full-access';
+    if (!entry.approval_policy) entry.approval_policy = 'never';
+  }
+}
+
 ipcMain.handle('update-agent-form', async (event, payload = {}) => {
   try {
     const originalId = String(payload.originalId || payload.id || '').trim().toLowerCase();
@@ -2021,12 +2084,7 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       if (autoRestart) delete entry.auto_restart;
       else entry.auto_restart = false;
       if (avatarFilename) entry.avatar = avatarFilename;
-      if (runtime === 'codex') {
-        if (!entry.model) entry.model = 'gpt-5.5';
-        if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
-        if (!entry.sandbox) entry.sandbox = 'danger-full-access';
-        if (!entry.approval_policy) entry.approval_policy = 'never';
-      }
+      applyRuntimePolicy(entry, runtime);
       updatedEntry = entry;
     });
     return { ok: true, entry: updatedEntry };
@@ -2057,12 +2115,7 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
       const entry = (data.agents || []).find(a => a.id === safeId);
       if (!entry) throw new Error(`agent "${safeId}" not in registry`);
       Object.assign(entry, cleanPatch);
-      if (cleanPatch.runtime === 'codex') {
-        if (!entry.model) entry.model = 'gpt-5.5';
-        if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
-        if (!entry.sandbox) entry.sandbox = 'danger-full-access';
-        if (!entry.approval_policy) entry.approval_policy = 'never';
-      }
+      if (cleanPatch.runtime) applyRuntimePolicy(entry, cleanPatch.runtime);
       updatedEntry = entry;
     });
     return { ok: true, entry: updatedEntry };

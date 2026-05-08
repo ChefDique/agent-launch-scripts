@@ -66,7 +66,7 @@
       align-items: flex-end;
       justify-content: center;
       padding: 10px 10px 12px;
-      -webkit-app-region: drag;
+      -webkit-app-region: no-drag;
     }
     body.bubble-below {
       align-items: flex-start;
@@ -94,6 +94,12 @@
     }
     .sprite-wrap {
       order: 3;
+      cursor: grab;
+      touch-action: none;
+      -webkit-app-region: no-drag;
+    }
+    body.pet-picked-up .sprite-wrap {
+      cursor: grabbing;
     }
     body.bubble-below .sprite-wrap {
       order: 1;
@@ -407,6 +413,7 @@
       --pet-to-x: calc(var(--pet-display-width) * -6);
       --pet-step: steps(6);
       --pet-duration: 1.25s;
+      --pet-scale-x: 1;
       position: relative;
       width: var(--pet-display-width);
       height: var(--pet-display-height);
@@ -418,11 +425,12 @@
       background-position: 0 var(--pet-y);
       image-rendering: auto;
       animation: row var(--pet-duration) var(--pet-step) infinite;
+      transform: scaleX(var(--pet-scale-x));
       transition: transform 0.2s var(--ease), margin 0.2s var(--ease);
     }
     body.chat-expanded .sprite {
       margin-top: 6px;
-      transform: scale(1);
+      transform: scaleX(var(--pet-scale-x));
       transform-origin: 50% 0;
     }
     body.pet-picked-up .sprite-wrap,
@@ -479,6 +487,8 @@
     let pollHandle = null;
     let moodTimer = null;
     let resizeDrag = null;
+    let petDrag = null;
+    let lastWindowBounds = null;
     let paneOutputListener = null;
     let paneOutputLines = [];
     let paneOutputCarry = '';
@@ -512,6 +522,8 @@
       sourceCell: { width: 192, height: 208 },
       moods: {
         idle: { row: 0, frames: 6, duration: '1.25s' },
+        'held-right': { row: 0, frames: 6, duration: '0.72s' },
+        'held-left': { row: 0, frames: 6, duration: '0.72s', flip: true },
         'running-right': { row: 1, frames: 8, duration: '0.92s' },
         'running-left': { row: 2, frames: 8, duration: '0.92s' },
         waving: { row: 3, frames: 4, duration: '0.74s' },
@@ -528,10 +540,10 @@
         thinking: 'review',
         error: 'failed',
         failed: 'failed',
-        'moving-right': 'running-right',
-        'moving-left': 'running-left',
-        released: 'jumping',
-        settling: 'jumping'
+        'moving-right': 'held-right',
+        'moving-left': 'held-left',
+        released: 'idle',
+        settling: 'idle'
       }
     };
     const PET_ATLAS_DISPLAY_CELL = {
@@ -561,6 +573,7 @@
       spriteEl.style.setProperty('--pet-to-x', `${-row.frames * PET_ATLAS_DISPLAY_CELL.width}px`);
       spriteEl.style.setProperty('--pet-step', `steps(${row.frames})`);
       spriteEl.style.setProperty('--pet-duration', row.duration);
+      spriteEl.style.setProperty('--pet-scale-x', row.flip ? '-1' : '1');
     }
 
     function normalizeSender(value) {
@@ -757,6 +770,9 @@
     }
 
     function setMood(mood, ms = 0) {
+      if (petDrag && !['held-left', 'held-right', 'moving-left', 'moving-right', 'released', 'settling'].includes(String(mood || '').toLowerCase())) {
+        return;
+      }
       if (moodTimer) {
         clearTimeout(moodTimer);
         moodTimer = null;
@@ -772,6 +788,10 @@
           moodTimer = null;
         }, ms);
       }
+    }
+
+    function setHeldMood(direction) {
+      setMood(direction === 'left' ? 'held-left' : 'held-right');
     }
 
     function renderMessages(envelopes, append = false) {
@@ -1083,16 +1103,57 @@
       ipcRenderer.invoke('pet-close-window', { agentId });
     });
     window.addEventListener('pointerdown', (ev) => {
-      if (ev.target.closest('button, input, .resize-grip')) return;
+      if (ev.target.closest('button, input, .resize-grip, .bubble, .chat-tab')) return;
+      ev.preventDefault();
+      const target = ev.target.closest('.sprite-wrap') || document.body;
+      try { target.setPointerCapture(ev.pointerId); } catch {}
+      const baseBounds = lastWindowBounds || {
+        x: Number.isFinite(window.screenX) ? window.screenX : 0,
+        y: Number.isFinite(window.screenY) ? window.screenY : 0
+      };
+      petDrag = {
+        pointerId: ev.pointerId,
+        grabOffsetX: ev.screenX - baseBounds.x,
+        grabOffsetY: ev.screenY - baseBounds.y,
+        lastScreenX: ev.screenX,
+        direction: 'right',
+        target
+      };
       document.body.classList.add('pet-picked-up');
-      setMood('waiting');
+      setHeldMood('right');
     });
-    window.addEventListener('pointerup', () => {
-      if (!document.body.classList.contains('pet-picked-up')) return;
+    window.addEventListener('pointermove', (ev) => {
+      if (!petDrag || ev.pointerId !== petDrag.pointerId) return;
+      const dx = ev.screenX - petDrag.lastScreenX;
+      if (Math.abs(dx) >= 1) {
+        petDrag.direction = dx < 0 ? 'left' : 'right';
+        petDrag.lastScreenX = ev.screenX;
+      }
+      document.body.classList.add('pet-picked-up', 'pet-moving');
+      setHeldMood(petDrag.direction);
+      ipcRenderer.send('pet-drag-window', {
+        agentId,
+        screenX: ev.screenX,
+        screenY: ev.screenY,
+        grabOffsetX: petDrag.grabOffsetX,
+        grabOffsetY: petDrag.grabOffsetY,
+        direction: petDrag.direction
+      });
+    });
+    function endPetDrag(ev) {
+      if (!petDrag) return;
+      if (ev && ev.pointerId !== petDrag.pointerId) return;
+      try { petDrag.target.releasePointerCapture(petDrag.pointerId); } catch {}
+      ipcRenderer.send('pet-drag-end', { agentId });
+      petDrag = null;
       document.body.classList.remove('pet-picked-up');
-      if (!document.body.classList.contains('pet-moving')) setMood('released', 650);
-    });
+      document.body.classList.remove('pet-moving');
+      setMood('released', 250);
+    }
+    window.addEventListener('pointerup', endPetDrag);
+    window.addEventListener('pointercancel', endPetDrag);
     window.addEventListener('blur', () => {
+      if (petDrag) return;
       document.body.classList.remove('pet-picked-up');
     });
     document.querySelector('.resize-grip').addEventListener('pointerdown', (ev) => {
@@ -1137,10 +1198,12 @@
       setMood(payload.mood || 'idle', Number(payload.ms) || 0);
     });
     ipcRenderer.on('pet-window-bounds', (_event, payload = {}) => {
+      if (payload && payload.bounds) lastWindowBounds = payload.bounds;
       applyBubblePlacement(payload.bubblePlacement || 'above');
     });
     ipcRenderer.on('pet-window-moving', (_event, payload = {}) => {
       const moving = !!payload.moving;
+      if (payload && payload.bounds) lastWindowBounds = payload.bounds;
       document.body.classList.toggle('pet-moving', moving);
       document.body.classList.toggle('pet-picked-up', moving);
       applyBubblePlacement(payload.bubblePlacement || 'above');
