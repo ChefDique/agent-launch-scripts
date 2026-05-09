@@ -245,3 +245,33 @@ For Claude/Codex pet chat, resolve the agent's structured transcript from regist
 - **Notes**: Claude/Codex pet chat now uses structured transcript extraction by default, refuses wrong-session Codex fallback without cwd proof, and leaves pane streaming as an explicit/dynamic fallback for unsupported runtimes.
 
 ---
+## [LRN-20260509-001] runtime_truth
+
+**Logged**: 2026-05-09T05:31:56Z
+**Priority**: high
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Message delivery must resolve AgentRemote identity to the current tmux pane id at send time, not trust listener-start coordinates or per-agent hardcoded fixes.
+
+### Details
+Richard observed a message intended for `lucius-claude` appearing in Neo because the listener still targeted stale `chq:0.1` while AgentRemote had moved Lucius to stable pane `%515` at `chq:0.2`. The correct fix is dynamic: AgentRemote owns the sidecar identity to pane-id map, message-agent resolves that map immediately before `send-keys`, and the listener health reports both stale configured targets and resolved live targets. The same incident also showed that launch/restart sync must preserve `agentremote_agent_id`; otherwise live registry sync silently drops the explicit mapping and forces lower-confidence suffix fallback.
+
+### Suggested Action
+For AgentRemote/message-agent delivery changes, require a shared resolver, delivery-time pane-id targeting, fail-closed/inbox-only behavior when identity cannot be proven, and tests proving stale coords do not deliver to the wrong pane.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/tools/message-agent/scripts/agentremote_pane_resolver.py, /Users/richardadair/ai_projects/tools/message-agent/scripts/agent_bus_listener.py, /Users/richardadair/ai_projects/tools/message-agent/scripts/agent_registry.py, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/2026-05-09-message-agent-pane-pairing-sync-proposal.md
+- Tags: agentremote, message-agent, tmux, runtime-truth, stale-coord
+- Control Surface: /Users/richardadair/ai_projects/tools/message-agent/scripts/agentremote_pane_resolver.py and /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js
+- Loop Owner: runtime-truth
+- Verification: message-agent commit c74c792, AgentRemote commit e21cbd5, `python3 -m unittest tests.test_agentremote_pane_resolver tests.test_agent_registry tests.test_listener tests.test_inbox tests.test_agent_bus_send`, `cd remote-app && npm run test:policy`, and live `/health` showing `lucius-claude` resolves to `%515`/`chq:0.2` while configured `chq:0.1` is stale
+
+### Resolution
+- **Resolved**: 2026-05-09T05:31:56Z
+- **Commit/PR**: tools/message-agent `c74c792`; agent-launch-scripts `e21cbd5`
+- **Notes**: Delivery now targets resolved pane id, not stale coord; AgentRemote sync calls the shared helper after pane topology changes.
+
+---

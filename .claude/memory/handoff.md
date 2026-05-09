@@ -2,22 +2,21 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** None — AgentRemote pet chat transcript-stream repair, learning/doc guardrails, and closeout are closed.
+**Last working on:** Message-agent and AgentRemote pane-pairing repair after Lucius-bound traffic appeared in Neo.
 
-**State at last pause (2026-05-08T20:37:10-0700):**
-- `main` is clean after the closeout commit and remains ahead of `origin/main` locally; push was not requested.
-- AgentRemote app is bumped to `v1.1.25` and was relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`.
-- Pet chat for Claude/Codex now uses structured transcript extraction instead of raw pane scraping; tools/thinking/function calls are filtered by transcript record type before rendering.
-- Codex transcript lookup refuses newest-session fallback without cwd proof, preventing wrong-session chat bubbles; Xavier and Lucius resolve to their own Claude transcript files, while Gekko correctly reports transcript unavailable when no recent verified trading Codex transcript is present.
-- Unsupported/non-transcript runtimes keep a dynamic pane-stream fallback unless registry policy overrides it.
-- Guardrails were promoted into `.learnings/LEARNINGS.md`, `docs/operations/agentremote-operator-contract.md`, and `remote-app/AGENTS.md`.
-- Validation passed: `cd remote-app && npm test` (66 pass), `git diff --check`, transcript sanity for Xavier/Lucius/Gekko, and canonical AgentRemote process path check.
+**State at last pause (2026-05-08T22:31:56-0700):**
+- AgentRemote repo committed `e21cbd5` (`Sync AgentRemote pane updates to message-agent`): AgentRemote now invokes the shared message-agent pane sync helper after attach/removal/prune paths, and `remote-app` is bumped to `v1.1.26`.
+- Message-agent repo committed `c74c792` (`Fix message-agent pane resolution`): listeners resolve AgentRemote identity to live tmux `%pane_id` at delivery time, use the hardened submit sequence, and fall back to inbox/fail closed when identity cannot be proven.
+- Live `lucius-claude` and `xavier-claude` listeners were restarted and verified: Lucius resolves via registry/high confidence to `%515` at `chq:0.2` while stale configured `chq:0.1` is reported as stale; Xavier resolves to `%461` at `chq:0.0`.
+- Self-improvement logs were added for stale-coordinate runtime truth and the `start_claude_listener.sh` empty-args launchd crash loop.
+- Auto-restart for `tmux-masta`/Neo is already `false` in `agents.json`; the only remaining CWD dirty state is an unrelated AgentRemote reorder-only `agents.json` diff generated before closeout and intentionally not committed.
+- Validation passed: message-agent py_compile plus 53 tests, `bash -n` listener scripts, AgentRemote `npm run test:policy`, `git diff --check`, and live `/health` checks on ports `9125`/`9275`.
 
-**Next verifiable step:** Wait for Richard's next direction. If pet chat work resumes, first verify the running HUD badge/path and test the opened Claude/Codex pet windows against the transcript-backed stream.
+**Next verifiable step:** If Richard resumes this thread, first verify `/health` for `lucius-claude` still reports `source: registry`, `confidence: high`, `resolved_pane_id: %515`, and `configured_stale: true` before testing any live message injection.
 
-**If that step fails:** Inspect `remote-app/agent-transcript-source.js`, `remote-app/pet-window.html`, `remote-app/test/agent-transcript-source.test.js`, and the agent registry `runtime`/`cwd` values before changing pane-stream filters.
+**If that step fails:** Run `python3 scripts/agent_registry.py sync-claude-listeners`, then `python3 scripts/agentremote_pane_resolver.py sync --agent-id lucius --sidecar /tmp/agent-remote-panes.json --registry registry/agents.local.json --tmux-bin /opt/homebrew/bin/tmux`; inspect `scripts/start_claude_listener.sh` and launchd logs under `~/.message-agent/listeners/`.
 
-**Pending uncommitted diff:** none expected after `/done` closeout commit.
+**Pending uncommitted diff:** `agents.json` reorder-only dirty state remains intentionally uncommitted; no code/doc diff from this closeout should remain after the closeout commit.
 
 ---
 
@@ -63,5 +62,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-08-SESSION_3: AgentRemote operator-fix burst through `v1.1.19`: Claude warning auto-inject restored, runtime contamination guards added, terminal image paste/0x16 guard, pet chat direct-routing/statusline filters, black chat backgrounds, collapsed pet tabs named by agent, `tmux-masta` display renamed to Neo, send path hardened with a second Return, docs/vault updated, and dirty sibling patches folded into canonical main — commits: current cleanup merge commit — gated on Richard: none
 - 2026-05-08-SESSION_4: `/done` closeout verified clean pushed `main`, single canonical worktree, no dirty sibling branches, and restart withheld because the parent process is Codex rather than a proven tmux restart loop — commits: current handoff closeout commit — gated on Richard: none
 - 2026-05-08-SESSION_5: AgentRemote pet chat switched to transcript-backed Claude/Codex streams, wrong-session Codex fallback blocked, unsupported runtime pane fallback preserved, and transcript/dynamic guardrails promoted — commits: `bdfe9b1` plus `/done` closeout commit — gated on Richard: none
+- 2026-05-08-SESSION_6: Message-agent pane misdelivery fixed dynamically: AgentRemote syncs pane updates, message-agent resolves stable pane ids at delivery time, Lucius/Xavier listeners restarted and live health verified, and self-improvement logs captured stale-coordinate/runtime-truth plus launch wrapper crash-loop lessons — commits: `e21cbd5` plus tools/message-agent `c74c792` — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->
