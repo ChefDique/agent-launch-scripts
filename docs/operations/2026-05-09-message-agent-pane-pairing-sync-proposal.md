@@ -54,6 +54,8 @@ Use a two-layer correction:
    local AgentRemote agents.
 2. Add a pre-delivery guard inside `agent_bus_listener.py` so stale listener
    pairings cannot inject into the wrong pane even if the sync hook is missed.
+3. Add a delivery-finalization policy so a correctly targeted message is also
+   submitted to the agent TUI instead of being left in the input buffer.
 
 The sidecar remains the live truth:
 
@@ -76,9 +78,19 @@ At delivery time, the listener should target `pane_id` when available. If only
 a coordinate is available, it should be treated as a legacy fallback and
 validated against tmux pane title/sidecar ownership before injection.
 
+For interactive TUI delivery, "delivered" means "visible input was submitted,"
+not merely "text was pasted." AgentRemote's hardened send path already sends
+literal text, then `C-m`, waits briefly, then sends `Enter` to recover the
+common typed-but-not-submitted state. Message-agent should adopt an equivalent
+runtime-aware submit policy for Claude/Codex-style panes, with tests that prove
+the block is not just left queued in the input line.
+
 ## Ownership Boundary
 
 Message-agent owns delivery safety. It should refuse stale live-pane delivery.
+It also owns final delivery semantics: if it claims live delivery, it must send
+the submit key sequence required by the target harness or report a degraded
+delivery instead of claiming success.
 
 AgentRemote owns pane movement. After any operation that can move panes, it
 should call the sync helper with the affected agent id or run a scoped refresh
@@ -106,13 +118,17 @@ improves freshness; the delivery guard enforces correctness.
 
 Use registry-driven mapping rather than hardcoded agent names:
 
-- `lucius-claude` maps to AgentRemote `lucius`.
-- `xavier-claude` maps to AgentRemote `xavier`.
-- Future identities can provide explicit `agentremote_agent_id` metadata.
-- As a fallback, strip a known runtime suffix (`-claude`, `-codex`,
-  `-hermes`, `-openclaw`) only in the sync helper, with tests.
+- `lucius-claude` maps to AgentRemote `lucius` through explicit
+  `agentremote_agent_id` metadata.
+- `xavier-claude` maps to AgentRemote `xavier` through explicit
+  `agentremote_agent_id` metadata.
+- As a migration fallback only, strip a known runtime suffix (`-claude`,
+  `-codex`, `-hermes`, `-openclaw`) when there is exactly one unambiguous live
+  AgentRemote match. Ambiguity must fail closed.
 
 Do not infer from display names, window titles, or current active pane.
+Do not fall back across runtimes. A stale `lucius-claude` coordinate that now
+points to Neo is a hard stop, not a reason to deliver to Neo.
 
 ## Failure Behavior
 
@@ -120,7 +136,8 @@ If message-agent cannot prove the live pane:
 
 - write the message to the recipient inbox,
 - skip tmux `send-keys`,
-- return or log a clear degraded-delivery status,
+- return or log a clear `delivered_inbox_only_with_warning` /
+  `refused_live_injection` status,
 - include the stale configured target and the expected identity in the log.
 
 This prevents cross-agent leakage while preserving async delivery.
@@ -133,6 +150,13 @@ This prevents cross-agent leakage while preserving async delivery.
   `chq:0.2`.
 - Unit test `agent_bus_listener.py` delivery guard refusing stale coordinate
   injection.
+- Unit test that a stale coord now pointing to another pane never falls back to
+  that pane for live delivery.
+- Unit test missing sidecar, invalid JSON, and stale `updated_at` all produce
+  inbox-only delivery with no tmux injection.
+- Unit test the submit policy emits the configured TUI submit sequence after
+  literal text delivery; preserve AgentRemote's `C-m` + delayed `Enter`
+  behavior for Claude/Codex-style panes.
 - Static AgentRemote test that attach/deploy/layout paths call the sync helper
   after pane movement.
 - Integration smoke with a throwaway tmux session:
@@ -141,6 +165,12 @@ This prevents cross-agent leakage while preserving async delivery.
   - refresh from sidecar,
   - deliver a message,
   - assert it reaches the moved pane and not the old coord.
+- Integration smoke that starts the listener with stale `chq:0.1`, moves
+  Lucius to a different pane id, sends to `lucius-claude`, and proves the
+  message is submitted in Lucius's pane, not left queued in Neo's input.
+- Regression test that Aria's `agent_bus_send.sh` attribution fix remains:
+  positional convenience form uses `AGENT_BUS_FROM`, then
+  `MESSAGE_AGENT_FROM`, then historical fallback.
 
 ## Rollout Plan
 
@@ -158,7 +188,8 @@ This prevents cross-agent leakage while preserving async delivery.
 ## Open Questions For Validation
 
 - Should listener state store `pane_id` directly, or should it store only
-  `agentremote_agent_id` and resolve pane id on each delivery?
+  `agentremote_agent_id` and resolve pane id on each delivery? Aria recommends
+  delivery-time resolution with listener startup config as bootstrap only.
 - Should AgentRemote invoke a sync helper after every attach, or only after
   actual pane movement?
 - Should stale live-pane delivery return HTTP `202` with degraded status, or
@@ -166,8 +197,32 @@ This prevents cross-agent leakage while preserving async delivery.
 - What should be the canonical route for getting Aria's comms-owner review
   back to Neo when Neo has no message-agent listener?
 
-## Current Aria Input Status
+## Aria Comms-Owner Review
 
-Neo sent Aria a comms-owner review request with correlation
-`tmux-masta-codex-to-aria-hermes-1778301854`. Her response is pending at the
-time this proposal was written.
+Aria responded on correlation
+`tmux-masta-codex-to-aria-hermes-1778301854`. Her position:
+
+- Delivery should resolve to a stable tmux pane id at send time, not trust
+  listener-start `session:window.pane` coordinates.
+- Ownership is shared but single-sourced: AgentRemote owns runtime identity to
+  current pane state; message-agent owns safe delivery and fail-closed guards;
+  a shared helper should perform read/validate/resolve so both systems use the
+  same logic.
+- AgentRemote should refresh after deploy, layout normalization, attach
+  break-pane, stop, and restart, but delivery-time resolve and guard is the
+  safety net.
+- Prefer hot reconfiguration or delivery-time resolution over listener
+  restarts on attach. Listener restarts are acceptable for stop/start or
+  port/secret changes, not routine pane moves.
+- Listener health must show configured and resolved targets:
+  `configured_coord`, `configured_pane_id`, `resolved_pane_id`,
+  `resolved_coord`, `resolved_identity`, freshness, and stale status.
+- AgentRemote JSON writes must be atomic with `updated_at`; message-agent
+  treats stale, missing, or invalid JSON as no-live-injection.
+- Preserve the dirty `tools/message-agent/scripts/agent_bus_send.sh`
+  attribution fix.
+
+Aria's observed proof matches the incident: message-agent still reports
+`lucius-claude` paired to `chq:0.1`; AgentRemote sidecar says Lucius is `%515`;
+tmux currently shows `%552` at pane index 1 and `%515` at pane index 2. The
+proposed guard would have prevented the misdelivery.

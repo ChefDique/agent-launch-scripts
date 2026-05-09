@@ -170,6 +170,42 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /typed but not sent/);
 });
 
+test('message-agent pane sync helper uses argv-style python3 invocation', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /function syncMessageAgentPaneEntry\(agentId\)/);
+  assert.match(main, /agentremote_pane_resolver\.py/);
+  assert.match(main, /execFile\(\s*MESSAGE_AGENT_PYTHON,\s*\[\s*MESSAGE_AGENT_PANE_RESOLVER,\s*'sync',\s*'--agent-id',\s*safeId,\s*'--sidecar',\s*SIDECAR_PATH,\s*'--registry',\s*MESSAGE_AGENT_REGISTRY_PATH/);
+  assert.match(main, /fs\.existsSync\(MESSAGE_AGENT_PANE_RESOLVER\)/);
+  assert.match(main, /logToOutLog\(`\[message-agent\] warning: helper not found at \${MESSAGE_AGENT_PANE_RESOLVER}`\)/);
+  assert.match(main, /if \(!AGENT_ID_PATTERN\.test\(safeId\)\) \{\s*logToOutLog\(`\[message-agent\] skipping pane sync: invalid agent id \${agentId}`\);\s*return;\s*\}/s);
+});
+
+test('attach-pane updates message-agent resolver sidecar after sidecar update', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const updateIndex = main.indexOf('updatePaneSidecarEntry(safeId, match);');
+  const syncIndex = main.indexOf('syncMessageAgentPaneEntry(safeId);', updateIndex);
+  assert.ok(updateIndex >= 0, 'attach-pane should update sidecar');
+  assert.ok(syncIndex > updateIndex, 'attach-pane should sync message-agent after sidecar update');
+});
+
+test('sidecar pruning/removals keep message-agent resolver in sync', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(
+    main,
+    /for \(const \[id\] of Object\.entries\(current \|\| \{\}\)\) \{\s*if \(!next\[id\]\) syncMessageAgentPaneEntry\(id\);\s*\}/s
+  );
+});
+
+test('kill-pane updates message-agent resolver after sidecar removal', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const cleanupIndex = main.indexOf('removePaneSidecarIds([safeId]);');
+  const sidecarFnStart = main.indexOf('function removePaneSidecarIds(ids) {');
+  const syncCallIndex = main.indexOf('syncMessageAgentPaneEntry(id);', sidecarFnStart);
+  assert.ok(cleanupIndex >= 0, 'kill-pane should remove sidecar');
+  assert.ok(sidecarFnStart >= 0, 'removePaneSidecarIds should exist');
+  assert.ok(syncCallIndex > sidecarFnStart, 'sidecar removal helper should sync message-agent helper');
+});
+
 test('deploy button carries per-agent runtime choices to Swarmy without rewriting defaults', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(html, /let deployRuntimeOverrides = \{\}/);

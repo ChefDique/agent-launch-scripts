@@ -75,6 +75,24 @@ async function savePastedImageBuffer(bytes, mimeType = 'image/png') {
 // (pane_loop relaunches the configured runtime in the SAME pane), so no re-write is needed on
 // relaunch — the sidecar entry for a given agent is valid until the session ends.
 const SIDECAR_PATH = '/tmp/agent-remote-panes.json';
+const MESSAGE_AGENT_PYTHON = process.env.MESSAGE_AGENT_PYTHON || 'python3';
+const MESSAGE_AGENT_PANE_RESOLVER = path.join(
+  os.homedir(),
+  'ai_projects',
+  'tools',
+  'message-agent',
+  'scripts',
+  'agentremote_pane_resolver.py'
+);
+const MESSAGE_AGENT_REGISTRY_PATH = path.join(
+  os.homedir(),
+  'ai_projects',
+  'tools',
+  'message-agent',
+  'registry',
+  'agents.local.json'
+);
+const AGENT_ID_PATTERN = /^[a-z0-9_-]+$/i;
 
 // Tiny buffer above display.workArea bottom so the window doesn't sit flush
 // against the dock / screen bottom when the radial menu grows downward.
@@ -815,15 +833,67 @@ function writePaneSidecar(data) {
 
 function removePaneSidecarIds(ids) {
   try {
-    writePaneSidecar(removeSidecarIds(readPaneSidecar(), ids));
+    const current = readPaneSidecar();
+    const removed = (Array.isArray(ids) ? ids : [])
+      .map(id => String(id || '').trim().toLowerCase())
+      .filter(id => current && Object.prototype.hasOwnProperty.call(current, id));
+    const next = removeSidecarIds(current, removed);
+    writePaneSidecar(next);
+    for (const id of removed) syncMessageAgentPaneEntry(id);
   } catch (err) {
     logToOutLog(`[sidecar] cleanup failed for ${ids.join(',')}: ${err.message}`);
   }
 }
 
+function syncMessageAgentPaneEntry(agentId) {
+  const safeId = String(agentId || '').trim().toLowerCase();
+  if (!AGENT_ID_PATTERN.test(safeId)) {
+    logToOutLog(`[message-agent] skipping pane sync: invalid agent id ${agentId}`);
+    return;
+  }
+
+  if (!fs.existsSync(MESSAGE_AGENT_PANE_RESOLVER)) {
+    logToOutLog(`[message-agent] warning: helper not found at ${MESSAGE_AGENT_PANE_RESOLVER}`);
+    return;
+  }
+
+  execFile(
+    MESSAGE_AGENT_PYTHON,
+    [
+      MESSAGE_AGENT_PANE_RESOLVER,
+      'sync',
+      '--agent-id',
+      safeId,
+      '--sidecar',
+      SIDECAR_PATH,
+      '--registry',
+      MESSAGE_AGENT_REGISTRY_PATH
+    ],
+    (err, stdout, stderr) => {
+      if (err) {
+        const extra = String((stderr || err.message || '').toString()).trim();
+        logToOutLog(`[message-agent] warning: sync failed for ${safeId}: ${extra || 'unknown error'}`);
+        return;
+      }
+      try {
+        JSON.parse(stdout || '{}');
+      } catch {
+        logToOutLog(`[message-agent] warning: non-json sync response for ${safeId}`);
+      }
+    }
+  );
+}
+
 function removePaneSidecarSession(sessionName) {
   try {
-    writePaneSidecar(removeSidecarSession(readPaneSidecar(), sessionName));
+    const current = readPaneSidecar();
+    const next = removeSidecarSession(current, sessionName);
+    const removed = [];
+    for (const [id, entry] of Object.entries(current || {})) {
+      if (entry && entry.session === sessionName) removed.push(id);
+    }
+    writePaneSidecar(next);
+    for (const id of removed) syncMessageAgentPaneEntry(id);
   } catch (err) {
     logToOutLog(`[sidecar] cleanup failed for session ${sessionName}: ${err.message}`);
   }
@@ -839,7 +909,12 @@ function prunePaneSidecarForLiveSessions(panes) {
       .filter(Boolean));
     const current = readPaneSidecar();
     const next = pruneSidecarToLiveSessions(current, liveSessions, livePaneIds);
-    if (JSON.stringify(next) !== JSON.stringify(current)) writePaneSidecar(next);
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      writePaneSidecar(next);
+      for (const [id] of Object.entries(current || {})) {
+        if (!next[id]) syncMessageAgentPaneEntry(id);
+      }
+    }
   } catch (err) {
     logToOutLog(`[sidecar] live-session prune failed: ${err.message}`);
   }
@@ -2436,6 +2511,7 @@ ipcMain.handle('attach-pane', async (event, id) => {
     const attachLabel = safeTmuxWindowLabel(agent, safeId);
     await labelTmuxPaneWindow(match, attachLabel);
     updatePaneSidecarEntry(safeId, match);
+    syncMessageAgentPaneEntry(safeId);
 
     // Step 1 — set active pane server-side. Works across panes/windows/ittab.
     // Prefer the stable pane id so stale window coordinates cannot send Attach
