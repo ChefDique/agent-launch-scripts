@@ -508,6 +508,8 @@
     let paneStreamRecovering = false;
     let paneRenderPending = false;
     let lastPaneTailReplayFingerprint = '';
+    let transcriptPollHandle = null;
+    let lastTranscriptFingerprint = '';
 
     const nameEl = document.getElementById('agent-name');
     const logEl = document.getElementById('log');
@@ -692,6 +694,10 @@
       return !!(config && config.agent && config.agent.petPaneStream === true);
     }
 
+    function shouldUseTranscriptStream() {
+      return !!(config && config.agent && config.agent.petTranscriptStream === true);
+    }
+
     function paneStreamProfile() {
       const options = config && config.agent && config.agent.petStreamProfileOptions && typeof config.agent.petStreamProfileOptions === 'object'
         ? config.agent.petStreamProfileOptions
@@ -841,6 +847,58 @@
       return trimmed.length;
     }
 
+    function renderTranscriptMessages(messages) {
+      const normalized = (Array.isArray(messages) ? messages : [])
+        .map((message) => ({
+          id: String(message && message.id || ''),
+          text: String(message && message.text || '').trim()
+        }))
+        .filter((message) => message.text.length > 0)
+        .slice(-8);
+      const fingerprint = normalized.map((message) => `${message.id}:${message.text}`).join('\n---\n');
+      if (fingerprint && fingerprint === lastTranscriptFingerprint && hasLogRowsForSource('transcript')) {
+        return normalized.length;
+      }
+      lastTranscriptFingerprint = fingerprint;
+
+      const shouldStickToBottom = isNearLogBottom();
+      const previousScrollTop = logEl.scrollTop;
+      clearLogRowsForSource('pane');
+      clearLogRowsForSource('transcript');
+      if (!normalized.length) {
+        if (!hasLogRowsForSource('chat')) renderEmpty();
+        return 0;
+      }
+      const existingEmpty = logEl.querySelector('.empty');
+      if (existingEmpty) existingEmpty.remove();
+      for (const message of normalized) {
+        const row = document.createElement('div');
+        row.className = 'msg';
+        row.dataset.source = 'transcript';
+        const body = document.createElement('span');
+        body.className = 'text';
+        body.textContent = message.text;
+        row.appendChild(body);
+        logEl.appendChild(row);
+      }
+      while (logEl.children.length > 24) logEl.removeChild(logEl.firstElementChild);
+      if (shouldStickToBottom) scrollToBottom();
+      else restoreScrollPosition(previousScrollTop);
+      return normalized.length;
+    }
+
+    async function refreshTranscriptTail(force = false) {
+      if (!shouldUseTranscriptStream()) return 0;
+      const res = await ipcRenderer.invoke('pet-transcript-tail', { agentId, maxMessages: 8 });
+      if (!res || !res.ok) {
+        if (force && !hasLogRowsForSource('chat') && !hasLogRowsForSource('pane')) {
+          renderEmpty(res && res.error ? res.error : 'agent transcript unavailable');
+        }
+        return 0;
+      }
+      return renderTranscriptMessages(res.messages || []);
+    }
+
     async function refreshPaneTail(force = false) {
       if (!shouldUsePaneStream()) return 0;
       const res = await ipcRenderer.invoke('pet-pane-tail', { agentId });
@@ -952,7 +1010,7 @@
     function applyConfig(next) {
       config = next;
       if (!config || !config.agent || !config.pet) return;
-      if (!shouldUsePaneStream()) {
+      if (shouldUseTranscriptStream() || !shouldUsePaneStream()) {
         clearLogRowsForSource('pane');
         paneOutputLines = [];
         paneOutputCarry = '';
@@ -979,8 +1037,15 @@
         return;
       }
       applyConfig(res.config);
-      await loadHistory();
-      if (shouldUsePaneStream()) {
+      if (shouldUseTranscriptStream()) {
+        await refreshTranscriptTail(true);
+        transcriptPollHandle = setInterval(() => {
+          void refreshTranscriptTail();
+        }, 2000);
+      } else {
+        await loadHistory();
+      }
+      if (!shouldUseTranscriptStream() && shouldUsePaneStream()) {
         await startPaneStream();
         paneStreamHandle = setInterval(() => {
           void ensurePaneStream();
@@ -1220,6 +1285,7 @@
     window.addEventListener('beforeunload', () => {
       if (pollHandle) clearInterval(pollHandle);
       if (paneStreamHandle) clearInterval(paneStreamHandle);
+      if (transcriptPollHandle) clearInterval(transcriptPollHandle);
       if (moodTimer) clearTimeout(moodTimer);
       void stopPaneStream();
     });

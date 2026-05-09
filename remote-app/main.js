@@ -11,6 +11,7 @@ const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, reso
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
+const { transcriptMessagesForAgent } = require('./agent-transcript-source');
 const {
   hasRequiredTmuxClient,
   parseTmuxClientLines,
@@ -465,6 +466,29 @@ function hideAgentPetWindow(agentId, { persist = true } = {}) {
   return { ok: true, state: readPetState() };
 }
 
+function supportsPetTranscriptStream(agent) {
+  const runtime = String(agent && agent.runtime || '').toLowerCase();
+  return runtime === 'claude' || runtime === 'codex';
+}
+
+function petStreamConfigForAgent(agent) {
+  const transcriptSupported = supportsPetTranscriptStream(agent);
+  const chatSourceDisablesPane = ['chat', 'team'].includes(agent.pet_chat_source);
+  const transcriptStream = agent.pet_transcript_stream === undefined
+    ? transcriptSupported
+    : agent.pet_transcript_stream !== false && transcriptSupported;
+  const paneStream = agent.pet_pane_stream === undefined
+    ? !transcriptStream && !chatSourceDisablesPane
+    : agent.pet_pane_stream === true;
+
+  return {
+    petTranscriptStream: transcriptStream,
+    petPaneStream: paneStream,
+    petStreamProfile: agent.pet_stream_profile || 'agent-agnostic-pane-stream-v1',
+    petStreamProfileOptions: agent.pet_stream_profile_options || {}
+  };
+}
+
 function showAgentPetWindow(agentId, petId) {
   const agent = agentById(agentId);
   if (!agent) return { ok: false, error: `unknown agent: ${agentId}` };
@@ -483,9 +507,7 @@ function showAgentPetWindow(agentId, petId) {
       tmuxTarget: agent.tmuxTarget,
       themeColor: agent.themeColor || '#e07c4c',
       runtime: agent.runtime || '',
-      petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source),
-      petStreamProfile: agent.pet_stream_profile || 'agent-agnostic-pane-stream-v1',
-      petStreamProfileOptions: agent.pet_stream_profile_options || {}
+      ...petStreamConfigForAgent(agent)
     },
     pet
   };
@@ -1171,9 +1193,7 @@ ipcMain.handle('get-agent-pet-config', (_event, payload = {}) => {
         tmuxTarget: agent.tmuxTarget,
         themeColor: agent.themeColor || '#e07c4c',
         runtime: agent.runtime || '',
-        petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source),
-        petStreamProfile: agent.pet_stream_profile || 'agent-agnostic-pane-stream-v1',
-        petStreamProfileOptions: agent.pet_stream_profile_options || {}
+        ...petStreamConfigForAgent(agent)
       },
       pet
     }
@@ -1188,6 +1208,18 @@ ipcMain.handle('pet-send-message', async (_event, payload = {}) => {
     selectedAgents: [agent],
     isAll: false
   });
+});
+
+ipcMain.handle('pet-transcript-tail', async (_event, payload = {}) => {
+  try {
+    const agent = agentById(payload.agentId);
+    if (!agent) return { ok: false, error: `unknown agent: ${payload.agentId}`, messages: [] };
+    return transcriptMessagesForAgent(agent, {
+      maxMessages: Number.isFinite(Number(payload.maxMessages)) ? Number(payload.maxMessages) : 8
+    });
+  } catch (err) {
+    return { ok: false, error: err.message, messages: [] };
+  }
 });
 
 ipcMain.handle('pet-resize-window', (_event, payload = {}) => {

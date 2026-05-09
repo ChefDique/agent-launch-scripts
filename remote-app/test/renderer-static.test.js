@@ -136,7 +136,9 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.match(petWindow, /resize-grip/);
   assert.match(petWindow, /pet-send-message/);
   assert.match(petWindow, /chat-tail-init/);
+  assert.match(petWindow, /pet-transcript-tail/);
   assert.match(petWindow, /pet-pane-tail/);
+  assert.match(petWindow, /function renderTranscriptMessages\(messages\)/);
   assert.match(petWindow, /function renderPaneLines\(lines\)/);
   assert.match(petWindow, /require\('\.\/pane-stream-filter'\)/);
   assert.doesNotMatch(petWindow, /class="bubble-head"/);
@@ -217,6 +219,8 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');
   assert.match(main, /ipcMain\.handle\('pet-pane-tail'/);
+  assert.match(main, /ipcMain\.handle\('pet-transcript-tail'/);
+  assert.match(main, /transcriptMessagesForAgent\(agent/);
   assert.match(main, /capture-pane', '-p', '-J', '-S', '-80'/);
   assert.doesNotMatch(petWindow, /await refreshPaneTail\(false\)/);
   assert.match(petWindow, /if \(petNames\.includes\(to\)\) return true;\s*return false;/);
@@ -232,11 +236,18 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /renderMessages\(res\.envelopes \|\| \[\], false\)/);
   assert.match(petWindow, /function shouldUsePaneStream\(\)/);
   assert.match(petWindow, /config\.agent\.petPaneStream === true/);
-  assert.match(petWindow, /if \(shouldUsePaneStream\(\)\) \{\s*await startPaneStream\(\);/);
+  assert.match(petWindow, /if \(!shouldUseTranscriptStream\(\) && shouldUsePaneStream\(\)\) \{\s*await startPaneStream\(\);/);
   assert.match(petWindow, /if \(!shouldUsePaneStream\(\)\) return false;/);
-  assert.match(main, /petPaneStream: agent\.pet_pane_stream !== false && !\['chat', 'team'\]\.includes\(agent\.pet_chat_source\)/);
+  assert.match(main, /function supportsPetTranscriptStream\(agent\)/);
+  assert.match(main, /function petStreamConfigForAgent\(agent\)/);
+  assert.match(main, /petTranscriptStream: transcriptStream/);
+  assert.match(main, /petPaneStream: paneStream/);
   assert.match(main, /petStreamProfile: agent\.pet_stream_profile \|\| 'agent-agnostic-pane-stream-v1'/);
   assert.match(main, /petStreamProfileOptions: agent\.pet_stream_profile_options \|\| \{\}/);
+  assert.match(petWindow, /function shouldUseTranscriptStream\(\)/);
+  assert.match(petWindow, /await refreshTranscriptTail\(true\)/);
+  assert.match(petWindow, /setInterval\(\(\) => \{\s*void refreshTranscriptTail\(\);/);
+  assert.match(petWindow, /!shouldUseTranscriptStream\(\) && shouldUsePaneStream\(\)/);
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /filterPaneChunk\(rawChunk, paneFilterState, paneOutputCarry, paneStreamProfile\(\)\)/);
   assert.match(petWindow, /function paneStreamProfile\(\)/);
@@ -251,7 +262,7 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /function schedulePaneRender/);
   assert.match(petWindow, /requestAnimationFrame\(\(\) => \{/);
   assert.match(petWindow, /renderMessages\(res\.envelopes \|\| \[\], false\)/);
-  assert.match(petWindow, /await loadHistory\(\);[\s\S]*?if \(shouldUsePaneStream\(\)\) \{[\s\S]*?await startPaneStream\(\);/);
+  assert.match(petWindow, /if \(shouldUseTranscriptStream\(\)\) \{[\s\S]*?await refreshTranscriptTail\(true\);[\s\S]*?\} else \{[\s\S]*?await loadHistory\(\);/);
   assert.match(petWindow, /scrollbar-gutter: stable/);
   assert.match(petWindow, /\.msg \{[\s\S]*?width: 100%;[\s\S]*?background: transparent;/);
   assert.match(petWindow, /\.msg \{[\s\S]*?box-shadow: none;[\s\S]*?backdrop-filter: none;/);
@@ -260,6 +271,7 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.doesNotMatch(petWindow, /\.msg:nth-last-child\(n\+3\)/);
   assert.match(petWindow, /\.resize-grip \{\s*display: none;/);
   assert.match(petWindow, /ipcRenderer\.on\(outputChannel, safeHandler\)/);
+  assert.match(petWindow, /row\.dataset\.source = 'transcript'/);
   assert.match(petWindow, /row\.dataset\.source = 'pane'/);
   assert.match(petWindow, /row\.dataset\.source = 'chat'/);
   assert.match(petWindow, /function maybeScrollToBottom/);

@@ -22,7 +22,10 @@ test('AgentRemote pet stream policy is registry data, not per-agent branches', (
 
   assert.match(main, /petStreamProfile: agent\.pet_stream_profile \|\| 'agent-agnostic-pane-stream-v1'/);
   assert.match(main, /petStreamProfileOptions: agent\.pet_stream_profile_options \|\| \{\}/);
-  assert.match(main, /petPaneStream: agent\.pet_pane_stream !== false/);
+  assert.match(main, /function supportsPetTranscriptStream\(agent\)/);
+  assert.match(main, /function petStreamConfigForAgent\(agent\)/);
+  assert.match(main, /petTranscriptStream: transcriptStream/);
+  assert.match(main, /petPaneStream: paneStream/);
   assert.doesNotMatch(main, /agent\.id\s*(?:===|!==)\s*['"][a-z0-9_-]+['"]/i);
   assert.doesNotMatch(petWindow, /agentId\s*(?:===|!==)\s*['"][a-z0-9_-]+['"]/i);
 });
