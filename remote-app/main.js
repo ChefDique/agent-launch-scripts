@@ -2621,9 +2621,20 @@ function parseJsonlBuffer(buf) {
 // chat-tail-init — read entire file, return everything + the EOF offset.
 // Caller caches the offset and uses it on subsequent chat-tail-read calls.
 // File-not-found is treated as an empty channel (no error).
-ipcMain.handle('chat-tail-init', async () => {
+ipcMain.handle('chat-tail-init', async (_event, payload = {}) => {
   try {
     await ensureChatDir();
+    if (payload && payload.history === false) {
+      try {
+        const stat = await fsp.stat(TEAM_CHAT_PATH);
+        return { ok: true, envelopes: [], offset: stat.size };
+      } catch (err) {
+        if (err.code === 'ENOENT') {
+          return { ok: true, envelopes: [], offset: 0 };
+        }
+        throw err;
+      }
+    }
     let buf;
     try {
       buf = await fsp.readFile(TEAM_CHAT_PATH);

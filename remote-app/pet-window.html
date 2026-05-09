@@ -964,11 +964,11 @@
     }
 
     async function loadHistory() {
-      const res = await ipcRenderer.invoke('chat-tail-init');
+      const res = await ipcRenderer.invoke('chat-tail-init', { history: false });
       if (!res || !res.ok) return;
       chatTailOffset = res.offset || 0;
       historyLoaded = true;
-      renderMessages(res.envelopes || [], false);
+      renderMessages([], false);
     }
 
     async function tailRefresh() {
