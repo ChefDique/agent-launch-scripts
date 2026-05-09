@@ -677,15 +677,22 @@
     function isRenderablePaneLine(line) {
       const text = String(line || '').trim();
       if (!text) return false;
+      if (/^(Ran|Read|Explored|Edited|Search|List|Opened|Working|Thinking|Updated|Patched|Applied|Wrote|Created|Deleted|Moved|Copied|Executed)\b/i.test(text)) return false;
       if (/^[\s|+\-=_`~.,:;'"()[\]{}<>^*#]+$/.test(text)) return false;
       if (/^[v0x16\s]+$/i.test(text)) return false;
       if (/^\s*[›>]\s*/.test(text)) return false;
       if (/^[\w.-]+@[\w.-]+\s+.*\s+[%$#]\s*$/.test(text)) return false;
       if (/^gpt-[\w.-]+\s+(low|medium|high)\b.*\s~\s/i.test(text)) return false;
+      if (/^gpt-[\w.-]+\s+(low|medium|high)\b.*\bContext\s+\d+%/i.test(text)) return false;
+      if (/\b\d+K\s+window\b/i.test(text)) return false;
       if (/^\[(Opus|Sonnet|Claude|Codex|GPT)[^\]]*\]\s+.+\|\s+.+/i.test(text)) return false;
       if (/^\d+%\s+\$[0-9.]+\s+\|\s+\d+[hm]/i.test(text)) return false;
+      if (/^\+\d+\s+lines\b.*\bctrl\s*\+\s*t\s+to\s+view\s+transcript\b/i.test(text)) return false;
+      if (/\bctrl\s*\+\s*t\s+to\s+view\s+transcript\b/i.test(text)) return false;
+      if (/\besc\s+to\s+interrupt\b/i.test(text)) return false;
       if (/\bbypass permissions on\b/i.test(text)) return false;
       if (/^\w+ing\.\.\.\s+\(\d+[hms]/i.test(text)) return false;
+      if (/^(STARTUP STATUS|LEAD SESSION STATUS|Domain\s*:|Scope\s*:|Truth\s*:|Plan\s*:|Queue\s*:|PRs\s*:|Comms\s*:|Drift\s*:|Next\s*:|agent:|scope:|task truth:|cursor:|pod\/job:|safety gates:|docs\/graph:|next action:)/i.test(text)) return false;
       if (/\bContext\s+\d+%/i.test(text)) return false;
       if (/\bweek\(\w+\)\s+\d+%/i.test(text)) return false;
       if (/\bGoal\s+(achieved|failed)\b/i.test(text)) return false;
@@ -693,6 +700,8 @@
       if (/\bUse\s+\/skills\s+to\s+list\b/i.test(text)) return false;
       if (/^Improve documentation in @filename$/i.test(text)) return false;
       if (/^Describe your task or type\s+\/\s+for commands$/i.test(text)) return false;
+      if (/^Implement\s+\{feature\}$/i.test(text)) return false;
+      if (/^\d+\s+\d+\s+\d+\s+(claude|codex|bash|zsh)\b/i.test(text)) return false;
       if (/^\d+%\s*[·.]/.test(text)) return false;
       if (/\b(Working|Context|Goal)\b.*\b(Working|Context|Goal)\b/i.test(text)) return false;
       return true;

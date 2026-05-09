@@ -229,6 +229,12 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /function sanitizePaneChunk/);
   assert.match(petWindow, /function isRenderablePaneLine/);
+  assert.match(petWindow, /\^\(Ran\|Read\|Explored\|Edited\|Search\|List\|Opened\|Working\|Thinking/);
+  assert.match(petWindow, /ctrl\\s\*\\\+\\s\*t\\s\+to\\s\+view\\s\+transcript/);
+  assert.match(petWindow, /esc\\s\+to\\s\+interrupt/);
+  assert.match(petWindow, /LEAD SESSION STATUS/);
+  assert.match(petWindow, /Implement\\s\+\\\{feature\\\}/);
+  assert.match(petWindow, /\\b\\d\+K\\s\+window\\b/);
   assert.match(petWindow, /Opus\|Sonnet\|Claude\|Codex\|GPT/);
   assert.match(petWindow, /bypass permissions on/);
   assert.ok(petWindow.includes("\\$[0-9.]+"));
