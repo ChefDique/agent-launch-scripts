@@ -12,6 +12,7 @@ const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
 const { transcriptMessagesForAgent } = require('./agent-transcript-source');
+const { getModelsForHarness, getDefaultModelForHarness } = require('./harness-models');
 const {
   hasRequiredTmuxClient,
   parseTmuxClientLines,
@@ -1167,6 +1168,10 @@ function showAtCursorDisplay() {
 // Registry IPC — renderer asks for the agent list at boot AND after add/remove
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-agents', () => loadAgents());
+ipcMain.handle('get-harness-models', (_event, runtime) => ({
+  models: getModelsForHarness(runtime),
+  default: getDefaultModelForHarness(runtime)
+}));
 ipcMain.handle('app-build-info', () => appBuildInfo());
 
 ipcMain.handle('list-codex-pets', () => {
@@ -2162,7 +2167,7 @@ function applyRuntimePolicy(entry, runtime) {
     delete entry.sandbox;
     delete entry.approval_policy;
     if (!entry.model || entry.model.startsWith('gpt-') || entry.model.includes('codex')) {
-      entry.model = 'claude-opus-4-7[1m]';
+      entry.model = getDefaultModelForHarness('claude') || 'claude-opus-4-7[1m]';
     }
     if (!entry.reasoning_effort || entry.reasoning_effort === 'high' || entry.reasoning_effort === 'medium' || entry.reasoning_effort === 'low') {
       entry.reasoning_effort = 'max';
@@ -2172,7 +2177,7 @@ function applyRuntimePolicy(entry, runtime) {
 
   delete entry.allow_claude_runtime;
   if (runtime === 'codex') {
-    if (!entry.model) entry.model = 'gpt-5.5';
+    if (!entry.model) entry.model = getDefaultModelForHarness('codex') || 'gpt-5.5';
     if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
     if (!entry.sandbox) entry.sandbox = 'danger-full-access';
     if (!entry.approval_policy) entry.approval_policy = 'never';

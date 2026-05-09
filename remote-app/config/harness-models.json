@@ -1,0 +1,26 @@
+{
+  "claude": {
+    "default": "claude-opus-4-7[1m]",
+    "models": [
+      { "id": "claude-opus-4-7[1m]", "label": "Opus 4.7 (1M ctx)" },
+      { "id": "claude-opus-4-7", "label": "Opus 4.7" },
+      { "id": "claude-sonnet-4-6", "label": "Sonnet 4.6" },
+      { "id": "claude-haiku-4-5-20251001", "label": "Haiku 4.5" }
+    ]
+  },
+  "codex": {
+    "default": "gpt-5.5",
+    "models": [
+      { "id": "gpt-5.5", "label": "GPT-5.5" },
+      { "id": "gpt-5", "label": "GPT-5" }
+    ]
+  },
+  "hermes": {
+    "default": null,
+    "models": []
+  },
+  "openclaw": {
+    "default": null,
+    "models": []
+  }
+}

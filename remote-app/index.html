@@ -5308,6 +5308,10 @@
           <label>Harness</label>
           <div class="harness-picker compact" id="set-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
         </div>
+        <div class="settings-row">
+          <label for="set-model">Model</label>
+          <select id="set-model" autocomplete="off"></select>
+        </div>
         <div class="toggle-row">
           <div class="toggle-meta">
             <div class="verb">Auto-restart</div>
@@ -5451,6 +5455,33 @@
       });
 
       const harnessPicker = layer.querySelector('#set-harness-picker');
+      const modelSelect = layer.querySelector('#set-model');
+
+      // Populate the per-harness model dropdown from main's harness-models loader.
+      // If the saved value isn't in the harness's list (legacy / custom model),
+      // prepend a `(custom)` option so nothing gets silently rewritten.
+      async function populateModelOptions(runtime, currentModel) {
+        const { models = [], default: defaultModel = '' } =
+          (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
+        const opts = [];
+        let foundCurrent = false;
+        for (const m of models) {
+          foundCurrent = foundCurrent || m.id === currentModel;
+          opts.push(`<option value="${escapeHtml(m.id)}">${escapeHtml(m.label || m.id)}</option>`);
+        }
+        if (currentModel && !foundCurrent) {
+          opts.unshift(`<option value="${escapeHtml(currentModel)}">${escapeHtml(currentModel)} (custom)</option>`);
+        }
+        if (!opts.length) {
+          modelSelect.innerHTML = '<option value="">(no models registered for this harness)</option>';
+          modelSelect.disabled = true;
+          return;
+        }
+        modelSelect.innerHTML = opts.join('');
+        modelSelect.value = currentModel || defaultModel || '';
+        modelSelect.disabled = false;
+      }
+
       const saveRuntime = async (runtime) => {
         const next = runtime;
         const prev = agent.runtime || 'codex';
@@ -5459,6 +5490,10 @@
         const res = await ipcRenderer.invoke('update-agent', { id, patch: { runtime: next } });
         if (res.ok) {
           await loadAndRender();
+          // applyRuntimePolicy in main.js may have rewritten model to match the
+          // new harness; reflect that in the dropdown without closing the popover.
+          const refreshed = agents[id] || agent;
+          await populateModelOptions(next, refreshed.model || '');
         } else {
           agent.runtime = prev;
           renderHarnessPicker(harnessPicker, prev, saveRuntime, { compact: true });
@@ -5466,6 +5501,22 @@
         }
       };
       renderHarnessPicker(harnessPicker, agent.runtime || 'codex', saveRuntime, { compact: true });
+      populateModelOptions(agent.runtime || 'codex', agent.model || '');
+
+      modelSelect.addEventListener('change', async () => {
+        const next = modelSelect.value;
+        const prev = agent.model;
+        agent.model = next;
+        const res = await ipcRenderer.invoke('update-agent', { id, patch: { model: next } });
+        if (res.ok) {
+          // Trust main's coercion / persisted value, in case it normalized.
+          if (res.entry && res.entry.model !== undefined) agent.model = res.entry.model;
+        } else {
+          agent.model = prev;
+          flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          await populateModelOptions(agent.runtime || 'codex', agent.model || '');
+        }
+      });
 
       // (ALS-010, 2026-05-03) The detach-window / detach-split button
       // wiring used to live here. Both behaviours were collapsed into the
