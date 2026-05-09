@@ -114,7 +114,7 @@ function latestCodexSessionFile(cwd) {
     safeRealpath(cwd).replace(/\/+$/, '')
   ].filter(Boolean))];
   const sessionsRoot = codexSessionsRoot();
-  const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const candidates = [];
 
   function walk(dir, depth = 0) {
