@@ -105,6 +105,10 @@ operators can distinguish separate tabs/windows from joined panes.
 - Pet chat must show the relevant conversation/output stream only. It must not
   show the Codex prompt input hint, terminal statusline, full terminal chrome,
   or unrelated agents' streams.
+- For runtimes with structured local transcripts, pet chat should read the
+  transcript source and extract assistant message records rather than scrape
+  raw terminal output. Pane streaming is a fallback for unsupported runtimes or
+  explicit registry policy, not the primary chat source for Claude/Codex.
 - Pet chat filtering must be dynamic and registry/policy driven. Do not add
   per-agent, per-model, or per-runtime renderer branches to hide one visible
   failure. Stream filtering must live behind a tested shared classifier or

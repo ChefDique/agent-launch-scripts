@@ -2,21 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** None — AgentRemote launcher cleanup, docs/vault update, worktree cleanup, and push are closed.
+**Last working on:** None — AgentRemote pet chat transcript-stream repair, learning/doc guardrails, and closeout are closed.
 
-**State at last pause (2026-05-08T05:56:48-0700):**
-- `main` is clean and pushed at `f5d748b` (`origin/main` matches local `main`).
-- AgentRemote launcher/runtime cleanup is merged: Claude warning/color/rename/startup auto-inject restored, runtime contamination guards added, tmux labels use `display_name`, and AgentRemote app remains `v1.1.19`.
-- Neo is the visible lane name; stable id remains `tmux-masta` for sidecars, tmux targeting, compatibility references, and registry identity.
-- Stale sibling worktrees `agent-launch-scripts-claude-warning` and `agent-launch-scripts-title-fix` were removed after preserving patch backups in `/tmp/agent-launch-scripts-*.f5d748b.integrated.patch`.
-- Vault note `01-System-Architecture/Neo Operator Station Lane.md` is linked from the Start Here and Architecture maps; `qmd update && qmd embed` was run after the vault edits.
-- Validation passed before commit: `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh`, `bash test/launch-agent-runtime.test.sh`, `npm test` in `remote-app`, and `git diff --check`.
+**State at last pause (2026-05-08T20:37:10-0700):**
+- `main` is clean after the closeout commit and remains ahead of `origin/main` locally; push was not requested.
+- AgentRemote app is bumped to `v1.1.25` and was relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`.
+- Pet chat for Claude/Codex now uses structured transcript extraction instead of raw pane scraping; tools/thinking/function calls are filtered by transcript record type before rendering.
+- Codex transcript lookup refuses newest-session fallback without cwd proof, preventing wrong-session chat bubbles; Xavier and Lucius resolve to their own Claude transcript files, while Gekko correctly reports transcript unavailable when no recent verified trading Codex transcript is present.
+- Unsupported/non-transcript runtimes keep a dynamic pane-stream fallback unless registry policy overrides it.
+- Guardrails were promoted into `.learnings/LEARNINGS.md`, `docs/operations/agentremote-operator-contract.md`, and `remote-app/AGENTS.md`.
+- Validation passed: `cd remote-app && npm test` (66 pass), `git diff --check`, transcript sanity for Xavier/Lucius/Gekko, and canonical AgentRemote process path check.
 
-**Next verifiable step:** Wait for Richard's next direction. If launcher/runtime work resumes, start from canonical `/Users/richardadair/ai_projects/agent-launch-scripts` on clean `main`.
+**Next verifiable step:** Wait for Richard's next direction. If pet chat work resumes, first verify the running HUD badge/path and test the opened Claude/Codex pet windows against the transcript-backed stream.
 
-**If that step fails:** Recheck `git status --short --branch`, `git worktree list --porcelain`, `remote-app` version/process path, and Swarmy's runtime adapter before changing live tmux/iTerm state.
+**If that step fails:** Inspect `remote-app/agent-transcript-source.js`, `remote-app/pet-window.html`, `remote-app/test/agent-transcript-source.test.js`, and the agent registry `runtime`/`cwd` values before changing pane-stream filters.
 
-**Pending uncommitted diff:** none expected after the merge/cleanup commit; vault files updated under `/Users/richardadair/ai_projects/00-Start-Here` and `/Users/richardadair/ai_projects/01-System-Architecture` are outside this git repo.
+**Pending uncommitted diff:** none expected after `/done` closeout commit.
 
 ---
 
@@ -61,5 +62,6 @@ ALS-010 attach consolidation merged. The Attach orb is now layout-aware (silent 
 - 2026-05-08-SESSION_2: Richard's repeated AgentRemote requirements promoted into `docs/operations/agentremote-operator-contract.md` plus `.learnings/LEARNINGS.md`, with startup/checklist docs linked; implementation diff deferred to avoid colliding with Swarmy — commits: current closeout docs commit — gated on Richard: coordinate with Swarmy before runtime edits
 - 2026-05-08-SESSION_3: AgentRemote operator-fix burst through `v1.1.19`: Claude warning auto-inject restored, runtime contamination guards added, terminal image paste/0x16 guard, pet chat direct-routing/statusline filters, black chat backgrounds, collapsed pet tabs named by agent, `tmux-masta` display renamed to Neo, send path hardened with a second Return, docs/vault updated, and dirty sibling patches folded into canonical main — commits: current cleanup merge commit — gated on Richard: none
 - 2026-05-08-SESSION_4: `/done` closeout verified clean pushed `main`, single canonical worktree, no dirty sibling branches, and restart withheld because the parent process is Codex rather than a proven tmux restart loop — commits: current handoff closeout commit — gated on Richard: none
+- 2026-05-08-SESSION_5: AgentRemote pet chat switched to transcript-backed Claude/Codex streams, wrong-session Codex fallback blocked, unsupported runtime pane fallback preserved, and transcript/dynamic guardrails promoted — commits: `bdfe9b1` plus `/done` closeout commit — gated on Richard: none
 
 <!-- prior handoff history at `git log --oneline -- .claude/memory/handoff.md`; cross-session memory at /Users/richardadair/.claude/projects/-Users-richardadair-agent-launch-scripts/memory/MEMORY.md -->

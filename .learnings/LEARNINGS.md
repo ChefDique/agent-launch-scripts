@@ -206,6 +206,42 @@ Keep pet stream filtering in a shared module with stateful, agent-agnostic class
 ### Resolution
 - **Resolved**: 2026-05-08T20:04:26-07:00
 - **Commit/PR**: pending
-- **Notes**: The enforcement is repo-local: docs state the dynamic-only rule, and tests cover the shared stream classifier plus no model/agent-name-routed pet filtering.
+- **Commit/PR**: `adf8fd2`, `bdfe9b1`
+- **Notes**: The enforcement is repo-local: docs state the dynamic-only rule, tests cover the shared stream classifier plus no model/agent-name-routed pet filtering, and transcript-backed chat now avoids raw terminal scraping for supported runtimes.
+
+---
+
+## [LRN-20260508-007] correction
+
+**Logged**: 2026-05-08T20:37:10-07:00
+**Priority**: critical
+**Status**: promoted
+**Area**: frontend
+
+### Summary
+AgentRemote pet chat for Claude/Codex should render structured transcript records, not raw terminal output, so thinking/tool output never enters the chat feed.
+
+### Details
+Richard pointed out that the current "stream up to date" behavior had simply moved from stale history to live terminal noise: tool calls, thinking summaries, and random TUI fragments were still appearing in other agents' pet chats. The Codex app pattern is not a smarter pane scrape; it renders structured conversation records. AgentRemote needs the same source separation for runtimes that provide local transcripts, with pane scraping reserved for explicit fallback/unsupported runtimes.
+
+### Suggested Action
+For Claude/Codex pet chat, resolve the agent's structured transcript from registry runtime and cwd, extract only assistant message text records, and refuse to render a transcript unless the session/cwd match is proven. Do not fall back to the newest transcript file when matching fails. Keep pane-stream filtering as a separate tested fallback path.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/agent-transcript-source.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/pet-window.html, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/agent-transcript-source.test.js, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/AGENTS.md
+- Tags: agentremote, pet-chat, transcript, cwd-proof, tool-filtering, loop_control
+- Pattern-Key: agentremote.pet_chat_structured_transcript_source
+- Recurrence-Count: 1
+- First-Seen: 2026-05-08
+- Last-Seen: 2026-05-08
+- Control Surface: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/agent-transcript-source.test.js
+- Loop Owner: runtime
+- Verification: `cd /Users/richardadair/ai_projects/agent-launch-scripts/remote-app && npm test`
+
+### Resolution
+- **Resolved**: 2026-05-08T20:37:10-07:00
+- **Commit/PR**: `bdfe9b1`
+- **Notes**: Claude/Codex pet chat now uses structured transcript extraction by default, refuses wrong-session Codex fallback without cwd proof, and leaves pane streaming as an explicit/dynamic fallback for unsupported runtimes.
 
 ---
