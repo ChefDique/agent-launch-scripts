@@ -332,8 +332,8 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
   assert.match(petWindow, /function applyAtlasMood\(mood\)/);
   assert.doesNotMatch(petWindow, /background-size: 768px 936px/);
   assert.doesNotMatch(petWindow, /--pet-y: -104px/);
-  assert.match(petWindow, /'held-right': \{ row: 0, frames: 6/);
-  assert.match(petWindow, /'held-left': \{ row: 0, frames: 6, duration: '0\.72s', flip: true \}/);
+  assert.match(petWindow, /'held-right': \{ row: 1, frames: 8, duration: '0\.92s' \}/);
+  assert.match(petWindow, /'held-left': \{ row: 2, frames: 8, duration: '0\.92s' \}/);
   assert.match(petWindow, /'running-right': \{ row: 1, frames: 8/);
   assert.match(petWindow, /'running-left': \{ row: 2, frames: 8/);
   assert.match(petWindow, /waving: \{ row: 3, frames: 4/);
