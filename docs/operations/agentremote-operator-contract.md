@@ -53,7 +53,24 @@ hide runtime failures behind optimistic UI state.
 ## Pane And Layout Contract
 
 The durable unit is one live agent process in one tmux pane with a stable `%N`
-pane id recorded in `/tmp/agent-remote-panes.json`.
+pane id. As of commit `fcbedbc` (2026-05-09), the canonical pane-binding mechanism
+is the tmux user option `@agent-identity` set on the pane at listener startup:
+
+```bash
+tmux set-option -p -t <pane_id> @agent-identity <identity>
+```
+
+The `pane_resolver` queries this option as its **primary resolution path**. It
+bypasses `/tmp/agent-remote-panes.json` entirely when the tag is set and the pane
+is live. Sidecar entries in `/tmp/agent-remote-panes.json` are advisory — used
+only when the tag is absent or the tagged pane is dead. Registry entries
+(`agentremote_pane_id` in `registry/agents.local.json`) remain as a secondary
+fallback.
+
+Resolver order (most → least authoritative):
+1. tmux `@agent-identity` user option on a live pane → `source=tmux-tag`
+2. `/tmp/agent-remote-panes.json` sidecar lookup → `source=registry` or `source=suffix`
+3. Registry coord fallback
 
 Supported materializations:
 
@@ -165,7 +182,7 @@ Before saying the work is done:
 2. Confirm whether AgentRemote is running from the canonical checkout.
 3. Confirm whether any stale worktree Electron or iTerm control-mode windows
    remain.
-4. Confirm tmux sessions, clients, and `/tmp/agent-remote-panes.json`.
+4. Confirm tmux sessions, clients, and pane-binding health: verify `@agent-identity` tags are set on listener panes (`tmux list-panes -a -F '#{pane_id} #{@agent-identity}'`). If absent, run `scripts/tag_existing_claude_panes.sh`. Check `/tmp/agent-remote-panes.json` only as a secondary diagnostic.
 5. State what was not live-tested and why.
 
 If any of these are unknown, say "not done" and name the blocker.
