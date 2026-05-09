@@ -27,6 +27,11 @@ bash ../launch-remote.sh
 - Keep renderer changes aligned with `../DESIGN.md` tokens and component primitives.
 - Keep the HUD lightweight: local spawn, attach, broadcast, status, voice, and nearby operator controls.
 - Preserve local Whisper hold-to-talk and immediate send feedback when touching keybindings or broadcast flow.
+- No runtime or agent identity branching in UI/IPC paths: `index.html`,
+  `pet-window.html`, and `main.js` IPC handlers must not contain agent-id,
+  model-name, or runtime-name special cases except through validated registry
+  policy fields and runtime normalization helpers. New pet-chat filtering must
+  live in shared tested modules, not inline renderer regex lists.
 
 ## Security
 
@@ -38,6 +43,9 @@ bash ../launch-remote.sh
 
 - Read `../AGENTS.md`, `../docs/README.md`, `../docs/operations/agentremote-operator-contract.md`, and `../docs/exec-plans/active/agentremote-v1-pivot-plan.md`.
 - The operator contract is the canonical "what Richard wants" source for spawn, attach, runtime selection, tmux/iTerm windows, pet chat, paste, and closeout behavior.
+- For pet chat and pane-stream changes, run the stream-filter tests and verify
+  the classifier remains agent/model agnostic. A fix that only handles the
+  current visible agent is not complete.
 - Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another Neo/`tmux-masta` lane; classify them explicitly and merge them into the current understanding.
 - Launch AgentRemote after UI or IPC changes.
 - Verify the running Electron process points at `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`, not the compatibility symlink or a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.

@@ -105,6 +105,10 @@ operators can distinguish separate tabs/windows from joined panes.
 - Pet chat must show the relevant conversation/output stream only. It must not
   show the Codex prompt input hint, terminal statusline, full terminal chrome,
   or unrelated agents' streams.
+- Pet chat filtering must be dynamic and registry/policy driven. Do not add
+  per-agent, per-model, or per-runtime renderer branches to hide one visible
+  failure. Stream filtering must live behind a tested shared classifier or
+  policy module with behavior fixtures that cover multiple harness shapes.
 - Pet chat scrollback must let Richard scroll up without being immediately
   yanked to the bottom. Auto-follow should resume only when Richard returns to
   the bottom or explicitly anchors there.

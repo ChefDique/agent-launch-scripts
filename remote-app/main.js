@@ -483,7 +483,9 @@ function showAgentPetWindow(agentId, petId) {
       tmuxTarget: agent.tmuxTarget,
       themeColor: agent.themeColor || '#e07c4c',
       runtime: agent.runtime || '',
-      petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source)
+      petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source),
+      petStreamProfile: agent.pet_stream_profile || 'agent-agnostic-pane-stream-v1',
+      petStreamProfileOptions: agent.pet_stream_profile_options || {}
     },
     pet
   };
@@ -1169,7 +1171,9 @@ ipcMain.handle('get-agent-pet-config', (_event, payload = {}) => {
         tmuxTarget: agent.tmuxTarget,
         themeColor: agent.themeColor || '#e07c4c',
         runtime: agent.runtime || '',
-        petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source)
+        petPaneStream: agent.pet_pane_stream !== false && !['chat', 'team'].includes(agent.pet_chat_source),
+        petStreamProfile: agent.pet_stream_profile || 'agent-agnostic-pane-stream-v1',
+        petStreamProfileOptions: agent.pet_stream_profile_options || {}
       },
       pet
     }

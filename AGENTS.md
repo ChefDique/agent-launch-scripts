@@ -49,6 +49,12 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - `docs/operations/agentremote-operator-contract.md` is the canonical AgentRemote behavior contract. Do not claim an AgentRemote, launch, runtime, tmux/iTerm, or pet-chat task is complete if it violates that contract.
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
 - Keep the remote model/runtime agnostic. It controls local processes and panes; it should not depend on one model vendor.
+- Registry-first runtime rule: all runtime, pane, deploy, send, pet-chat, and
+  input behavior must come from `agents.json`, runtime normalizers, or explicit
+  registry policy fields. Hardcoded branches on `agent.id`, model/runtime names,
+  or per-agent stream patterns are forbidden in AgentRemote runtime/chat/input
+  paths. Allowed exceptions are documented launcher bootstrap gates and test
+  fixtures that prove dynamic behavior.
 - Codex is the priority runtime while Claude tokens are constrained. Preserve Claude, Hermes, and OpenClaw support, but do not launch Claude from a Codex path unless the registry explicitly asks for `runtime: "claude"`.
 - Any `runtime: "claude"` entry must also set `allow_claude_runtime: true`; tests should fail accidental Claude defaults.
 - Use ACRM for task creation, review state, and agent lookup/creation decisions. `agents.json` remains the local execution registry and AgentRemote settings source until a live ACRM-backed add-agent path is implemented.
@@ -64,6 +70,9 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 - Use argv-style process execution (`execFile` or equivalent) for tmux/iTerm/process-control code.
 - Do not validate attach/deploy behavior by mutating Richard's live iTerm desktop unless he explicitly asks for that live mutation. Use static tests, mocked IPC, or isolated throwaway tmux sessions first.
 - For AgentRemote UI, any scrollable modal, picker, popover, overlay, roster, log, or pet window must use the dark HUD scrollbar styling. Native white scrollbars are regressions.
+- Pet-chat or stream-filter fixes must add/update behavior tests for a shared
+  parser or policy module. Do not fix a single agent by adding inline
+  per-agent/per-model regexes to renderer code.
 - Before AgentRemote implementation work, check `.learnings/LEARNINGS.md` and promote any recurring correction into docs or runtime gates before coding around it again.
 - Commit completed work units with clear messages. Push only when Richard asks.
 

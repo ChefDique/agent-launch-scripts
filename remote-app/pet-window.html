@@ -481,6 +481,12 @@
   </main>
   <script>
     const { ipcRenderer } = require('electron');
+    const {
+      DEFAULT_PROFILE,
+      cleanPaneLines,
+      createPaneStreamFilterState,
+      filterPaneChunk
+    } = require('./pane-stream-filter');
     const params = new URLSearchParams(window.location.search);
     const agentId = params.get('agentId') || '';
     let config = null;
@@ -496,6 +502,7 @@
     let paneOutputListener = null;
     let paneOutputLines = [];
     let paneOutputCarry = '';
+    let paneFilterState = createPaneStreamFilterState();
     let paneStreamHandle = null;
     let paneStreamLastSeenAt = 0;
     let paneStreamRecovering = false;
@@ -665,81 +672,12 @@
       return Array.from(logEl.children).some((row) => row.dataset && row.dataset.source === source);
     }
 
-    function sanitizePaneChunk(raw) {
-      return String(raw || '')
-        .replace(/\r\n?/g, '\n')
-        .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
-        .replace(/\x1b\][^\x07]*\x07/g, '')
-        .replace(/\x08/g, '')
-        .replace(/[^\x20-\x7E\n]/g, ' ');
-    }
-
-    function normalizePaneLine(line) {
-      return String(line || '')
-        .replace(/^\s*[|>]*\s*/, '')
-        .replace(/^\s*(?:[-*o]|\d+[.)])\s+/, '')
-        .trim();
-    }
-
-    function isRenderablePaneLine(line) {
-      const text = normalizePaneLine(line);
-      if (!text) return false;
-      if (text.length < 4) return false;
-      if (/^(Ran|Read|Explored|Edited|Search|List|Opened|Working|Thinking|Updated|Patched|Applied|Wrote|Created|Deleted|Moved|Copied|Executed)\b/i.test(text)) return false;
-      if (/^(Called|Calling|Running|Processing|Bashed|Globbed|Grep|Listed|Opened|Todo|Task|Tool|Shell|Command)\b/i.test(text)) return false;
-      if (/^(Agent\s+\".+\"\s+(completed|launched)|\d+\s+background agents?\s+launched|\d+\s+local agents?\s+still running)\b/i.test(text)) return false;
-      if (/^(Explored|Ran|Read)\s*$/i.test(text)) return false;
-      if (/^\s*(└|├|│|─|╭|╰|╯|╮)/.test(line)) return false;
-      if (/^[\s|+\-=_`~.,:;'"()[\]{}<>^*#]+$/.test(text)) return false;
-      if (/^[v0x16\s]+$/i.test(text)) return false;
-      if (/^\s*[›>]\s*/.test(text)) return false;
-      if (/^[\w.-]+@[\w.-]+\s+.*\s+[%$#]\s*$/.test(text)) return false;
-      if (/^gpt-[\w.-]+\s+(low|medium|high)\b.*\s~\s/i.test(text)) return false;
-      if (/^gpt-[\w.-]+\s+(low|medium|high)\b.*\bContext\s+\d+%/i.test(text)) return false;
-      if (/\b\d+K\s+window\b/i.test(text)) return false;
-      if (/^\[(Opus|Sonnet|Claude|Codex|GPT)[^\]]*\]\s+.+\|\s+.+/i.test(text)) return false;
-      if (/^\d+%\s+\$[0-9.]+\s+\|\s+\d+[hm]/i.test(text)) return false;
-      if (/^\+\d+\s+lines\b.*\bctrl\s*\+\s*t\s+to\s+view\s+transcript\b/i.test(text)) return false;
-      if (/\bctrl\s*\+\s*t\s+to\s+view\s+transcript\b/i.test(text)) return false;
-      if (/\besc\s+to\s+interrupt\b/i.test(text)) return false;
-      if (/\bbypass permissions on\b/i.test(text)) return false;
-      if (/^\w+ing\.\.\.\s+\(\d+[hms]/i.test(text)) return false;
-      if (/^(STARTUP STATUS|LEAD SESSION STATUS|Domain\s*:|Scope\s*:|Truth\s*:|Plan\s*:|Queue\s*:|PRs\s*:|Comms\s*:|Drift\s*:|Next\s*:|agent:|scope:|task truth:|cursor:|pod\/job:|safety gates:|docs\/graph:|next action:)/i.test(text)) return false;
-      if (/\bContext\s+\d+%/i.test(text)) return false;
-      if (/\bweek\(\w+\)\s+\d+%/i.test(text)) return false;
-      if (/\bGoal\s+(achieved|failed)\b/i.test(text)) return false;
-      if (/\b(tokens on|remaining capacity|available skills)\b/i.test(text)) return false;
-      if (/\b(shell commands?|tool calls?|ctrl\s*\+\s*t|view transcript|tokens|thought for|context left)\b/i.test(text)) return false;
-      if (/\bUse\s+\/skills\s+to\s+list\b/i.test(text)) return false;
-      if (/^Improve documentation in @filename$/i.test(text)) return false;
-      if (/^Describe your task or type\s+\/\s+for commands$/i.test(text)) return false;
-      if (/^Implement\s+\{feature\}$/i.test(text)) return false;
-      if (/^\d+\s+\d+\s+\d+\s+(claude|codex|bash|zsh)\b/i.test(text)) return false;
-      if (/^\d+%\s*[·.]/.test(text)) return false;
-      if (/\b(Working|Context|Goal)\b.*\b(Working|Context|Goal)\b/i.test(text)) return false;
-      return true;
-    }
-
-    function cleanPaneLines(lines) {
-      return (Array.isArray(lines) ? lines : [])
-        .map((line) => normalizePaneLine(sanitizePaneChunk(line)))
-        .filter(isRenderablePaneLine);
-    }
-
     function appendPaneChunk(rawChunk) {
       if (!shouldUsePaneStream()) return 0;
-      const text = sanitizePaneChunk(rawChunk);
-      if (!text) return 0;
-      const combined = paneOutputCarry + text;
-      const split = combined.split('\n');
-      paneOutputCarry = split.pop() || '';
-      let added = 0;
-      for (const line of split) {
-        const trimmed = normalizePaneLine(line);
-        if (!isRenderablePaneLine(trimmed)) continue;
-        paneOutputLines.push(trimmed);
-        added += 1;
-      }
+      const result = filterPaneChunk(rawChunk, paneFilterState, paneOutputCarry, paneStreamProfile());
+      paneOutputCarry = result.carry;
+      const added = result.lines.length;
+      paneOutputLines.push(...result.lines);
       if (paneOutputLines.length > MAX_PET_PANE_LINES * 4) {
         paneOutputLines = paneOutputLines.slice(-MAX_PET_PANE_LINES * 2);
       }
@@ -752,6 +690,23 @@
 
     function shouldUsePaneStream() {
       return !!(config && config.agent && config.agent.petPaneStream === true);
+    }
+
+    function paneStreamProfile() {
+      const options = config && config.agent && config.agent.petStreamProfileOptions && typeof config.agent.petStreamProfileOptions === 'object'
+        ? config.agent.petStreamProfileOptions
+        : {};
+      return {
+        ...DEFAULT_PROFILE,
+        ...options,
+        id: config && config.agent && config.agent.petStreamProfile ? config.agent.petStreamProfile : DEFAULT_PROFILE.id,
+        maxRenderedLines: Number.isFinite(Number(options.maxRenderedLines)) ? Number(options.maxRenderedLines) : MAX_PET_PANE_LINES
+      };
+    }
+
+    function paneRenderLimit() {
+      const value = Number(paneStreamProfile().maxRenderedLines);
+      return Number.isFinite(value) ? Math.max(1, Math.min(60, Math.floor(value))) : MAX_PET_PANE_LINES;
     }
 
     function schedulePaneRender() {
@@ -865,7 +820,7 @@
     function renderPaneLines(lines) {
       const shouldStickToBottom = isNearLogBottom();
       const previousScrollTop = logEl.scrollTop;
-      const trimmed = cleanPaneLines(lines).slice(-18);
+      const trimmed = cleanPaneLines(lines, { profile: paneStreamProfile() }).slice(-paneRenderLimit());
       clearLogRowsForSource('pane');
       if (!trimmed.length) {
         if (!hasLogRowsForSource('chat')) renderEmpty();
@@ -893,7 +848,7 @@
         if (force) renderEmpty(res && res.error ? res.error : 'agent pane unavailable');
         return 0;
       }
-      const lines = cleanPaneLines(res.lines).slice(-18);
+      const lines = cleanPaneLines(res.lines, { profile: paneStreamProfile() }).slice(-paneRenderLimit());
       const payload = lines.join('\n');
       if (!payload) {
         if (force && !hasLogRowsForSource('chat')) renderEmpty();
@@ -903,6 +858,7 @@
       lastPaneTailReplayFingerprint = payload;
       paneOutputLines = lines;
       paneOutputCarry = '';
+      paneFilterState = createPaneStreamFilterState();
       return renderPaneLines(lines);
     }
 
@@ -960,8 +916,8 @@
       if (!paneStreamLastSeenAt) return;
       if (Date.now() - paneStreamLastSeenAt < 12000) return;
       const res = await ipcRenderer.invoke('pet-pane-tail', { agentId });
-      const lines = res && res.ok && Array.isArray(res.lines) ? cleanPaneLines(res.lines) : [];
-      const payload = lines.slice(-18).join('\n');
+      const lines = res && res.ok && Array.isArray(res.lines) ? cleanPaneLines(res.lines, { profile: paneStreamProfile() }) : [];
+      const payload = lines.slice(-paneRenderLimit()).join('\n');
       if (!payload || payload === lastPaneTailReplayFingerprint) return;
 
       paneStreamRecovering = true;
@@ -969,6 +925,7 @@
         await stopPaneStream();
         paneOutputLines = [];
         paneOutputCarry = '';
+        paneFilterState = createPaneStreamFilterState();
         await refreshPaneTail(true);
         await startPaneStream();
       } finally {
@@ -999,6 +956,7 @@
         clearLogRowsForSource('pane');
         paneOutputLines = [];
         paneOutputCarry = '';
+        paneFilterState = createPaneStreamFilterState();
         void stopPaneStream();
       }
       document.documentElement.style.setProperty('--accent', config.agent.themeColor || '#e07c4c');

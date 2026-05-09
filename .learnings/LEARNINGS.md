@@ -174,3 +174,38 @@ Pet chat should render direct `from`/`to` matches for the agent or pet. Do not u
 - **Notes**: Pet chat filtering now uses direct `from`/`to` identity matches and drops broad mention-based routing.
 
 ---
+
+## [LRN-20260508-006] correction
+
+**Logged**: 2026-05-08T20:04:26-07:00
+**Priority**: critical
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+AgentRemote pet-chat fixes must not replace dynamic behavior with per-agent or per-model regexes that only work for the visible failing agent.
+
+### Details
+Richard reported that the pet chat filter worked for Neo/Codex but failed for Claude agents, then called out the broader pattern: hardcoded tactical patches masquerade as fixes until another agent, runtime, or visible state changes. The broken shape was an inline renderer denylist that encoded model/runtime words and specific TUI phrases instead of a shared, behavior-tested stream classifier.
+
+### Suggested Action
+Keep pet stream filtering in a shared module with stateful, agent-agnostic classification. Add behavior fixtures for multiple harness-shaped streams and static contract tests that fail if pet filtering reintroduces agent/model-name routing. Promote the rule to `AGENTS.md`, `remote-app/AGENTS.md`, and the AgentRemote operator contract.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/pane-stream-filter.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/pane-stream-filter.test.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/runtime-dynamic-contract.test.js, /Users/richardadair/ai_projects/agent-launch-scripts/AGENTS.md, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/AGENTS.md, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md
+- Tags: agentremote, pet-chat, dynamic-behavior, loop_control, operator_visibility
+- Pattern-Key: agentremote.pet_chat_hardcoded_filter_regression
+- Recurrence-Count: 1
+- First-Seen: 2026-05-08
+- Last-Seen: 2026-05-08
+- Control Surface: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/runtime-dynamic-contract.test.js
+- Loop Owner: runtime
+- Verification: `cd /Users/richardadair/ai_projects/agent-launch-scripts/remote-app && npm test`
+
+### Resolution
+- **Resolved**: 2026-05-08T20:04:26-07:00
+- **Commit/PR**: pending
+- **Notes**: The enforcement is repo-local: docs state the dynamic-only rule, and tests cover the shared stream classifier plus no model/agent-name-routed pet filtering.
+
+---

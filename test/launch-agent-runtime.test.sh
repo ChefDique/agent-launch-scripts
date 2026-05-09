@@ -5,6 +5,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+unset \
+  SWARMY_RUNTIME_OVERRIDE \
+  SWARMY_MODEL_OVERRIDE \
+  SWARMY_REASONING_EFFORT_OVERRIDE \
+  SWARMY_PROVIDER_OVERRIDE \
+  SWARMY_SANDBOX_OVERRIDE \
+  SWARMY_APPROVAL_POLICY_OVERRIDE \
+  SWARMY_PROFILE_PRESET \
+  SWARMY_WORKSPACE_MODE \
+  SWARMY_WORKTREE_STRATEGY \
+  SWARMY_LOCAL_MODE \
+  SWARMY_LOCAL_ATTACH
+
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
 
 cat > "$TMP_DIR/bin/codex" <<'SH'
@@ -230,7 +243,7 @@ grep -qx 'ARG:Intentional Runtime' <<< "$intentional_runtime_output"
 TMUX_CALLS="$TMP_DIR/tmux-calls.log"
 rm -f "$TMUX_CALLS" /tmp/intentional-runtime-bg-_testpane.pids
 tmux_claude_output="$(
-  PATH="$TMP_DIR/bin:$PATH" \
+    PATH="$TMP_DIR/bin:$PATH" \
     AGENT_REGISTRY="$TMP_DIR/agents.json" \
     TMUX_PANE="%testpane" \
     TMUX_CALLS="$TMUX_CALLS" \
