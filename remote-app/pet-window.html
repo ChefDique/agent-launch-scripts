@@ -674,10 +674,22 @@
         .replace(/[^\x20-\x7E\n]/g, ' ');
     }
 
+    function normalizePaneLine(line) {
+      return String(line || '')
+        .replace(/^\s*[|>]*\s*/, '')
+        .replace(/^\s*(?:[-*o]|\d+[.)])\s+/, '')
+        .trim();
+    }
+
     function isRenderablePaneLine(line) {
-      const text = String(line || '').trim();
+      const text = normalizePaneLine(line);
       if (!text) return false;
+      if (text.length < 4) return false;
       if (/^(Ran|Read|Explored|Edited|Search|List|Opened|Working|Thinking|Updated|Patched|Applied|Wrote|Created|Deleted|Moved|Copied|Executed)\b/i.test(text)) return false;
+      if (/^(Called|Calling|Running|Processing|Bashed|Globbed|Grep|Listed|Opened|Todo|Task|Tool|Shell|Command)\b/i.test(text)) return false;
+      if (/^(Agent\s+\".+\"\s+(completed|launched)|\d+\s+background agents?\s+launched|\d+\s+local agents?\s+still running)\b/i.test(text)) return false;
+      if (/^(Explored|Ran|Read)\s*$/i.test(text)) return false;
+      if (/^\s*(└|├|│|─|╭|╰|╯|╮)/.test(line)) return false;
       if (/^[\s|+\-=_`~.,:;'"()[\]{}<>^*#]+$/.test(text)) return false;
       if (/^[v0x16\s]+$/i.test(text)) return false;
       if (/^\s*[›>]\s*/.test(text)) return false;
@@ -697,6 +709,7 @@
       if (/\bweek\(\w+\)\s+\d+%/i.test(text)) return false;
       if (/\bGoal\s+(achieved|failed)\b/i.test(text)) return false;
       if (/\b(tokens on|remaining capacity|available skills)\b/i.test(text)) return false;
+      if (/\b(shell commands?|tool calls?|ctrl\s*\+\s*t|view transcript|tokens|thought for|context left)\b/i.test(text)) return false;
       if (/\bUse\s+\/skills\s+to\s+list\b/i.test(text)) return false;
       if (/^Improve documentation in @filename$/i.test(text)) return false;
       if (/^Describe your task or type\s+\/\s+for commands$/i.test(text)) return false;
@@ -709,7 +722,7 @@
 
     function cleanPaneLines(lines) {
       return (Array.isArray(lines) ? lines : [])
-        .map((line) => sanitizePaneChunk(line).trim())
+        .map((line) => normalizePaneLine(sanitizePaneChunk(line)))
         .filter(isRenderablePaneLine);
     }
 
@@ -722,7 +735,7 @@
       paneOutputCarry = split.pop() || '';
       let added = 0;
       for (const line of split) {
-        const trimmed = String(line || '').trim();
+        const trimmed = normalizePaneLine(line);
         if (!isRenderablePaneLine(trimmed)) continue;
         paneOutputLines.push(trimmed);
         added += 1;
@@ -964,11 +977,11 @@
     }
 
     async function loadHistory() {
-      const res = await ipcRenderer.invoke('chat-tail-init', { history: false });
+      const res = await ipcRenderer.invoke('chat-tail-init');
       if (!res || !res.ok) return;
       chatTailOffset = res.offset || 0;
       historyLoaded = true;
-      renderMessages([], false);
+      renderMessages(res.envelopes || [], false);
     }
 
     async function tailRefresh() {
