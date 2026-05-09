@@ -226,6 +226,11 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(main, /if \(consumers\.size > 0\)/);
   assert.match(petWindow, /ipcRenderer\.invoke\('start-pane-pipe', \{ agentId, consumer: 'pet-window' \}\)/);
   assert.match(petWindow, /ipcRenderer\.invoke\('stop-pane-pipe', \{ agentId, consumer: 'pet-window' \}\)/);
+  assert.match(petWindow, /function shouldUsePaneStream\(\)/);
+  assert.match(petWindow, /config\.agent\.petPaneStream === true/);
+  assert.match(petWindow, /if \(shouldUsePaneStream\(\)\) \{\s*await startPaneStream\(\);/);
+  assert.match(petWindow, /if \(!shouldUsePaneStream\(\)\) return false;/);
+  assert.match(main, /petPaneStream: agent\.pet_pane_stream === true \|\| agent\.pet_chat_source === 'pane'/);
   assert.match(petWindow, /function startPaneStream/);
   assert.match(petWindow, /function sanitizePaneChunk/);
   assert.match(petWindow, /function isRenderablePaneLine/);
@@ -245,7 +250,7 @@ test('floating pet chat uses clean team chat stream and supports pasted images',
   assert.match(petWindow, /function schedulePaneRender/);
   assert.match(petWindow, /requestAnimationFrame\(\(\) => \{/);
   assert.match(petWindow, /renderMessages\(res\.envelopes \|\| \[\], false\)/);
-  assert.match(petWindow, /await loadHistory\(\);\s*await startPaneStream\(\);/);
+  assert.match(petWindow, /await loadHistory\(\);[\s\S]*?if \(shouldUsePaneStream\(\)\) \{[\s\S]*?await startPaneStream\(\);/);
   assert.match(petWindow, /scrollbar-gutter: stable/);
   assert.match(petWindow, /\.msg \{[\s\S]*?width: 100%;[\s\S]*?background: transparent;/);
   assert.match(petWindow, /\.msg \{[\s\S]*?box-shadow: none;[\s\S]*?backdrop-filter: none;/);

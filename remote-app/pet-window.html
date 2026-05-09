@@ -714,6 +714,7 @@
     }
 
     function appendPaneChunk(rawChunk) {
+      if (!shouldUsePaneStream()) return 0;
       const text = sanitizePaneChunk(rawChunk);
       if (!text) return 0;
       const combined = paneOutputCarry + text;
@@ -734,6 +735,10 @@
         schedulePaneRender();
       }
       return added;
+    }
+
+    function shouldUsePaneStream() {
+      return !!(config && config.agent && config.agent.petPaneStream === true);
     }
 
     function schedulePaneRender() {
@@ -869,6 +874,7 @@
     }
 
     async function refreshPaneTail(force = false) {
+      if (!shouldUsePaneStream()) return 0;
       const res = await ipcRenderer.invoke('pet-pane-tail', { agentId });
       if (!res || !res.ok) {
         if (force) renderEmpty(res && res.error ? res.error : 'agent pane unavailable');
@@ -888,6 +894,7 @@
     }
 
     async function startPaneStream() {
+      if (!shouldUsePaneStream()) return false;
       if (!config || !agentId || paneOutputListener) return false;
       const safeHandler = (_event, b64) => {
         try {
@@ -927,6 +934,7 @@
     }
 
     async function ensurePaneStream() {
+      if (!shouldUsePaneStream()) return;
       if (!agentId) return;
       if (!paneOutputListener) {
         const started = await startPaneStream();
@@ -974,6 +982,12 @@
     function applyConfig(next) {
       config = next;
       if (!config || !config.agent || !config.pet) return;
+      if (!shouldUsePaneStream()) {
+        clearLogRowsForSource('pane');
+        paneOutputLines = [];
+        paneOutputCarry = '';
+        void stopPaneStream();
+      }
       document.documentElement.style.setProperty('--accent', config.agent.themeColor || '#e07c4c');
       const agentName = config.agent.displayName || config.agent.id;
       nameEl.textContent = agentName;
@@ -995,10 +1009,12 @@
       }
       applyConfig(res.config);
       await loadHistory();
-      await startPaneStream();
-      paneStreamHandle = setInterval(() => {
-        void ensurePaneStream();
-      }, 4500);
+      if (shouldUsePaneStream()) {
+        await startPaneStream();
+        paneStreamHandle = setInterval(() => {
+          void ensurePaneStream();
+        }, 4500);
+      }
       pollHandle = setInterval(tailRefresh, 4000);
     }
 

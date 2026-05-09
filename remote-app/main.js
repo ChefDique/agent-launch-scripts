@@ -481,7 +481,9 @@ function showAgentPetWindow(agentId, petId) {
       id: agent.id,
       displayName: agent.displayName || agent.id,
       tmuxTarget: agent.tmuxTarget,
-      themeColor: agent.themeColor || '#e07c4c'
+      themeColor: agent.themeColor || '#e07c4c',
+      runtime: agent.runtime || '',
+      petPaneStream: agent.pet_pane_stream === true || agent.pet_chat_source === 'pane'
     },
     pet
   };
@@ -1165,7 +1167,9 @@ ipcMain.handle('get-agent-pet-config', (_event, payload = {}) => {
         id: agent.id,
         displayName: agent.displayName || agent.id,
         tmuxTarget: agent.tmuxTarget,
-        themeColor: agent.themeColor || '#e07c4c'
+        themeColor: agent.themeColor || '#e07c4c',
+        runtime: agent.runtime || '',
+        petPaneStream: agent.pet_pane_stream === true || agent.pet_chat_source === 'pane'
       },
       pet
     }
