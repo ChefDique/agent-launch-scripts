@@ -3,16 +3,16 @@ const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, 'config', 'harness-models.json');
 
-let cached = null;
-
+// Read fresh on every call. The JSON is ~700 bytes and is only read when the
+// add/edit-agent form opens, so the cache was never worth the staleness cost
+// — editing config/harness-models.json while AgentRemote is running used to
+// require an app restart for the dropdown to pick up new entries.
 function load() {
-  if (cached) return cached;
   try {
-    cached = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
   } catch {
-    cached = {};
+    return {};
   }
-  return cached;
 }
 
 function entryFor(runtime) {
@@ -30,13 +30,7 @@ function getDefaultModelForHarness(runtime) {
   return entry && entry.default ? entry.default : null;
 }
 
-function reloadHarnessModels() {
-  cached = null;
-  return load();
-}
-
 module.exports = {
   getModelsForHarness,
-  getDefaultModelForHarness,
-  reloadHarnessModels
+  getDefaultModelForHarness
 };

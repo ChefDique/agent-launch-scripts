@@ -52,3 +52,30 @@ test('every model entry has both id and label fields', () => {
     }
   }
 });
+
+// Regression: the previous loader cached the parsed JSON in module scope and
+// only invalidated on an explicit reloadHarnessModels() call. Editing
+// config/harness-models.json while AgentRemote was running silently served the
+// stale boot-time snapshot — Richard hit this when the codex lineup was
+// expanded from 2 → 7 models and the dropdown still showed only 5.5 + 5 until
+// an app restart. The fix drops the cache so each ipc roundtrip reads fresh.
+test('loader reflects on-disk JSON changes without process restart', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const configPath = path.join(__dirname, '..', 'config', 'harness-models.json');
+  const original = fs.readFileSync(configPath, 'utf8');
+  try {
+    const patched = JSON.parse(original);
+    patched.codex = patched.codex || { default: 'gpt-5', models: [] };
+    patched.codex.models = [
+      ...patched.codex.models,
+      { id: '__reload-canary__', label: 'Reload canary' }
+    ];
+    fs.writeFileSync(configPath, JSON.stringify(patched, null, 2));
+    const ids = getModelsForHarness('codex').map(m => m.id);
+    assert.ok(ids.includes('__reload-canary__'),
+      'expected getModelsForHarness to see canary entry written after module load');
+  } finally {
+    fs.writeFileSync(configPath, original);
+  }
+});
