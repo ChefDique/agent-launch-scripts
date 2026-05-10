@@ -6521,9 +6521,20 @@
       const file = await ipcRenderer.invoke('pick-avatar');
       if (!file) return;
 
+      // Animated formats (gif) and vector (svg) bypass the cropper — canvas
+      // → PNG would flatten an animated GIF to one frame, killing the loop.
+      // Copy the original file straight through to assets/<id>.<ext> via the
+      // existing avatarSrc path.
+      const lower = file.toLowerCase();
+      if (lower.endsWith('.gif') || lower.endsWith('.svg')) {
+        pickedAvatarPath = file;
+        document.getElementById('f-avatar').value = file.split('/').pop();
+        return;
+      }
+
       const imgResult = await ipcRenderer.invoke('read-image-as-data-url', file);
       if (!imgResult || !imgResult.ok) {
-        // Fall back to direct path if data URL load fails (e.g. SVG passthrough)
+        // Fall back to direct path if data URL load fails.
         pickedAvatarPath = file;
         document.getElementById('f-avatar').value = file.split('/').pop();
         return;
@@ -6535,9 +6546,6 @@
       const base64 = croppedDataUrl.replace(/^data:image\/png;base64,/, '');
       const saveResult = await ipcRenderer.invoke('save-pasted-image', { mimeType: 'image/png', base64 });
       if (saveResult && saveResult.ok && saveResult.path) {
-        // save-pasted-image returns { path } not { filePath }; reading the wrong
-        // key left avatarSrc=undefined and main skipped the copy-to-assets step,
-        // so cropping silently no-op'd the registry update.
         pickedAvatarPath = saveResult.path;
         document.getElementById('f-avatar').value = `${file.split('/').pop()} (cropped)`;
       }
