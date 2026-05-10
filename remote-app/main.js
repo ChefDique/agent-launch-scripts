@@ -2307,6 +2307,23 @@ async function pickAvatarFile() {
 ipcMain.handle('pick-avatar', pickAvatarFile);
 ipcMain.handle('pick-svg', pickAvatarFile);
 
+// Read a local image file and return it as a base64 data URL so the renderer
+// can load it into an HTMLImageElement without file:// protocol access.
+ipcMain.handle('read-image-as-data-url', async (_event, filePath) => {
+  try {
+    const safeFilePath = String(filePath || '').trim();
+    if (!safeFilePath) return { ok: false, error: 'no file path' };
+    const ext = avatarExtension(safeFilePath);
+    if (!ext) return { ok: false, error: 'unsupported image type' };
+    const mimeMap = { svg: 'image/svg+xml', gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
+    const mime = mimeMap[ext] || 'image/png';
+    const data = await fsp.readFile(safeFilePath);
+    return { ok: true, dataUrl: `data:${mime};base64,${data.toString('base64')}` };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('pick-cwd', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Pick agent working directory',

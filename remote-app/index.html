@@ -3518,7 +3518,124 @@
       align-items: center;
       justify-content: center;
     }
+
+    /* ── Avatar crop modal ───────────────────────────────────────────────── */
+    .avatar-cropper-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-app-region: no-drag;
+    }
+    .avatar-cropper-modal {
+      background: rgba(14, 14, 22, 0.97);
+      backdrop-filter: blur(24px) saturate(140%);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04);
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 368px;
+    }
+    .avatar-cropper-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .avatar-cropper-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .avatar-cropper-x {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      transition: color 0.12s;
+    }
+    .avatar-cropper-x:hover { color: var(--text-primary); }
+    .avatar-cropper-viewport {
+      border-radius: 10px;
+      overflow: hidden;
+      line-height: 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      align-self: center;
+    }
+    .avatar-cropper-canvas {
+      display: block;
+      width: 320px;
+      height: 320px;
+      cursor: grab;
+    }
+    .avatar-cropper-zoom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .avatar-cropper-zoom-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      color: var(--text-primary);
+      font-size: 16px;
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.12s;
+    }
+    .avatar-cropper-zoom-btn:hover { background: rgba(255, 255, 255, 0.12); }
+    .avatar-cropper-slider {
+      flex: 1;
+      accent-color: var(--accent);
+      height: 4px;
+      cursor: pointer;
+    }
+    .avatar-cropper-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .avatar-cropper-cancel,
+    .avatar-cropper-save {
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .avatar-cropper-cancel {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+    }
+    .avatar-cropper-cancel:hover { background: rgba(255, 255, 255, 0.09); color: var(--text-primary); }
+    .avatar-cropper-save {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .avatar-cropper-save:hover { background: #e8935f; border-color: #e8935f; }
   </style>
+  <script src="avatar-cropper.js"></script>
 </head>
 <body>
   <div class="panel-stack">
@@ -6402,10 +6519,24 @@
     let pickedAvatarPath = null;
     async function pickAvatar() {
       const file = await ipcRenderer.invoke('pick-avatar');
-      if (file) {
+      if (!file) return;
+
+      const imgResult = await ipcRenderer.invoke('read-image-as-data-url', file);
+      if (!imgResult || !imgResult.ok) {
+        // Fall back to direct path if data URL load fails (e.g. SVG passthrough)
         pickedAvatarPath = file;
-        const parts = file.split('/');
-        document.getElementById('f-avatar').value = parts[parts.length - 1];
+        document.getElementById('f-avatar').value = file.split('/').pop();
+        return;
+      }
+
+      const croppedDataUrl = await window.AvatarCropper.openAvatarCropper(imgResult.dataUrl);
+      if (!croppedDataUrl) return; // user cancelled
+
+      const base64 = croppedDataUrl.replace(/^data:image\/png;base64,/, '');
+      const saveResult = await ipcRenderer.invoke('save-pasted-image', { mimeType: 'image/png', base64 });
+      if (saveResult && saveResult.ok) {
+        pickedAvatarPath = saveResult.filePath;
+        document.getElementById('f-avatar').value = 'cropped.png';
       }
     }
 

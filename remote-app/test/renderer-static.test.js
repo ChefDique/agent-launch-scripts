@@ -57,6 +57,23 @@ test('add-agent form supports image avatars and harness mascot fallback', () => 
   assert.match(html, /harnessOptionFor\(agent\.runtime/);
 });
 
+test('avatar crop modal is wired: script loaded, IPC calls present, cropper invoked', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  // Script tag loads the crop module
+  assert.match(html, /src="avatar-cropper\.js"/);
+  // Renderer uses the cropper after file pick
+  assert.match(html, /window\.AvatarCropper\.openAvatarCropper/);
+  assert.match(html, /read-image-as-data-url/);
+  // Main process handles the new IPC
+  assert.match(main, /read-image-as-data-url/);
+  // Cropped result goes through existing save-pasted-image path
+  assert.match(html, /save-pasted-image.*mimeType.*image\/png/s);
+  // Modal CSS present and uses dark HUD variables
+  assert.match(html, /avatar-cropper-overlay/);
+  assert.match(html, /avatar-cropper-modal/);
+  assert.match(html, /var\(--accent\)/);
+});
+
 test('popup surfaces include explicit close buttons and hidden restore copy is intentional', () => {
   assert.match(html, /id="f-close"/);
   assert.match(html, /id="chat-close-btn"/);
