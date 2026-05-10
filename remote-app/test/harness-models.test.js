@@ -9,9 +9,21 @@ test('claude harness has Opus 4.7 + Sonnet 4.6 as available models', () => {
   assert.ok(models.some(m => m.id === 'claude-sonnet-4-6'), 'expected Sonnet 4.6');
 });
 
-test('codex harness includes gpt-5.5', () => {
+test('codex harness includes the full gpt-5 model lineup', () => {
   const models = getModelsForHarness('codex');
-  assert.ok(models.some(m => m.id === 'gpt-5.5'), 'expected gpt-5.5 in codex models');
+  const ids = models.map(m => m.id);
+  const required = [
+    'gpt-5.5',
+    'gpt-5',
+    'gpt-5-codex',
+    'gpt-5.1',
+    'gpt-5.1-codex',
+    'gpt-5-mini',
+    'gpt-5-nano'
+  ];
+  for (const id of required) {
+    assert.ok(ids.includes(id), `expected "${id}" in codex model list`);
+  }
 });
 
 test('claude default is the 1M-ctx Opus to match registry expectation', () => {
