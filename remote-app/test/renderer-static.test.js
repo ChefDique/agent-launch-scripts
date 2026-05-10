@@ -355,6 +355,8 @@ test('floating pet window maps Codex atlas rows and move events to moods', () =>
   assert.match(petWindow, /setPointerCapture\(ev\.pointerId\)/);
   assert.match(petWindow, /ipcRenderer\.send\('pet-drag-window'/);
   assert.match(petWindow, /ipcRenderer\.send\('pet-drag-end'/);
+  assert.match(petWindow, /spriteWrapEl\.addEventListener\('pointerenter'/);
+  assert.match(petWindow, /spriteWrapEl\.addEventListener\('pointerleave'/);
   assert.match(main, /petWindowGeometryPayload/);
   assert.match(main, /petMoveWindowFromPointer/);
   assert.match(main, /ipcMain\.on\('pet-drag-window'/);

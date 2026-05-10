@@ -1225,6 +1225,15 @@
     }
     window.addEventListener('pointerup', endPetDrag);
     window.addEventListener('pointercancel', endPetDrag);
+
+    // Hover greeting: pet waves while pointer is over the sprite, returns to
+    // idle on leave. setMood guards against firing during an active drag, so
+    // pickup/move stays visually authoritative.
+    const spriteWrapEl = document.querySelector('.sprite-wrap');
+    if (spriteWrapEl) {
+      spriteWrapEl.addEventListener('pointerenter', () => setMood('waving', 0));
+      spriteWrapEl.addEventListener('pointerleave', () => setMood('idle', 0));
+    }
     window.addEventListener('blur', () => {
       if (petDrag) return;
       document.body.classList.remove('pet-picked-up');
