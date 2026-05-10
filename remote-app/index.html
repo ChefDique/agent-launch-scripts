@@ -6534,9 +6534,12 @@
 
       const base64 = croppedDataUrl.replace(/^data:image\/png;base64,/, '');
       const saveResult = await ipcRenderer.invoke('save-pasted-image', { mimeType: 'image/png', base64 });
-      if (saveResult && saveResult.ok) {
-        pickedAvatarPath = saveResult.filePath;
-        document.getElementById('f-avatar').value = 'cropped.png';
+      if (saveResult && saveResult.ok && saveResult.path) {
+        // save-pasted-image returns { path } not { filePath }; reading the wrong
+        // key left avatarSrc=undefined and main skipped the copy-to-assets step,
+        // so cropping silently no-op'd the registry update.
+        pickedAvatarPath = saveResult.path;
+        document.getElementById('f-avatar').value = `${file.split('/').pop()} (cropped)`;
       }
     }
 
