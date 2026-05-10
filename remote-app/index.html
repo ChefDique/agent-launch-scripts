@@ -3652,7 +3652,7 @@
           <path d="M2 2 L12 12 M12 2 L2 12" />
         </svg>
       </button>
-      <div class="form-row">
+      <div class="form-row" id="f-id-row">
         <label>id</label>
         <input id="f-id" placeholder="lowercase, no spaces" />
       </div>
@@ -3670,9 +3670,16 @@
         <input class="runtime-hidden-input" id="f-runtime" value="codex" readonly />
         <div class="harness-picker" id="f-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
       </div>
-      <div class="form-row">
+      <div class="form-row" id="f-model-row">
         <label>model</label>
         <select id="f-model" autocomplete="off"></select>
+      </div>
+      <!-- Profile-name row — shown instead of model picker when runtime=hermes
+           or runtime=openclaw. The value becomes the registry id with a runtime
+           suffix appended (see buildProfileId in JS). Hidden for claude/codex. -->
+      <div class="form-row" id="f-profile-row" style="display:none">
+        <label>profile</label>
+        <input id="f-profile" placeholder="e.g. aria" autocomplete="off" spellcheck="false" />
       </div>
       <div class="form-row form-row-toggle">
         <label>auto</label>
@@ -4205,6 +4212,28 @@
       });
     }
 
+    // True when the runtime uses a profile-name field instead of a model picker.
+    // Hermes and OpenClaw agents register as headless profiles via the Telegram
+    // bridge; the model concept doesn't apply.
+    function isProfileRuntime(runtime) {
+      return runtime === 'hermes' || runtime === 'openclaw';
+    }
+
+    // Build the registry id for a profile-based runtime.
+    // Convention: profile + '-' + runtime + '-tmux'
+    //
+    // WHY THE -tmux SUFFIX:
+    //   Headless Hermes/OpenClaw profiles run via the Telegram bridge and
+    //   register in message-agent comms as bare *-hermes / *-openclaw. The -tmux
+    //   suffix on the AgentRemote-spawned twin distinguishes the visible tmux-pane
+    //   instance from the headless Telegram instance for the same profile.
+    //   e.g. runtime=hermes, profile="aria" → "aria-hermes-tmux"
+    //        runtime=openclaw, profile="aria" → "aria-openclaw-tmux"
+    function buildProfileId(runtime, profile) {
+      const slug = String(profile || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      return slug ? `${slug}-${runtime}-tmux` : '';
+    }
+
     function setAddHarnessRuntime(runtime) {
       addFormRuntime = normalizeRuntime(runtime);
       const input = document.getElementById('f-runtime');
@@ -4214,7 +4243,16 @@
         addFormRuntime,
         setAddHarnessRuntime
       );
-      populateAddFormModelOptions(addFormRuntime);
+      // Swap model picker ↔ profile-name field based on runtime.
+      // id row is hidden for profile runtimes: the id IS derived from profile+suffix.
+      const useProfile = isProfileRuntime(addFormRuntime);
+      const modelRow   = document.getElementById('f-model-row');
+      const profileRow = document.getElementById('f-profile-row');
+      const idRow      = document.getElementById('f-id-row');
+      if (modelRow)   modelRow.style.display   = useProfile ? 'none' : '';
+      if (profileRow) profileRow.style.display  = useProfile ? ''     : 'none';
+      if (idRow)      idRow.style.display        = useProfile ? 'none' : '';
+      if (!useProfile) populateAddFormModelOptions(addFormRuntime);
     }
 
     // Populate the add-agent form's model dropdown for the current harness.
@@ -5447,6 +5485,12 @@
       if (!agent) return;
       const layer = document.getElementById('radial-settings');
       layer.dataset.agentId = id;
+      const _settingsUseProfile = isProfileRuntime(agent.runtime || 'codex');
+      // For hermes/openclaw: recover profile slug by stripping '-<runtime>-tmux'.
+      const _settingsProfileSuffix = `-${agent.runtime}-tmux`;
+      const _settingsProfileSlug = _settingsUseProfile && (agent.id || id).endsWith(_settingsProfileSuffix)
+        ? (agent.id || id).slice(0, -(_settingsProfileSuffix.length))
+        : (agent.id || id);
       layer.innerHTML = `
         <div class="settings-header">
           <div class="settings-title">${escapeHtml(agent.displayName || id)} · settings</div>
@@ -5458,10 +5502,18 @@
           <label>Harness</label>
           <div class="harness-picker compact" id="set-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
         </div>
-        <div class="settings-row">
+        ${_settingsUseProfile ? `
+        <div class="settings-row" id="set-profile-row">
+          <label for="set-profile">Profile</label>
+          <input type="text" id="set-profile"
+                 value="${escapeHtml(_settingsProfileSlug)}"
+                 placeholder="e.g. aria"
+                 autocomplete="off" spellcheck="false" />
+        </div>` : `
+        <div class="settings-row" id="set-model-row">
           <label for="set-model">Model</label>
           <select id="set-model" autocomplete="off"></select>
-        </div>
+        </div>`}
         <div class="toggle-row">
           <div class="toggle-meta">
             <div class="verb">Auto-restart</div>
@@ -5609,12 +5661,15 @@
       });
 
       const harnessPicker = layer.querySelector('#set-harness-picker');
-      const modelSelect = layer.querySelector('#set-model');
+      const modelSelect   = layer.querySelector('#set-model');   // null for profile runtimes
+      const profileInput  = layer.querySelector('#set-profile'); // null for claude/codex
 
       // Populate the per-harness model dropdown from main's harness-models loader.
       // If the saved value isn't in the harness's list (legacy / custom model),
       // prepend a `(custom)` option so nothing gets silently rewritten.
+      // No-op when the popover is showing a profile field instead of a model select.
       async function populateModelOptions(runtime, currentModel) {
+        if (!modelSelect) return; // profile-runtime popover: no model select rendered
         const { models = [], default: defaultModel = '' } =
           (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
         const opts = [];
@@ -5636,6 +5691,8 @@
         modelSelect.disabled = false;
       }
 
+      // When the harness changes in the settings popover, re-render the whole
+      // popover so the model/profile swap happens cleanly.
       const saveRuntime = async (runtime) => {
         const next = runtime;
         const prev = agent.runtime || 'codex';
@@ -5644,10 +5701,9 @@
         const res = await ipcRenderer.invoke('update-agent', { id, patch: { runtime: next } });
         if (res.ok) {
           await loadAndRender();
-          // applyRuntimePolicy in main.js may have rewritten model to match the
-          // new harness; reflect that in the dropdown without closing the popover.
-          const refreshed = agents[id] || agent;
-          await populateModelOptions(next, refreshed.model || '');
+          // Re-render the entire settings panel so the model/profile row
+          // swap reflects the new runtime without closing the popover.
+          renderSettingsPanel(id, gearOrbEl);
         } else {
           agent.runtime = prev;
           renderHarnessPicker(harnessPicker, prev, saveRuntime, { compact: true });
@@ -5655,7 +5711,9 @@
         }
       };
       renderHarnessPicker(harnessPicker, agent.runtime || 'codex', saveRuntime, { compact: true });
-      populateModelOptions(agent.runtime || 'codex', agent.model || '');
+      if (!isProfileRuntime(agent.runtime || 'codex')) {
+        populateModelOptions(agent.runtime || 'codex', agent.model || '');
+      }
 
       const setAvatarPickBtn = layer.querySelector('#set-avatar-pick');
       if (setAvatarPickBtn) {
@@ -5689,20 +5747,46 @@
         });
       }
 
-      modelSelect.addEventListener('change', async () => {
-        const next = modelSelect.value;
-        const prev = agent.model;
-        agent.model = next;
-        const res = await ipcRenderer.invoke('update-agent', { id, patch: { model: next } });
-        if (res.ok) {
-          // Trust main's coercion / persisted value, in case it normalized.
-          if (res.entry && res.entry.model !== undefined) agent.model = res.entry.model;
-        } else {
-          agent.model = prev;
-          flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
-          await populateModelOptions(agent.runtime || 'codex', agent.model || '');
-        }
-      });
+      if (modelSelect) {
+        modelSelect.addEventListener('change', async () => {
+          const next = modelSelect.value;
+          const prev = agent.model;
+          agent.model = next;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { model: next } });
+          if (res.ok) {
+            // Trust main's coercion / persisted value, in case it normalized.
+            if (res.entry && res.entry.model !== undefined) agent.model = res.entry.model;
+          } else {
+            agent.model = prev;
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+            await populateModelOptions(agent.runtime || 'codex', agent.model || '');
+          }
+        });
+      }
+
+      // Profile-name input (hermes / openclaw only).
+      // Saving rewrites the agent's registry id to profile + runtime suffix.
+      if (profileInput) {
+        profileInput.dataset.savedValue = profileInput.value;
+        const saveProfile = async () => {
+          const v = profileInput.value.trim();
+          if (v === profileInput.dataset.savedValue) return;
+          const newId = buildProfileId(agent.runtime, v);
+          if (!newId) return;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { id: newId } });
+          if (res.ok) {
+            profileInput.dataset.savedValue = v;
+            // The agent's registry id changed — reload so references are consistent.
+            await loadAndRender();
+          } else {
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          }
+        };
+        profileInput.addEventListener('blur', saveProfile);
+        profileInput.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') { ev.preventDefault(); saveProfile(); }
+        });
+      }
 
       // (ALS-010, 2026-05-03) The detach-window / detach-split button
       // wiring used to live here. Both behaviours were collapsed into the
@@ -6531,7 +6615,10 @@
     }
 
     function resetAgentForm() {
-      ['f-id', 'f-name', 'f-cwd', 'f-avatar'].forEach(id => document.getElementById(id).value = '');
+      ['f-id', 'f-name', 'f-cwd', 'f-avatar', 'f-profile'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
       document.getElementById('f-slash').value = '/lead-gogo';
       document.getElementById('f-color').value = '#00f2ff';
       document.getElementById('f-autorestart').checked = true;
@@ -6567,10 +6654,21 @@
       document.getElementById('f-color').value = agent.themeColor || '#00f2ff';
       document.getElementById('f-autorestart').checked = agent.autoRestart !== false;
       setAddHarnessRuntime(agent.runtime || 'codex');
-      // setAddHarnessRuntime resets the model dropdown to the harness default;
-      // re-populate with the agent's actual saved model so the existing value
-      // pre-selects (or shows up as `(custom)` if it isn't in the list).
-      populateAddFormModelOptions(agent.runtime || 'codex', agent.model || '');
+      if (isProfileRuntime(agent.runtime)) {
+        // Recover the profile slug from the registry id: strip the trailing
+        // '-<runtime>-tmux' suffix that buildProfileId appended.
+        const suffix = `-${agent.runtime}-tmux`;
+        const profileSlug = (agent.id || id).endsWith(suffix)
+          ? (agent.id || id).slice(0, -(suffix.length))
+          : (agent.id || id);
+        const profileEl = document.getElementById('f-profile');
+        if (profileEl) profileEl.value = profileSlug;
+      } else {
+        // setAddHarnessRuntime resets the model dropdown to the harness default;
+        // re-populate with the agent's actual saved model so the existing value
+        // pre-selects (or shows up as `(custom)` if it isn't in the list).
+        populateAddFormModelOptions(agent.runtime || 'codex', agent.model || '');
+      }
       syncPetSelect(id);
       document.body.classList.add('adding');
       syncWindowSize();
@@ -6766,16 +6864,24 @@
       errEl.textContent = '';
       const themeColor = document.getElementById('f-color').value;  // hex from <input type="color">
       const modelEl = document.getElementById('f-model');
+      const useProfile = isProfileRuntime(addFormRuntime);
+      // For hermes/openclaw, derive the registry id from the profile field +
+      // runtime suffix. The explicit id field is hidden in that flow.
+      const profileInput = document.getElementById('f-profile');
+      const profileValue = profileInput ? profileInput.value.trim() : '';
+      const resolvedId = useProfile
+        ? buildProfileId(addFormRuntime, profileValue)
+        : document.getElementById('f-id').value.trim();
       const payload = {
         originalId: editingAgentId,
-        id: document.getElementById('f-id').value.trim(),
+        id: resolvedId,
         displayName: document.getElementById('f-name').value.trim(),
         cwd: document.getElementById('f-cwd').value.trim(),
         color: 'cyan',           // /color slash-command default for new agents
         themeColor,              // hex string persisted to agents.json theme_color
         startupSlash: document.getElementById('f-slash').value.trim(),
         avatarSrc: pickedAvatarPath,
-        model: modelEl ? modelEl.value : '',
+        model: useProfile ? '' : (modelEl ? modelEl.value : ''),
         autoRestart: document.getElementById('f-autorestart').checked
       };
       payload.runtime = addFormRuntime;
