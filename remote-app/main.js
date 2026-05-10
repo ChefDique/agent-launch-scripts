@@ -1973,6 +1973,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
     if (rawRuntime && !HARNESS_RUNTIME_IDS.includes(rawRuntime)) {
       throw new Error('runtime must be codex, claude, hermes, or openclaw');
     }
+    const explicitModel = payload.model ? String(payload.model).trim() : '';
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
 
     // Guard against id collisions.
@@ -1999,6 +2000,10 @@ ipcMain.handle('add-agent', async (event, payload) => {
         color,
         startup_slash: startupSlash
       };
+      // Explicit model from the form (now that the add-agent UI exposes a
+      // per-harness dropdown) takes precedence over applyRuntimePolicy's
+      // defaults; the policy only patches missing/wrong-runtime values.
+      if (explicitModel) entry.model = explicitModel;
       applyRuntimePolicy(entry, runtime);
       if (themeColor) entry.theme_color = themeColor;
       if (!autoRestart) entry.auto_restart = false;
@@ -2210,6 +2215,7 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       ? ''
       : String(payload.startupSlash).trim();
     const autoRestart = payload.autoRestart === false ? false : true;
+    const explicitModel = payload.model ? String(payload.model).trim() : '';
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
     let avatarFilename = null;
     if (avatarSrc && fs.existsSync(avatarSrc)) {
@@ -2240,6 +2246,8 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       entry.id = safeId;
       entry.display_name = displayName;
       entry.cwd = cwd;
+      // Set explicit model BEFORE applyRuntimePolicy so the policy preserves it.
+      if (explicitModel) entry.model = explicitModel;
       if (hasExplicitRuntime && runtime) {
         entry.runtime = runtime;
         applyRuntimePolicy(entry, runtime);

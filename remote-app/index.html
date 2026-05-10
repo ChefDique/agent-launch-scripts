@@ -3670,6 +3670,10 @@
         <input class="runtime-hidden-input" id="f-runtime" value="codex" readonly />
         <div class="harness-picker" id="f-harness-picker" role="radiogroup" aria-label="Agent harness"></div>
       </div>
+      <div class="form-row">
+        <label>model</label>
+        <select id="f-model" autocomplete="off"></select>
+      </div>
       <div class="form-row form-row-toggle">
         <label>auto</label>
         <label class="form-toggle">
@@ -4210,6 +4214,35 @@
         addFormRuntime,
         setAddHarnessRuntime
       );
+      populateAddFormModelOptions(addFormRuntime);
+    }
+
+    // Populate the add-agent form's model dropdown for the current harness.
+    // Mirrors the settings-popover behaviour: prepend a `(custom)` option if
+    // the saved value isn't in the harness's list, disable the select when no
+    // models are registered for the harness.
+    async function populateAddFormModelOptions(runtime, currentModel) {
+      const select = document.getElementById('f-model');
+      if (!select) return;
+      const { models = [], default: defaultModel = '' } =
+        (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
+      const opts = [];
+      let foundCurrent = false;
+      for (const m of models) {
+        foundCurrent = foundCurrent || m.id === currentModel;
+        opts.push(`<option value="${escapeHtml(m.id)}">${escapeHtml(m.label || m.id)}</option>`);
+      }
+      if (currentModel && !foundCurrent) {
+        opts.unshift(`<option value="${escapeHtml(currentModel)}">${escapeHtml(currentModel)} (custom)</option>`);
+      }
+      if (!opts.length) {
+        select.innerHTML = '<option value="">(no models registered for this harness)</option>';
+        select.disabled = true;
+        return;
+      }
+      select.innerHTML = opts.join('');
+      select.value = currentModel || defaultModel || '';
+      select.disabled = false;
     }
 
     function closeIconSvg() {
@@ -5631,7 +5664,7 @@
           if (!file) return;
           const lower = file.toLowerCase();
           let avatarSrc = file;
-          if (!lower.endsWith('.gif') && !lower.endsWith('.svg')) {
+          if (!lower.endsWith('.svg')) {
             const imgResult = await ipcRenderer.invoke('read-image-as-data-url', file);
             if (imgResult && imgResult.ok && window.AvatarCropper) {
               const croppedDataUrl = await window.AvatarCropper.openAvatarCropper(imgResult.dataUrl);
@@ -6534,6 +6567,10 @@
       document.getElementById('f-color').value = agent.themeColor || '#00f2ff';
       document.getElementById('f-autorestart').checked = agent.autoRestart !== false;
       setAddHarnessRuntime(agent.runtime || 'codex');
+      // setAddHarnessRuntime resets the model dropdown to the harness default;
+      // re-populate with the agent's actual saved model so the existing value
+      // pre-selects (or shows up as `(custom)` if it isn't in the list).
+      populateAddFormModelOptions(agent.runtime || 'codex', agent.model || '');
       syncPetSelect(id);
       document.body.classList.add('adding');
       syncWindowSize();
@@ -6561,12 +6598,11 @@
       const file = await ipcRenderer.invoke('pick-avatar');
       if (!file) return;
 
-      // Animated formats (gif) and vector (svg) bypass the cropper — canvas
-      // → PNG would flatten an animated GIF to one frame, killing the loop.
-      // Copy the original file straight through to assets/<id>.<ext> via the
-      // existing avatarSrc path.
+      // SVG bypasses the cropper (vector → raster is the wrong default for
+      // logos). GIFs do go through the cropper now — Richard prefers cropping
+      // with a flattened single frame over uncropped animation.
       const lower = file.toLowerCase();
-      if (lower.endsWith('.gif') || lower.endsWith('.svg')) {
+      if (lower.endsWith('.svg')) {
         pickedAvatarPath = file;
         document.getElementById('f-avatar').value = file.split('/').pop();
         return;
@@ -6729,6 +6765,7 @@
       const errEl = document.getElementById('f-error');
       errEl.textContent = '';
       const themeColor = document.getElementById('f-color').value;  // hex from <input type="color">
+      const modelEl = document.getElementById('f-model');
       const payload = {
         originalId: editingAgentId,
         id: document.getElementById('f-id').value.trim(),
@@ -6738,6 +6775,7 @@
         themeColor,              // hex string persisted to agents.json theme_color
         startupSlash: document.getElementById('f-slash').value.trim(),
         avatarSrc: pickedAvatarPath,
+        model: modelEl ? modelEl.value : '',
         autoRestart: document.getElementById('f-autorestart').checked
       };
       payload.runtime = addFormRuntime;
