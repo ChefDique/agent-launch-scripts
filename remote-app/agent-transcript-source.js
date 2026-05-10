@@ -75,6 +75,61 @@ function latestJsonlFile(dir) {
   }
 }
 
+// Detect whether a Claude session jsonl was renamed to a given agent name on
+// startup (via /rename, which writes a `custom-title` event, or the
+// `agent-name` event some skills set). Reads the file's head only (cheap) so
+// we can scan many sessions without paying for the full body.
+function fileMatchesAgentTitle(filePath, expectedTitle) {
+  if (!expectedTitle) return false;
+  const want = String(expectedTitle).trim().toLowerCase();
+  if (!want) return false;
+  let head;
+  try {
+    head = readHead(filePath, HEAD_READ_BYTES);
+  } catch {
+    return false;
+  }
+  for (const line of head.split('\n')) {
+    if (!line.trim()) continue;
+    let parsed;
+    try { parsed = JSON.parse(line); } catch { continue; }
+    if (!parsed || typeof parsed !== 'object') continue;
+    if (parsed.type === 'custom-title' && String(parsed.customTitle || '').trim().toLowerCase() === want) return true;
+    if (parsed.type === 'agent-name' && String(parsed.agentName || '').trim().toLowerCase() === want) return true;
+  }
+  return false;
+}
+
+// Pick the most recent session file in a Claude project slug directory that
+// also matches the agent's display name. Falls back to plain latest-mtime when
+// no displayName is supplied (legacy callers) or no session in the directory
+// announces itself with a matching custom-title / agent-name event (SDK
+// agents, automation-spawned sessions). This binds operator-facing TUI agents
+// (Xavier, Lucius, Neo, …) to their own session even when newer SDK / autopilot
+// sessions in the same cwd would otherwise shadow them by mtime.
+function latestJsonlFileForAgent(dir, displayName) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+      .map((entry) => {
+        const filePath = path.join(dir, entry.name);
+        const stat = fs.statSync(filePath);
+        return { filePath, mtimeMs: stat.mtimeMs, size: stat.size };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  } catch {
+    return null;
+  }
+  if (!entries.length) return null;
+  if (displayName) {
+    for (const entry of entries) {
+      if (fileMatchesAgentTitle(entry.filePath, displayName)) return entry;
+    }
+  }
+  return entries[0];
+}
+
 function claudeProjectsRoot() {
   return process.env.AGENTREMOTE_CLAUDE_PROJECTS_DIR || path.join(os.homedir(), '.claude', 'projects');
 }
@@ -158,8 +213,9 @@ function resolveTranscriptFile(agent) {
   const cwd = agent && agent.cwd;
 
   if (runtime === 'claude') {
+    const displayName = agent && agent.displayName;
     for (const slug of claudeProjectSlugCandidates(cwd)) {
-      const direct = latestJsonlFile(path.join(claudeProjectsRoot(), slug));
+      const direct = latestJsonlFileForAgent(path.join(claudeProjectsRoot(), slug), displayName);
       if (direct) return { ...direct, source: 'claude-transcript' };
     }
   }
