@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(**)",
+      "Write(**)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(mv *)",
+      "Bash(cp *)",
+      "Bash(tmux *)",
+      "Bash(launchctl *)",
+      "Bash(./launch-agent.sh *)",
+      "Bash(./launch-remote.sh *)",
+      "Bash(./chq-tmux.sh *)",
+      "Bash(./rnd-tmux.sh *)",
+      "Bash(./trading-tmux.sh *)",
+      "Bash(./spawn-lucius.sh *)",
+      "Bash(./spawn-swarmy.sh *)",
+      "Bash(bash scripts/*)",
+      "mcp__plugin_telegram_telegram__react",
+      "mcp__plugin_telegram_telegram__reply",
+      "mcp__plugin_telegram_telegram__edit_message",
+      "mcp__plugin_telegram_telegram__download_attachment"
+    ],
+    "deny": [
+      "Read(//Users/richardadair/.aws/**)",
+      "Read(//Users/richardadair/.gcloud/**)",
+      "Read(//Users/richardadair/.ssh/**)",
+      "Read(//Users/richardadair/.claude/.credentials.json)",
+      "Read(//Users/richardadair/.claude/settings.local.json)",
+      "Read(//Users/richardadair/.claude/channels/**/.env)",
+      "Bash(cat //Users/richardadair/.aws/**)",
+      "Bash(cat //Users/richardadair/.gcloud/**)",
+      "Bash(cat //Users/richardadair/.ssh/**)",
+      "Bash(cat //Users/richardadair/.claude/.credentials.json)",
+      "Bash(cat //Users/richardadair/.claude/settings.local.json)",
+      "Bash(cat //Users/richardadair/.claude/channels/**/.env)",
+      "Bash(cat /Users/richardadair/.aws/**)",
+      "Bash(cat /Users/richardadair/.gcloud/**)",
+      "Bash(cat /Users/richardadair/.ssh/**)",
+      "Bash(cat /Users/richardadair/.claude/.credentials.json)",
+      "Bash(cat /Users/richardadair/.claude/settings.local.json)",
+      "Bash(cat /Users/richardadair/.claude/channels/**/.env)"
+    ]
+  }
+}
