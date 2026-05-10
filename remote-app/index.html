@@ -4098,8 +4098,32 @@
         const padBottom = parseFloat(bodyStyle.paddingBottom) || 0;
         const padLeft = parseFloat(bodyStyle.paddingLeft) || 0;
         const padRight = parseFloat(bodyStyle.paddingRight) || 0;
+        // BUG FIX (v1.4.1): when the add/edit-agent form is open AND the dock
+        // has wrapped to >1 row, panel.getBoundingClientRect().height reports
+        // the POST-CLAMP height — .add-form's `max-height: calc(100vh - 48px)`
+        // trims the form's laid-out box before we measure. The window then
+        // never grows past the current viewport, so the form rows that got
+        // clamped become an internal scroll instead of being shown to the
+        // operator. Add the form's natural overflow (scrollHeight - clientHeight)
+        // back to the measured panel height so we ask main to grow enough to
+        // fit the FULL form. main's computeWindowBounds clamps to
+        // display.workArea, and the .add-form max-height + dark scrollbar
+        // styling still acts as the absolute fallback when content genuinely
+        // exceeds the workarea height. Mirrors the same scrollHeight trick
+        // used in renderSettingsPanel (layer.scrollHeight measurement there).
+        let extraFormGrow = 0;
+        if (document.body.classList.contains('adding')) {
+          const addForm = document.getElementById('add-form');
+          if (addForm) {
+            // scrollHeight is the unconstrained content height even when the
+            // element's box was clamped by max-height; clientHeight is the
+            // actual rendered box. The delta is exactly what's hidden behind
+            // the internal scroll.
+            extraFormGrow = Math.max(0, addForm.scrollHeight - addForm.clientHeight);
+          }
+        }
         const w = Math.ceil(rect.width + padLeft + padRight);
-        const h = Math.ceil(rect.height + padTop + padBottom);
+        const h = Math.ceil(rect.height + padTop + padBottom + extraFormGrow);
         ipcRenderer.send('resize-window', { width: w, height: h });
       };
       measure();
