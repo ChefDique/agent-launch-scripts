@@ -100,28 +100,38 @@ function fileMatchesAgentTitle(filePath, expectedTitle) {
   return false;
 }
 
-// Pick the most recent session file in a Claude project slug directory that
-// also matches the agent's display name. Falls back to plain latest-mtime when
-// no displayName is supplied (legacy callers) or no session in the directory
-// announces itself with a matching custom-title / agent-name event (SDK
-// agents, automation-spawned sessions). This binds operator-facing TUI agents
-// (Xavier, Lucius, Neo, …) to their own session even when newer SDK / autopilot
-// sessions in the same cwd would otherwise shadow them by mtime.
-function latestJsonlFileForAgent(dir, displayName) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
-      .map((entry) => {
-        const filePath = path.join(dir, entry.name);
+// Pick the most recent Claude session file across one or more project-slug
+// directories that also matches the agent's display name. Falls back to plain
+// latest-mtime when no displayName is supplied (legacy callers) or no session
+// announces itself with a matching custom-title / agent-name event (SDK agents,
+// automation-spawned sessions). Crucially, the title-match search runs against
+// the union of entries across all candidate dirs before the latest-mtime
+// fallback — otherwise a stale slug variant with any jsonl would shadow the
+// live slug whenever the same cwd hashes to multiple Claude project slugs
+// (e.g. ai_projects vs ai-projects). This binds operator-facing TUI agents
+// (Xavier, Lucius, Neo, …) to their own session.
+function latestJsonlFileForAgentAcrossDirs(dirs, displayName) {
+  const entries = [];
+  for (const dir of dirs) {
+    let dirEntries;
+    try {
+      dirEntries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of dirEntries) {
+      if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+      const filePath = path.join(dir, entry.name);
+      try {
         const stat = fs.statSync(filePath);
-        return { filePath, mtimeMs: stat.mtimeMs, size: stat.size };
-      })
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
-  } catch {
-    return null;
+        entries.push({ filePath, mtimeMs: stat.mtimeMs, size: stat.size });
+      } catch {
+        // skip unreadable session files
+      }
+    }
   }
   if (!entries.length) return null;
+  entries.sort((a, b) => b.mtimeMs - a.mtimeMs);
   if (displayName) {
     for (const entry of entries) {
       if (fileMatchesAgentTitle(entry.filePath, displayName)) return entry;
@@ -214,10 +224,10 @@ function resolveTranscriptFile(agent) {
 
   if (runtime === 'claude') {
     const displayName = agent && agent.displayName;
-    for (const slug of claudeProjectSlugCandidates(cwd)) {
-      const direct = latestJsonlFileForAgent(path.join(claudeProjectsRoot(), slug), displayName);
-      if (direct) return { ...direct, source: 'claude-transcript' };
-    }
+    const root = claudeProjectsRoot();
+    const slugDirs = claudeProjectSlugCandidates(cwd).map((slug) => path.join(root, slug));
+    const direct = latestJsonlFileForAgentAcrossDirs(slugDirs, displayName);
+    if (direct) return { ...direct, source: 'claude-transcript' };
   }
 
   if (runtime === 'codex') {

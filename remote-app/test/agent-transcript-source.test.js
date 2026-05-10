@@ -147,6 +147,57 @@ test('Claude transcript source also matches custom-title when stored as agent-na
   }
 });
 
+test('Claude transcript source picks the title-matching session even when a stale slug variant exists', () => {
+  // Repro: when the cwd path contains underscores (e.g. ai_projects), the
+  // resolver generates two slug variants — one with `_` preserved and one with
+  // `_` collapsed to `-`. Both `~/.claude/projects/<slug>` dirs may exist on
+  // disk because Claude Code wrote sessions under both forms over time. The
+  // bug: the resolver iterated slugs in order and returned the first slug that
+  // had any jsonl, so a stale slug shadowed the live slug whenever it ran
+  // first. The fix: gather entries across all candidate slug dirs, then apply
+  // title-match preference + latest-mtime fallback to the unified list.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-claude-projects-'));
+  // cwd /tmp/xavier_fake_cwd → two slug variants:
+  //   stale (path-only):  -tmp-xavier_fake_cwd  (preserves `_`)
+  //   live  (claude):     -tmp-xavier-fake-cwd  (collapses `_` to `-`)
+  const staleSlugDir = path.join(tmp, '-tmp-xavier_fake_cwd');
+  const liveSlugDir  = path.join(tmp, '-tmp-xavier-fake-cwd');
+  fs.mkdirSync(staleSlugDir, { recursive: true });
+  fs.mkdirSync(liveSlugDir, { recursive: true });
+
+  const staleSession = path.join(staleSlugDir, 'stale.jsonl');
+  const liveSession  = path.join(liveSlugDir, 'live.jsonl');
+  fs.writeFileSync(staleSession, [
+    JSON.stringify({ type: 'custom-title', customTitle: 'XAVIER', sessionId: 'stale' }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Stale Xavier reply.' }] } })
+  ].join('\n'));
+  fs.writeFileSync(liveSession, [
+    JSON.stringify({ type: 'custom-title', customTitle: 'XAVIER', sessionId: 'live' }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Live Xavier reply.' }] } })
+  ].join('\n'));
+  // Live session is the more recent one across both slugs.
+  fs.utimesSync(staleSession, new Date('2026-05-08T00:00:00Z'), new Date('2026-05-08T00:00:00Z'));
+  fs.utimesSync(liveSession,  new Date('2026-05-09T20:00:00Z'), new Date('2026-05-09T20:00:00Z'));
+
+  const previous = process.env.AGENTREMOTE_CLAUDE_PROJECTS_DIR;
+  process.env.AGENTREMOTE_CLAUDE_PROJECTS_DIR = tmp;
+  try {
+    const xavier = transcriptMessagesForAgent({ runtime: 'claude', cwd: '/tmp/xavier_fake_cwd', displayName: 'Xavier' }, { maxMessages: 4 });
+    assert.equal(xavier.ok, true);
+    assert.equal(xavier.filePath, liveSession, 'should pick the live-slug session, not the stale slug variant');
+    assert.deepEqual(xavier.messages.map((m) => m.text), ['Live Xavier reply.']);
+
+    // Without displayName: still resolves to the latest-mtime entry across both slugs.
+    const legacy = transcriptMessagesForAgent({ runtime: 'claude', cwd: '/tmp/xavier_fake_cwd' }, { maxMessages: 4 });
+    assert.equal(legacy.ok, true);
+    assert.equal(legacy.filePath, liveSession, 'no displayName falls back to overall latest-mtime across slugs');
+  } finally {
+    if (previous === undefined) delete process.env.AGENTREMOTE_CLAUDE_PROJECTS_DIR;
+    else process.env.AGENTREMOTE_CLAUDE_PROJECTS_DIR = previous;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('Codex transcript source refuses newest-session fallback without cwd proof', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-codex-sessions-'));
   const sessions = path.join(tmp, 'sessions');
