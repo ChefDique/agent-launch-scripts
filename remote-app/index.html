@@ -5452,6 +5452,10 @@
                  placeholder="orange" autocomplete="off" spellcheck="false" />
         </div>
         <div class="settings-row">
+          <label>Avatar</label>
+          <button class="pick-btn" id="set-avatar-pick" type="button">Change avatar</button>
+        </div>
+        <div class="settings-row">
           <label for="set-slash">Startup</label>
           <input type="text" id="set-slash" value="${escapeHtml(agent.startupSlash || '')}"
                  placeholder="/lead-gogo (empty = none)" autocomplete="off" spellcheck="false" />
@@ -5619,6 +5623,38 @@
       };
       renderHarnessPicker(harnessPicker, agent.runtime || 'codex', saveRuntime, { compact: true });
       populateModelOptions(agent.runtime || 'codex', agent.model || '');
+
+      const setAvatarPickBtn = layer.querySelector('#set-avatar-pick');
+      if (setAvatarPickBtn) {
+        setAvatarPickBtn.addEventListener('click', async () => {
+          const file = await ipcRenderer.invoke('pick-avatar');
+          if (!file) return;
+          const lower = file.toLowerCase();
+          let avatarSrc = file;
+          if (!lower.endsWith('.gif') && !lower.endsWith('.svg')) {
+            const imgResult = await ipcRenderer.invoke('read-image-as-data-url', file);
+            if (imgResult && imgResult.ok && window.AvatarCropper) {
+              const croppedDataUrl = await window.AvatarCropper.openAvatarCropper(imgResult.dataUrl);
+              if (!croppedDataUrl) return; // user cancelled
+              const base64 = croppedDataUrl.replace(/^data:image\/png;base64,/, '');
+              const saveResult = await ipcRenderer.invoke('save-pasted-image', { mimeType: 'image/png', base64 });
+              if (saveResult && saveResult.ok && saveResult.path) {
+                avatarSrc = saveResult.path;
+              } else {
+                flashTileError(document.getElementById(`btn-${id}`), (saveResult && saveResult.error) || 'avatar save failed');
+                return;
+              }
+            }
+          }
+          const res = await ipcRenderer.invoke('set-agent-avatar', { id, avatarSrc });
+          if (res && res.ok) {
+            agent.avatar = (res.entry && res.entry.avatar) || agent.avatar;
+            await loadAndRender();
+          } else {
+            flashTileError(document.getElementById(`btn-${id}`), (res && res.error) || 'avatar update failed');
+          }
+        });
+      }
 
       modelSelect.addEventListener('change', async () => {
         const next = modelSelect.value;
@@ -6454,7 +6490,11 @@
           : 'Agent id. Editable while the agent is not running.';
       }
       if (submit) submit.textContent = agentFormMode === 'edit' ? 'Save' : 'Create';
-      if (importBtn) importBtn.style.display = agentFormMode === 'edit' ? 'none' : '';
+      // Show the Armory import button in both add and edit modes — the
+      // settings popover is for inline field edits (avatar/model/etc.) while
+      // the add/edit form is the right place to import an Armory definition
+      // into an existing agent (e.g. swap profile_body or sync skills).
+      if (importBtn) importBtn.style.display = '';
     }
 
     function resetAgentForm() {

@@ -2289,6 +2289,34 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
   }
 });
 
+// Avatar IPC for the settings popover (existing-agent edit). Add-agent and
+// rename go through update-agent-form which has its own copy logic; this
+// handler is the per-agent partial-update path that mirrors update-agent for
+// the file-copy semantics avatars need.
+ipcMain.handle('set-agent-avatar', async (_event, payload = {}) => {
+  try {
+    const safeId = String(payload.id || '').trim().toLowerCase();
+    if (!/^[a-z0-9_-]+$/.test(safeId)) throw new Error('invalid agent id');
+    const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : '';
+    if (!avatarSrc) throw new Error('avatarSrc required');
+    if (!fs.existsSync(avatarSrc)) throw new Error(`avatar source missing: ${avatarSrc}`);
+    const ext = avatarExtension(avatarSrc);
+    if (!ext) throw new Error('avatar must be svg, gif, png, jpg, jpeg, or webp');
+    const avatarFilename = `${safeId}.${ext}`;
+    fs.copyFileSync(avatarSrc, path.join(ASSETS_DIR, avatarFilename));
+    let updatedEntry = null;
+    writeRegistry(data => {
+      const entry = (data.agents || []).find(a => a.id === safeId);
+      if (!entry) throw new Error(`agent "${safeId}" not in registry`);
+      entry.avatar = avatarFilename;
+      updatedEntry = entry;
+    });
+    return { ok: true, entry: updatedEntry };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 // File pickers for the Add Agent form.
 async function pickAvatarFile() {
   const result = await dialog.showOpenDialog(mainWindow, {
