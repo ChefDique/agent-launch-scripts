@@ -192,7 +192,8 @@
       "reasoning_effort": "max",
       "theme_color": "#ff0000",
       "avatar": "mugatu.gif",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "auto_restart": false
     },
     {
       "id": "ballstein",
@@ -205,7 +206,8 @@
       "reasoning_effort": "max",
       "theme_color": "#ffa200",
       "allow_claude_runtime": true,
-      "avatar": "ballstein.png"
+      "avatar": "ballstein.png",
+      "auto_restart": false
     },
     {
       "id": "zoolander",
@@ -218,7 +220,8 @@
       "model": "claude-opus-4-7[1m]",
       "reasoning_effort": "max",
       "theme_color": "#ae00ff",
-      "avatar": "zoolander.gif"
+      "avatar": "zoolander.gif",
+      "auto_restart": false
     },
     {
       "id": "hansel",
@@ -231,7 +234,8 @@
       "reasoning_effort": "max",
       "theme_color": "#00f2ff",
       "avatar": "hansel.png",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "auto_restart": false
     },
     {
       "id": "goku",
@@ -248,7 +252,8 @@
       "worktree_strategy": "shared_cwd",
       "local_mode": "visible_tmux",
       "local_attach": "iterm_control_mode",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "auto_restart": false
     },
     {
       "id": "vegeta",
@@ -261,7 +266,8 @@
       "reasoning_effort": "max",
       "theme_color": "#007bff",
       "avatar": "vegeta.png",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "auto_restart": false
     },
     {
       "id": "gaara",
@@ -293,7 +299,8 @@
       "allow_claude_runtime": true,
       "model": "claude-opus-4-7[1m]",
       "reasoning_effort": "max",
-      "avatar": "lucius.png"
+      "avatar": "lucius.png",
+      "auto_restart": false
     },
     {
       "id": "dasha",
@@ -327,26 +334,6 @@
       "avatar": "neo.gif",
       "auto_restart": false,
       "allow_claude_runtime": true
-    },
-    {
-      "id": "overlord-swarmy",
-      "display_name": "SWARMY",
-      "runtime": "claude",
-      "cwd": "~/ai_projects/swarmy",
-      "color": "red",
-      "theme_color": "#ff77cc",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "rename_to": "OVERLORDSWARMY",
-      "startup_slash": "/lead-gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
-      "avatar": "swarmy.svg",
-      "allow_claude_runtime": true,
-      "model": "claude-sonnet-4-6",
-      "reasoning_effort": "max",
-      "auto_restart": false
     },
     {
       "id": "aria-hermes-tmux-interactive-session",
@@ -384,6 +371,26 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
       "rename_to": "GEKKO",
       "avatar": "gekko.png"
+    },
+    {
+      "id": "overlord-swarmy",
+      "display_name": "SWARMY",
+      "runtime": "claude",
+      "cwd": "~/ai_projects/swarmy",
+      "color": "red",
+      "theme_color": "#ff77cc",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "rename_to": "OVERLORDSWARMY",
+      "startup_slash": "/lead-gogo",
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
+      "avatar": "swarmy.svg",
+      "allow_claude_runtime": true,
+      "model": "claude-sonnet-4-6",
+      "reasoning_effort": "max",
+      "auto_restart": false
     },
     {
       "id": "openclaw-generic",

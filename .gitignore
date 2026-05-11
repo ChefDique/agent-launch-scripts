@@ -4,3 +4,4 @@ remote-app/out.log
 remote-app/.toggle
 output/
 **/.DS_Store
+agents.json
