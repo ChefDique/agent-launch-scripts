@@ -179,7 +179,8 @@
       "allow_claude_runtime": true,
       "model": "claude-opus-4-7[1m]",
       "reasoning_effort": "max",
-      "avatar": "xavier.png"
+      "avatar": "xavier.png",
+      "auto_restart": false
     },
     {
       "id": "mini-mugatu",
@@ -282,7 +283,7 @@
     {
       "id": "lucius",
       "display_name": "LUCIUS",
-      "runtime": "claude",
+      "runtime": "codex",
       "cwd": "~/ai_projects/research-and-development",
       "color": "purple",
       "theme_color": "#ffaa00",
@@ -296,11 +297,12 @@
         "KOKORO_VOICE": "am_michael"
       },
       "rename_to": "LUCIUS",
-      "allow_claude_runtime": true,
-      "model": "claude-opus-4-7[1m]",
+      "model": "gpt-5.1-codex",
       "reasoning_effort": "max",
       "avatar": "lucius.png",
-      "auto_restart": false
+      "auto_restart": false,
+      "sandbox": "danger-full-access",
+      "approval_policy": "never"
     },
     {
       "id": "dasha",
