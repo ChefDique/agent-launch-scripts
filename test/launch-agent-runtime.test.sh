@@ -23,7 +23,7 @@ mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
 cat > "$TMP_DIR/bin/codex" <<'SH'
 #!/usr/bin/env bash
 echo "COMMAND:codex"
-for name in SWARMY_PROFILE_PRESET SWARMY_WORKSPACE_MODE SWARMY_WORKTREE_STRATEGY SWARMY_LOCAL_MODE SWARMY_LOCAL_ATTACH; do
+for name in MESSAGE_AGENT_IDENTITY MESSAGE_AGENT_FROM SWARMY_WORKER_NAME SWARMY_PROFILE_PRESET SWARMY_WORKSPACE_MODE SWARMY_WORKTREE_STRATEGY SWARMY_LOCAL_MODE SWARMY_LOCAL_ATTACH; do
   [[ -n "${!name:-}" ]] && echo "ENV:${name}=${!name}"
 done
 for arg in "$@"; do
@@ -143,6 +143,14 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "allow_claude_runtime": true,
       "color": "purple",
       "rename_to": "INTENTIONAL",
+      "startup_slash": "/lead-gogo"
+    },
+    {
+      "id": "xavier",
+      "display_name": "Professor Xavier",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "claude",
+      "allow_claude_runtime": true,
       "startup_slash": "/lead-gogo"
     },
     {
@@ -269,6 +277,30 @@ grep -qx 'ARG:max' <<< "$launch_override_claude_output"
 launch_override_codex_output="$(SWARMY_RUNTIME_OVERRIDE=codex run_agent codex 2>&1)"
 grep -qx 'COMMAND:codex' <<< "$launch_override_codex_output"
 grep -qx 'ARG:gpt-5.5' <<< "$launch_override_codex_output"
+
+# test_codex_runtime_override_sets_message_agent_identity
+TMUX_CALLS="$TMP_DIR/codex-tmux-calls.log"
+rm -f "$TMUX_CALLS"
+codex_identity_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    SWARMY_RUNTIME_OVERRIDE=codex \
+    TMUX_PANE="%codexpane" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    bash "$REPO_ROOT/launch-agent.sh" intentional-runtime
+)"
+grep -qx 'COMMAND:codex' <<< "$codex_identity_output"
+grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=intentional-runtime-codex' <<< "$codex_identity_output"
+grep -qx 'ENV:MESSAGE_AGENT_FROM=intentional-runtime-codex' <<< "$codex_identity_output"
+grep -qx 'ENV:SWARMY_WORKER_NAME=intentional-runtime-codex' <<< "$codex_identity_output"
+grep -Fxq 'set-option -p -t %codexpane @agent-identity intentional-runtime-codex' "$TMUX_CALLS"
+grep -Fxq 'set-option -p -t %codexpane @agent-runtime codex' "$TMUX_CALLS"
+! grep -Fxq 'set-option -p -t %codexpane @agent-identity intentional-runtime-claude' "$TMUX_CALLS"
+
+xavier_codex_identity_output="$(SWARMY_RUNTIME_OVERRIDE=codex run_agent xavier 2>&1)"
+grep -qx 'COMMAND:codex' <<< "$xavier_codex_identity_output"
+grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=xavier-codex' <<< "$xavier_codex_identity_output"
+! grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=xavier-claude' <<< "$xavier_codex_identity_output"
 
 contaminated_codex_override_output="$(SWARMY_RUNTIME_OVERRIDE=codex SWARMY_MODEL_OVERRIDE='claude-opus-4-7[1m]' SWARMY_REASONING_EFFORT_OVERRIDE=max run_agent codex 2>&1)"
 grep -qx 'COMMAND:codex' <<< "$contaminated_codex_override_output"
