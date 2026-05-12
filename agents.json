@@ -300,7 +300,6 @@
       "model": "gpt-5.1-codex",
       "reasoning_effort": "max",
       "avatar": "lucius.png",
-      "auto_restart": false,
       "sandbox": "danger-full-access",
       "approval_policy": "never"
     },
