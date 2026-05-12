@@ -2969,6 +2969,216 @@ function startChatWatcher() {
     logToOutLog(`startChatWatcher: fs.watch failed (${err.message}); heartbeat fallback in renderer covers it`);
   }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Council IPC handlers (ACRM-533 T5)
+//
+// Councils are bounded-membership ephemeral group brainstorms. Richard invokes
+// `/council <names> [about <topic>] --brief <path>` from the Councils tab.
+// `council-spawn.sh` does the actual tmux+claude launch; these handlers
+// validate, generate IDs, call the script, and return status strings.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const COUNCILS_BASE = path.join(os.homedir(), '.message-agent', 'councils');
+const COUNCIL_SPAWN_SH = path.join(REPO_ROOT, 'council-spawn.sh');
+
+// Generate a council-id: c-<6 hex chars> derived from 3 crypto bytes.
+function generateCouncilId() {
+  try { return 'c-' + crypto.randomBytes(3).toString('hex'); }
+  catch { return 'c-' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0'); }
+}
+
+// Validate and normalize a list of raw member name tokens.
+// Returns { ok: true, members: ['xavier', ...] } or { ok: false, error: '...' }
+function validateCouncilMembers(rawNames) {
+  const knownIds = new Set(loadAgents().map(a => String(a.id || '').trim().toLowerCase()));
+
+  const claudePrefixed = [];
+  const unknown = [];
+  const members = [];
+
+  for (const raw of rawNames) {
+    const name = raw.trim().toLowerCase();
+    if (!name) continue;
+    if (name.startsWith('claude-')) {
+      // Reject claude- prefix — bare names only (S121 rename directive)
+      claudePrefixed.push(raw.trim());
+      continue;
+    }
+    if (!knownIds.has(name)) {
+      unknown.push(name);
+      continue;
+    }
+    if (!members.includes(name)) members.push(name);
+  }
+
+  if (claudePrefixed.length > 0) {
+    const hints = claudePrefixed.map(n => `${n.replace(/^claude-/i, '')} (not ${n})`).join(', ');
+    return { ok: false, error: `Use bare names: ${hints} per S121 rename` };
+  }
+  if (unknown.length > 0) {
+    return { ok: false, error: `Unknown identities: ${unknown.join(', ')}` };
+  }
+  if (members.length < 1) {
+    return { ok: false, error: 'At least one council member is required' };
+  }
+  return { ok: true, members };
+}
+
+// council-spawn — validate args, generate a council-id, invoke council-spawn.sh
+ipcMain.handle('council-spawn', async (_event, payload = {}) => {
+  try {
+    const { namesRaw, briefPath, displayTopic } = payload;
+
+    // Brief path is required — operator hand-curates it (COUNCIL.md hard constraint)
+    if (!briefPath || !briefPath.trim()) {
+      return { ok: false, error: 'Topic brief path required — hand-curate per COUNCIL.md' };
+    }
+    const resolvedBrief = briefPath.trim().replace(/^~/, os.homedir());
+    if (!fs.existsSync(resolvedBrief)) {
+      return { ok: false, error: `Topic brief not found: ${briefPath.trim()}` };
+    }
+
+    // Parse + validate member names
+    if (!namesRaw || !namesRaw.trim()) {
+      return { ok: false, error: 'Council member names required' };
+    }
+    // Accept comma OR space-separated names
+    const rawTokens = namesRaw.trim().split(/[\s,]+/).filter(Boolean);
+    const validation = validateCouncilMembers(rawTokens);
+    if (!validation.ok) return { ok: false, error: validation.error };
+
+    const councilId = generateCouncilId();
+    const membersArg = validation.members.join(',');
+
+    // Ensure council dirs exist (council-spawn.sh also creates them, but
+    // creating here lets us write the display topic early for the UI)
+    const councilDir = path.join(COUNCILS_BASE, councilId);
+    await fsp.mkdir(path.join(councilDir, 'sentinels'), { recursive: true });
+    if (displayTopic) {
+      await fsp.writeFile(path.join(councilDir, 'topic.txt'), displayTopic.trim() + '\n', 'utf8');
+    }
+    await fsp.writeFile(path.join(councilDir, 'transcript.jsonl'), '', { flag: 'a' });
+
+    // Invoke council-spawn.sh — it creates tmux windows and settings files
+    await new Promise((resolve, reject) => {
+      const proc = require('child_process').execFile(
+        'bash',
+        [COUNCIL_SPAWN_SH, councilId, membersArg, resolvedBrief],
+        { timeout: 15000 },
+        (err, stdout, stderr) => {
+          if (err) reject(new Error(stderr.trim() || err.message));
+          else resolve({ stdout, stderr });
+        }
+      );
+    });
+
+    const membersList = validation.members.join(', ');
+    const statusMsg = `Council ${councilId} spawned with ${membersList} — open subtab`;
+    logToOutLog(`council-spawn: ${statusMsg}`);
+    return { ok: true, councilId, members: validation.members, status: statusMsg };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logToOutLog(`council-spawn error: ${msg}`);
+    return { ok: false, error: msg };
+  }
+});
+
+// council-disperse — signal router daemon (sentinel file) + kill tmux windows
+ipcMain.handle('council-disperse', async (_event, payload = {}) => {
+  try {
+    const { councilId } = payload;
+    if (!councilId || !/^c-[0-9a-f]{6}$/i.test(councilId)) {
+      return { ok: false, error: `Invalid council id: ${councilId}` };
+    }
+
+    const councilDir = path.join(COUNCILS_BASE, councilId);
+
+    // Write DISPERSE sentinel — the router daemon fs.watches this dir
+    // and stops routing when it sees this file (T3/ACRM-531 contract)
+    await fsp.mkdir(councilDir, { recursive: true });
+    await fsp.writeFile(path.join(councilDir, 'DISPERSE'), new Date().toISOString() + '\n', 'utf8');
+
+    // Kill tmux windows named council-<id>-* across all sessions
+    let killedWindows = [];
+    try {
+      // List all windows: session:window-name
+      const { execFileSync } = require('child_process');
+      const listOut = execFileSync('tmux', [
+        'list-windows', '-a', '-F', '#{session_name}:#{window_name}'
+      ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 });
+
+      const prefix = `council-${councilId}-`;
+      for (const line of listOut.split('\n')) {
+        const [sessName, winName] = line.trim().split(':');
+        if (!winName || !winName.startsWith(prefix)) continue;
+        try {
+          execFileSync('tmux', ['kill-window', '-t', `${sessName}:${winName}`], { timeout: 3000 });
+          killedWindows.push(winName);
+        } catch { /* window may already be gone */ }
+      }
+    } catch { /* tmux not running or no sessions — that's fine */ }
+
+    const statusMsg = `Council ${councilId} dispersed — transcript retained 7 days`;
+    logToOutLog(`council-disperse: ${statusMsg} (killed windows: ${killedWindows.join(', ') || 'none'})`);
+    return { ok: true, councilId, killedWindows, status: statusMsg };
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    logToOutLog(`council-disperse error: ${msg}`);
+    return { ok: false, error: msg };
+  }
+});
+
+// council-list — enumerate active councils (dirs with transcript.jsonl, no DISPERSE sentinel)
+ipcMain.handle('council-list', async () => {
+  try {
+    await fsp.mkdir(COUNCILS_BASE, { recursive: true });
+    const entries = await fsp.readdir(COUNCILS_BASE, { withFileTypes: true });
+    const councils = [];
+    for (const e of entries) {
+      if (!e.isDirectory() || !/^c-[0-9a-f]{6}$/i.test(e.name)) continue;
+      const cDir = path.join(COUNCILS_BASE, e.name);
+      const dispersed = fs.existsSync(path.join(cDir, 'DISPERSE'));
+      let topic = '';
+      try { topic = (await fsp.readFile(path.join(cDir, 'topic.txt'), 'utf8')).trim(); } catch {}
+      // Derive member list from settings-*.json files created by council-spawn.sh
+      let members = [];
+      try {
+        const files = await fsp.readdir(cDir);
+        members = files
+          .filter(f => f.startsWith('settings-') && f.endsWith('.json'))
+          .map(f => f.replace(/^settings-/, '').replace(/\.json$/, ''));
+      } catch {}
+      councils.push({ id: e.name, dispersed, topic, members });
+    }
+    return { ok: true, councils };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err), councils: [] };
+  }
+});
+
+// council-transcript-read — read council JSONL (filtered to type=council_message)
+ipcMain.handle('council-transcript-read', async (_event, payload = {}) => {
+  try {
+    const { councilId, offset = 0 } = payload;
+    if (!councilId) return { ok: false, error: 'councilId required', lines: [] };
+    const txPath = path.join(COUNCILS_BASE, councilId, 'transcript.jsonl');
+    if (!fs.existsSync(txPath)) return { ok: true, lines: [], newOffset: 0 };
+    const stat = await fsp.stat(txPath);
+    if (stat.size <= offset) return { ok: true, lines: [], newOffset: offset };
+    const fh = await fsp.open(txPath, 'r');
+    let buf;
+    try {
+      buf = Buffer.alloc(stat.size - offset);
+      await fh.read(buf, 0, buf.length, offset);
+    } finally { await fh.close(); }
+    const rawLines = buf.toString('utf8').split('\n').filter(l => l.trim());
+    const parsed = rawLines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    return { ok: true, lines: parsed, newOffset: stat.size };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err), lines: [] };
+  }
+});
+
 app.on('before-quit', () => {
   isQuitting = true;
   if (chatWatchDebounce) { clearTimeout(chatWatchDebounce); chatWatchDebounce = null; }

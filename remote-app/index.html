@@ -3233,6 +3233,163 @@
     }
     .chat-overlay .chat-error.visible { display: block; }
   
+    /* ── Councils tab (ACRM-533 T5) ───────────────────────────────────────── */
+
+    /* Tab bar that replaces the channel-name block when in councils mode */
+    .chat-overlay .chat-tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 4px;
+    }
+    .chat-overlay .chat-tab-bar .ctab {
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.45);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      -webkit-app-region: no-drag;
+    }
+    .chat-overlay .chat-tab-bar .ctab.active {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.06);
+    }
+    .chat-overlay .chat-tab-bar .ctab:hover:not(.active) {
+      color: rgba(255,255,255,0.65);
+    }
+
+    /* Councils panel — replaces chat-log when councils tab active */
+    #councils-panel {
+      flex: 1 1 0;
+      overflow-y: auto;
+      display: none;
+      flex-direction: column;
+      gap: 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.10) transparent;
+    }
+    #councils-panel.active { display: flex; }
+    #chat-log.councils-hidden { display: none; }
+
+    /* Council list — active councils */
+    .council-list {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .council-list-empty {
+      padding: 20px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .council-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.12s;
+      -webkit-app-region: no-drag;
+    }
+    .council-item:hover { background: rgba(255,255,255,0.04); }
+    .council-item.selected { background: rgba(255,255,255,0.07); }
+    .council-item .ci-id {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', 'SF Mono', monospace;
+      color: var(--accent);
+      opacity: 0.8;
+    }
+    .council-item .ci-members {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .council-item .ci-topic {
+      font-size: 11px;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 120px;
+    }
+    .council-item .ci-disperse {
+      flex: 0 0 auto;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255,80,80,0.10);
+      color: rgba(255,100,100,0.75);
+      border: none;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      transition: background 0.12s;
+    }
+    .council-item .ci-disperse:hover { background: rgba(255,80,80,0.20); }
+
+    /* Per-council transcript view */
+    .council-transcript {
+      flex: 1 1 0;
+      overflow-y: auto;
+      padding: 8px 14px;
+      font-size: 12.5px;
+      color: var(--text-primary);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.10) transparent;
+    }
+    .council-transcript .ct-empty {
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 16px 0;
+      text-align: center;
+    }
+    .council-transcript .ct-line {
+      padding: 3px 0;
+      line-height: 1.45;
+    }
+    .council-transcript .ct-from {
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    /* Councils composer hint */
+    .council-composer-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 4px 0 0;
+      line-height: 1.4;
+    }
+
+    /* Status message flash (council spawn/disperse feedback) */
+    .councils-status {
+      flex: 0 0 auto;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: rgba(150,255,150,0.85);
+      background: rgba(100,255,100,0.05);
+      border-top: 1px solid rgba(100,255,100,0.10);
+      display: none;
+      animation: councils-status-fade 4s forwards;
+    }
+    .councils-status.error { color: #ff8aa6; background: rgba(255,100,100,0.05); border-color: rgba(255,100,100,0.10); }
+    .councils-status.visible { display: block; }
+    @keyframes councils-status-fade {
+      0%   { opacity: 1; }
+      70%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
     @property --angle {
       syntax: '<angle>';
       initial-value: 0deg;
@@ -3784,10 +3941,10 @@
        button, focus-only keyboard hint. -->
   <div class="chat-overlay" id="chat-overlay" aria-hidden="true">
     <div class="chat-topbar">
-      <div class="channel-name">
-        <span class="glyph">#</span>
-        <span class="name">team</span>
-        <span class="sub">richard + agents</span>
+      <!-- Tab bar: Team | Councils (ACRM-533 T5) -->
+      <div class="chat-tab-bar" id="chat-tab-bar">
+        <button class="ctab active" id="ctab-team" data-tab="team" title="Team channel">Team</button>
+        <button class="ctab" id="ctab-councils" data-tab="councils" title="Councils">Councils</button>
       </div>
       <div class="chat-top-actions">
         <div class="presence" id="chat-presence" aria-label="Agent presence">
@@ -3801,7 +3958,21 @@
       </div>
     </div>
 
+    <!-- Team tab: existing message log -->
     <div class="chat-log" id="chat-log" role="log" aria-live="polite" aria-relevant="additions"></div>
+
+    <!-- Councils tab panel (ACRM-533 T5) -->
+    <div id="councils-panel" aria-label="Councils">
+      <!-- Active council list (populated by JS) -->
+      <div class="council-list" id="council-list">
+        <div class="council-list-empty" id="council-list-empty">No active councils — use /council to start one</div>
+      </div>
+      <!-- Per-council transcript (shown when a council is selected) -->
+      <div class="council-transcript" id="council-transcript">
+        <div class="ct-empty" id="council-transcript-empty">Select a council above to view its transcript</div>
+      </div>
+      <div class="councils-status" id="councils-status"></div>
+    </div>
 
     <div class="chat-error" id="chat-error" role="alert"></div>
 
@@ -3812,14 +3983,14 @@
           placeholder="message the team"
           rows="1"
           autocomplete="off"
-          aria-label="Message the team"></textarea>
+          aria-label="Message the team or use /council /disperse"></textarea>
         <button class="send-btn" id="chat-send-btn" disabled aria-label="Send message" title="Send (Enter)">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12 L19 12 M13 6 L19 12 L13 18" />
           </svg>
         </button>
       </div>
-      <div class="hint" aria-hidden="true"><kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline</div>
+      <div class="hint" aria-hidden="true" id="chat-composer-hint"><kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline</div>
     </div>
   </div>
 
@@ -8632,6 +8803,287 @@
       if (!isChatOverlayOpen()) return;
       chatTailRefresh();
     });
+
+    // ── Tab-bar wiring (Team | Councils) ─────────────────────────────────────
+    // ACRM-533 T5: the chat overlay hosts two tabs.
+    // - Team: the existing message log + composer
+    // - Councils: council list, per-council transcript, /council /disperse commands
+    (function initChatTabs() {
+      let activeTab = 'team'; // 'team' | 'councils'
+      const chatLogEl       = () => document.getElementById('chat-log');
+      const councilsPanelEl = () => document.getElementById('councils-panel');
+      const ctabTeam        = () => document.getElementById('ctab-team');
+      const ctabCouncils    = () => document.getElementById('ctab-councils');
+      const textareaEl      = () => document.getElementById('chat-textarea');
+      const sendBtnEl       = () => document.getElementById('chat-send-btn');
+      const composerHintEl  = () => document.getElementById('chat-composer-hint');
+      const councilStatusEl = () => document.getElementById('councils-status');
+      const councilListEl   = () => document.getElementById('council-list');
+      const councilEmptyEl  = () => document.getElementById('council-list-empty');
+      const txEl            = () => document.getElementById('council-transcript');
+      const txEmptyEl       = () => document.getElementById('council-transcript-empty');
+
+      let selectedCouncilId = null;
+      let councilTxOffset = 0;
+      let councilTxTimer = null;
+
+      function switchTab(tab) {
+        activeTab = tab;
+        const log = chatLogEl();
+        const cp  = councilsPanelEl();
+        const tabTeam = ctabTeam();
+        const tabCouncils = ctabCouncils();
+        if (tab === 'team') {
+          if (log) log.classList.remove('councils-hidden');
+          if (cp)  cp.classList.remove('active');
+          if (tabTeam) tabTeam.classList.add('active');
+          if (tabCouncils) tabCouncils.classList.remove('active');
+          const ta = textareaEl();
+          if (ta) { ta.placeholder = 'message the team'; }
+          if (composerHintEl()) composerHintEl().innerHTML = '<kbd>↵</kbd> to send · <kbd>⇧↵</kbd> for newline';
+          sendBtnEl() && (sendBtnEl().disabled = !textareaEl()?.value?.trim());
+        } else {
+          if (log) log.classList.add('councils-hidden');
+          if (cp)  cp.classList.add('active');
+          if (tabTeam) tabTeam.classList.remove('active');
+          if (tabCouncils) tabCouncils.classList.add('active');
+          const ta = textareaEl();
+          if (ta) { ta.placeholder = '/council xavier,lucius --brief ~/briefs/q2.md · /disperse c-abc123'; }
+          if (composerHintEl()) composerHintEl().innerHTML = '<kbd>↵</kbd> to run command · /council or /disperse';
+          // Councils tab: send btn is a run-command button (always enabled when text present)
+          const v = textareaEl()?.value?.trim();
+          sendBtnEl() && (sendBtnEl().disabled = !v);
+          refreshCouncilList();
+        }
+      }
+
+      // Council list refresh
+      async function refreshCouncilList() {
+        try {
+          const res = await ipcRenderer.invoke('council-list');
+          const container = councilListEl();
+          const emptyEl = councilEmptyEl();
+          if (!container) return;
+          // Remove old council items (keep the empty label)
+          Array.from(container.querySelectorAll('.council-item')).forEach(el => el.remove());
+          const active = (res.councils || []).filter(c => !c.dispersed);
+          if (emptyEl) emptyEl.style.display = active.length ? 'none' : '';
+          for (const c of active) {
+            const item = document.createElement('div');
+            item.className = 'council-item' + (c.id === selectedCouncilId ? ' selected' : '');
+            item.dataset.id = c.id;
+            item.innerHTML = `
+              <span class="ci-id">${escapeHtml(c.id)}</span>
+              <span class="ci-members">${escapeHtml(c.members.join(', '))}</span>
+              ${c.topic ? `<span class="ci-topic">${escapeHtml(c.topic)}</span>` : ''}
+              <button class="ci-disperse" data-id="${escapeHtml(c.id)}" title="Disperse this council">✕</button>
+            `;
+            item.querySelector('.ci-disperse').addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              await runDisperse(c.id);
+            });
+            item.addEventListener('click', () => selectCouncil(c.id));
+            container.appendChild(item);
+          }
+        } catch (err) {
+          console.warn('council-list error:', err);
+        }
+      }
+
+      function selectCouncil(id) {
+        selectedCouncilId = id;
+        councilTxOffset = 0;
+        const tx = txEl();
+        if (tx) tx.innerHTML = '';
+        if (txEmptyEl()) txEmptyEl().style.display = '';
+        // Highlight selection
+        document.querySelectorAll('.council-item').forEach(el => {
+          el.classList.toggle('selected', el.dataset.id === id);
+        });
+        loadCouncilTranscript();
+        // Poll transcript
+        if (councilTxTimer) clearInterval(councilTxTimer);
+        councilTxTimer = setInterval(() => { if (activeTab === 'councils') loadCouncilTranscript(); }, 3000);
+      }
+
+      async function loadCouncilTranscript() {
+        if (!selectedCouncilId) return;
+        try {
+          const res = await ipcRenderer.invoke('council-transcript-read', {
+            councilId: selectedCouncilId,
+            offset: councilTxOffset
+          });
+          if (!res.ok) return;
+          if (res.lines && res.lines.length > 0) {
+            const tx = txEl();
+            if (tx && txEmptyEl()) txEmptyEl().style.display = 'none';
+            for (const env of res.lines) {
+              if (!env.message) continue;
+              const line = document.createElement('div');
+              line.className = 'ct-line';
+              line.innerHTML = `<span class="ct-from">${escapeHtml(env.from || '?')}:</span>${escapeHtml(env.message)}`;
+              if (tx) tx.appendChild(line);
+            }
+            if (tx) tx.scrollTop = tx.scrollHeight;
+          }
+          if (res.newOffset) councilTxOffset = res.newOffset;
+        } catch (err) {
+          console.warn('council-transcript-read error:', err);
+        }
+      }
+
+      // Parse /council command: /council <names> [about <topic>] --brief <path>
+      function parseCouncilCommand(text) {
+        const body = text.replace(/^\/council\s+/i, '');
+        // Extract --brief <path>
+        const briefMatch = body.match(/--brief\s+(\S+)/i);
+        if (!briefMatch) return { ok: false, error: 'Topic brief path required — hand-curate per COUNCIL.md\nUsage: /council <names> [about <topic>] --brief <path>' };
+        const briefPath = briefMatch[1];
+        const bodyNoBrief = body.replace(/--brief\s+\S+/i, '').trim();
+
+        // Split on ' about ' (first occurrence only)
+        const aboutIdx = bodyNoBrief.search(/\s+about\s+/i);
+        let namesRaw, displayTopic;
+        if (aboutIdx >= 0) {
+          namesRaw = bodyNoBrief.slice(0, aboutIdx).trim();
+          displayTopic = bodyNoBrief.slice(aboutIdx).replace(/^\s*about\s*/i, '').trim();
+        } else {
+          namesRaw = bodyNoBrief.trim();
+          displayTopic = '';
+        }
+        if (!namesRaw) return { ok: false, error: 'Names required. Usage: /council <names> [about <topic>] --brief <path>' };
+        return { ok: true, namesRaw, displayTopic, briefPath };
+      }
+
+      // Run /council spawn
+      async function runCouncilSpawn(text) {
+        const parsed = parseCouncilCommand(text);
+        if (!parsed.ok) { showCouncilStatus(parsed.error, true); return; }
+        showCouncilStatus('Spawning…');
+        const res = await ipcRenderer.invoke('council-spawn', {
+          namesRaw: parsed.namesRaw,
+          briefPath: parsed.briefPath,
+          displayTopic: parsed.displayTopic
+        });
+        if (!res.ok) {
+          showCouncilStatus(res.error, true);
+        } else {
+          showCouncilStatus(res.status || `Council ${res.councilId} spawned`);
+          await refreshCouncilList();
+          if (res.councilId) selectCouncil(res.councilId);
+        }
+      }
+
+      // Run /disperse
+      async function runDisperse(rawId) {
+        const id = String(rawId || '').trim();
+        if (!id) { showCouncilStatus('Usage: /disperse <council-id>', true); return; }
+        showCouncilStatus(`Dispersing ${id}…`);
+        const res = await ipcRenderer.invoke('council-disperse', { councilId: id });
+        if (!res.ok) {
+          showCouncilStatus(res.error, true);
+        } else {
+          showCouncilStatus(res.status || `Council ${id} dispersed — transcript retained 7 days`);
+          if (selectedCouncilId === id) {
+            selectedCouncilId = null;
+            councilTxOffset = 0;
+            if (txEl()) txEl().innerHTML = '';
+            if (txEmptyEl()) txEmptyEl().style.display = '';
+          }
+          await refreshCouncilList();
+        }
+      }
+
+      function showCouncilStatus(msg, isError = false) {
+        const el = councilStatusEl();
+        if (!el) return;
+        el.textContent = msg;
+        el.className = 'councils-status visible' + (isError ? ' error' : '');
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => {
+          el.classList.remove('visible');
+        }, 5000);
+      }
+
+      // Handle /council or /disperse commands in councils tab
+      async function handleCouncilsInput(text) {
+        const trimmed = text.trim();
+        if (/^\/council\b/i.test(trimmed)) {
+          await runCouncilSpawn(trimmed);
+        } else if (/^\/disperse\b/i.test(trimmed)) {
+          const id = trimmed.replace(/^\/disperse\s*/i, '').trim();
+          await runDisperse(id);
+        } else {
+          showCouncilStatus('Unknown command. Use /council or /disperse', true);
+        }
+      }
+
+      // Tab button clicks
+      document.querySelectorAll('.ctab').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      // Override chat send for councils tab
+      const origChatSend = window._chatSendMessage;
+      // Intercept sendMessage: if councils tab active, route to council handler
+      const originalSendBtn = document.getElementById('chat-send-btn');
+      if (originalSendBtn) {
+        // We need to intercept at the send level. We'll monkey-patch by adding
+        // a higher-priority listener that checks the tab.
+        originalSendBtn.addEventListener('click', async (ev) => {
+          if (activeTab !== 'councils') return;
+          ev.stopImmediatePropagation();
+          const ta = textareaEl();
+          if (!ta || !ta.value.trim()) return;
+          const v = ta.value;
+          ta.value = '';
+          ta.dispatchEvent(new Event('input'));
+          sendBtnEl() && (sendBtnEl().disabled = true);
+          await handleCouncilsInput(v);
+        }, true /* capture — fires before the team send handler */);
+      }
+
+      // Textarea keydown: Enter in councils tab → run command
+      const ta = document.getElementById('chat-textarea');
+      if (ta) {
+        ta.addEventListener('keydown', async (ev) => {
+          if (activeTab !== 'councils') return;
+          if (ev.key !== 'Enter' || ev.shiftKey) return;
+          ev.preventDefault();
+          const v = ta.value.trim();
+          if (!v) return;
+          ta.value = '';
+          ta.dispatchEvent(new Event('input'));
+          sendBtnEl() && (sendBtnEl().disabled = true);
+          await handleCouncilsInput(v);
+        }, true /* capture */);
+      }
+
+      // Keep send btn state updated when textarea content changes
+      if (ta) {
+        ta.addEventListener('input', () => {
+          const v = ta.value.trim();
+          sendBtnEl() && (sendBtnEl().disabled = !v);
+        });
+      }
+
+      // Refresh council list when overlay opens
+      const origOpen = window.openChatOverlay;
+      // Expose switchTab for external use
+      window.switchCouncilTab = switchTab;
+      // Refresh on overlay open (best-effort)
+      setTimeout(() => {
+        const overlay = document.getElementById('chat-overlay');
+        if (overlay) {
+          const obs = new MutationObserver(() => {
+            if (overlay.classList.contains('shown') && activeTab === 'councils') {
+              refreshCouncilList();
+            }
+          });
+          obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        }
+      }, 500);
+    })();
 
     ipcRenderer.on('agent-pet-state-changed', (_event, state) => {
       applyAgentPetState(state || {});
