@@ -8935,13 +8935,12 @@
       // Parse /council command: /council <names> [about <topic>] --brief <path>
       function parseCouncilCommand(text) {
         const body = text.replace(/^\/council\s+/i, '');
-        // Extract --brief <path>
+        // Strip --brief flag early so name/topic parsing is clean, but do NOT require it yet
         const briefMatch = body.match(/--brief\s+(\S+)/i);
-        if (!briefMatch) return { ok: false, error: 'Topic brief path required — hand-curate per COUNCIL.md\nUsage: /council <names> [about <topic>] --brief <path>' };
-        const briefPath = briefMatch[1];
+        const briefPath = briefMatch ? briefMatch[1] : null;
         const bodyNoBrief = body.replace(/--brief\s+\S+/i, '').trim();
 
-        // Split on ' about ' (first occurrence only)
+        // Split on ' about ' (first occurrence only) to get namesRaw
         const aboutIdx = bodyNoBrief.search(/\s+about\s+/i);
         let namesRaw, displayTopic;
         if (aboutIdx >= 0) {
@@ -8951,6 +8950,21 @@
           namesRaw = bodyNoBrief.trim();
           displayTopic = '';
         }
+
+        // AC6: claude- prefix check fires BEFORE brief path requirement so
+        // `/council claude-xavier about test` returns the prefix error, not the brief error.
+        if (namesRaw) {
+          const tokens = namesRaw.trim().split(/[\s,]+/).filter(Boolean);
+          const claudePrefixed = tokens.filter(n => n.toLowerCase().startsWith('claude-'));
+          if (claudePrefixed.length > 0) {
+            const hints = claudePrefixed.map(n => `${n.replace(/^claude-/i, '')} (not ${n})`).join(', ');
+            return { ok: false, error: `Use bare names: ${hints} per S121 rename` };
+          }
+        }
+
+        // Now require brief path
+        if (!briefPath) return { ok: false, error: 'Topic brief path required — hand-curate per COUNCIL.md\nUsage: /council <names> [about <topic>] --brief <path>' };
+
         if (!namesRaw) return { ok: false, error: 'Names required. Usage: /council <names> [about <topic>] --brief <path>' };
         return { ok: true, namesRaw, displayTopic, briefPath };
       }
