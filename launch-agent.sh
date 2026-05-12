@@ -64,6 +64,17 @@ preset_nested_field() {
   jq -r "($1 // empty)" <<< "$PRESET"
 }
 
+canonical_agent_slug() {
+  local slug="$1"
+  case "$slug" in
+    *-claude) slug="${slug%-claude}" ;;
+    *-codex) slug="${slug%-codex}" ;;
+    *-hermes) slug="${slug%-hermes}" ;;
+    *-openclaw) slug="${slug%-openclaw}" ;;
+  esac
+  tr '[:upper:]' '[:lower:]' <<< "$slug" | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+//; s/-+$//'
+}
+
 DISPLAY_NAME="$(field display_name)"
 [[ -n "$DISPLAY_NAME" ]] || { echo "launch-agent: agent '$AGENT_ID' missing display_name" >&2; exit 1; }
 
@@ -199,6 +210,22 @@ while IFS=$'\t' read -r k v; do
   [[ -z "$k" ]] && continue
   export "$k=$v"
 done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)\t\(.value)"' <<< "$ENTRY")
+
+MESSAGE_AGENT_SLUG="$(field message_agent_slug)"
+[[ -z "$MESSAGE_AGENT_SLUG" ]] && MESSAGE_AGENT_SLUG="$(canonical_agent_slug "$AGENT_ID")"
+MESSAGE_AGENT_SLUG="$(canonical_agent_slug "$MESSAGE_AGENT_SLUG")"
+if [[ -n "$MESSAGE_AGENT_SLUG" && -z "${MESSAGE_AGENT_IDENTITY:-}" ]]; then
+  export MESSAGE_AGENT_IDENTITY="${MESSAGE_AGENT_SLUG}-${RUNTIME}"
+fi
+[[ -n "${MESSAGE_AGENT_IDENTITY:-}" && -z "${MESSAGE_AGENT_FROM:-}" ]] && export MESSAGE_AGENT_FROM="$MESSAGE_AGENT_IDENTITY"
+[[ -n "${MESSAGE_AGENT_IDENTITY:-}" && -z "${SWARMY_WORKER_NAME:-}" ]] && export SWARMY_WORKER_NAME="$MESSAGE_AGENT_IDENTITY"
+
+if [[ -n "${TMUX_PANE:-}" && -n "${MESSAGE_AGENT_IDENTITY:-}" ]]; then
+  tmux set-option -p -t "$TMUX_PANE" @agent-identity "$MESSAGE_AGENT_IDENTITY" >/dev/null 2>&1 \
+    || echo "[launch-agent] failed to tag tmux pane identity=${MESSAGE_AGENT_IDENTITY}" >&2
+  tmux set-option -p -t "$TMUX_PANE" @agent-runtime "$RUNTIME" >/dev/null 2>&1 \
+    || echo "[launch-agent] failed to tag tmux pane runtime=${RUNTIME}" >&2
+fi
 
 [[ -n "$PROFILE_PRESET" ]] && export SWARMY_PROFILE_PRESET="$PROFILE_PRESET"
 [[ -n "$WORKSPACE_MODE" ]] && export SWARMY_WORKSPACE_MODE="$WORKSPACE_MODE"
