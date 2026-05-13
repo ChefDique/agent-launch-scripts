@@ -275,3 +275,38 @@ For AgentRemote/message-agent delivery changes, require a shared resolver, deliv
 - **Notes**: Delivery now targets resolved pane id, not stale coord; AgentRemote sync calls the shared helper after pane topology changes.
 
 ---
+
+## [LRN-20260513-001] correction
+
+**Logged**: 2026-05-13T05:06:51-0700
+**Priority**: high
+**Status**: resolved
+**Area**: infra
+
+### Summary
+`/done` must mean commit, merge or PR, delete stale worktrees/generated junk, and leave no dirty working trees.
+
+### Details
+Richard corrected that a previous `/done` closeout stopped after committing a feature-worktree branch and reporting the remaining merge/cleanup work, which violated his intended semantics. The skill text said to run `/chores` and resolve dirty worktrees, but it did not plainly state that `/done` must integrate feature-worktree work back to the canonical branch or open a PR, remove stale worktrees/branches, and finish with clean status everywhere.
+
+### Suggested Action
+Treat `/done` as a blocking closeout gate: if intentional work is only on a feature branch/worktree, merge it into the canonical checkout when local policy allows or open a PR/stop with the exact blocker. Delete generated scratch output and stale worktrees after preservation. Do not emit a normal DONE STATUS while any repo/worktree remains dirty unless Richard explicitly deferred that exact state.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/.agents/skills/done/SKILL.md, /Users/richardadair/.agents/skills/chores/SKILL.md
+- Tags: done, chores, worktree, merge, dirty-state, closeout, loop_control
+- Pattern-Key: lifecycle.done_must_merge_and_clean
+- Recurrence-Count: 1
+- First-Seen: 2026-05-13
+- Last-Seen: 2026-05-13
+- Control Surface: /Users/richardadair/.agents/skills/done/SKILL.md
+- Loop Owner: closeout
+- Verification: `sed -n '1,80p' /Users/richardadair/.agents/skills/done/SKILL.md` shows the Non-negotiable meaning of `/done` section
+
+### Resolution
+- **Resolved**: 2026-05-13T05:06:51-0700
+- **Commit/PR**: pending repo learning commit; global skill edited in place
+- **Notes**: Added an explicit `/done` completion contract requiring commit, merge/preserve or PR, stale worktree cleanup, generated junk deletion, and clean working trees before final response.
+
+---
