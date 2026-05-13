@@ -61,3 +61,17 @@ test('add-form keeps its max-height + dark scrollbar styling as the absolute fal
   assert.match(html, /\.add-form::-webkit-scrollbar-thumb/,
     '.add-form must keep its dark scrollbar thumb styling');
 });
+
+test('settings popover grows the window before falling back to internal scroll', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /function requestWindowForSettingsPanel\(layer, wantedY\)/,
+    'settings popover must request BrowserWindow growth when opened');
+  assert.match(html, /measureSettingsPanelNaturalHeight\(layer\)/,
+    'settings popover must measure natural content height, not only the clamped box');
+  assert.match(html, /window\.innerHeight\s*-\s*SETTINGS_PANEL_MARGIN\s*\*\s*2/,
+    'settings popover positioning must account for the post-resize visible height');
+  assert.match(html, /const effectiveHeight = Math\.min\(measuredHeight, availableHeight \|\| measuredHeight\)/,
+    'settings popover must use the effective visible height when the display cap forces internal scroll');
+  assert.match(html, /relayoutSettingsPanel\(false\)/,
+    'settings popover must relayout after async model options change the content');
+});

@@ -72,6 +72,10 @@ test('avatar crop modal is wired: script loaded, IPC calls present, cropper invo
   assert.match(html, /avatar-cropper-overlay/);
   assert.match(html, /avatar-cropper-modal/);
   assert.match(html, /var\(--accent\)/);
+  assert.match(html, /avatar-cropper-overlay\s*\{[\s\S]*?overflow-y:\s*auto/,
+    'avatar cropper overlay must scroll instead of clipping when the display cap is reached');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'avatar-cropper.js'), 'utf8'), /ipcRenderer\.send\('resize-window'/,
+    'avatar cropper opened from settings must request window growth before falling back to scroll');
 });
 
 test('popup surfaces include explicit close buttons and hidden restore copy is intentional', () => {
@@ -86,6 +90,13 @@ test('dock add control is rendered as a two-line add-agent tile', () => {
   assert.match(html, /add-agent-tile/);
   assert.match(html, /<span class="add-plus">\+<\/span> ADD/);
   assert.match(html, /<span>AGENT<\/span>/);
+});
+
+test('dock uses a fixed nine-column roster grid', () => {
+  assert.match(html, /--dock-columns:\s*9;/);
+  assert.match(html, /--dock-nine-col-width:\s*636px;/);
+  assert.match(html, /--hud-panel-width:\s*668px;/);
+  assert.match(html, /grid-template-columns:\s*repeat\(var\(--dock-columns\), var\(--dock-tile-width\)\)/);
 });
 
 test('right-click settings routes to the shared add/edit form', () => {

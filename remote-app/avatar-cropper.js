@@ -93,6 +93,19 @@
 
   let _activeModal = null;
 
+  function requestWindowForModal(modal) {
+    try {
+      const { ipcRenderer } = require('electron');
+      const rect = modal.getBoundingClientRect();
+      ipcRenderer.send('resize-window', {
+        width: Math.ceil(Math.max(window.innerWidth, rect.width + 48)),
+        height: Math.ceil(Math.max(window.innerHeight, rect.height + 48))
+      });
+    } catch {
+      // Tests and non-Electron contexts do not expose ipcRenderer.
+    }
+  }
+
   function openAvatarCropper(dataUrl) {
     return new Promise((resolve) => {
       if (_activeModal) { _activeModal.remove(); _activeModal = null; }
@@ -122,6 +135,7 @@
       `;
       document.body.appendChild(overlay);
       _activeModal = overlay;
+      requestAnimationFrame(() => requestWindowForModal(overlay.querySelector('.avatar-cropper-modal')));
 
       const canvas = overlay.querySelector('.avatar-cropper-canvas');
       const ctx = canvas.getContext('2d');

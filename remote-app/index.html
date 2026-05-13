@@ -28,6 +28,11 @@
       --text-muted:    #8a8a98;
       --accent:        #e07c4c;     /* anthropic orange */
       --accent-glow:   rgba(224, 124, 76, 0.55);
+      --dock-tile-width: 60px;
+      --dock-gap: 12px;
+      --dock-columns: 9;
+      --dock-nine-col-width: 636px;
+      --hud-panel-width: 668px;
       --status-on:            #34d058;
       --status-off:           rgba(255, 255, 255, 0.18);
       /* Detached / headless: process running in tmux but no client attached
@@ -131,8 +136,8 @@
        Panel
        --------------------------------------------------------------------- */
     .panel {
-      width: 100%;
-      max-width: 720px;
+      width: var(--hud-panel-width);
+      max-width: none;
       background: var(--bg-deep);
       backdrop-filter: blur(40px) saturate(140%);
       -webkit-backdrop-filter: blur(40px) saturate(140%);
@@ -189,9 +194,10 @@
        Top row: agent dock
        --------------------------------------------------------------------- */
     .dock {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
+      display: grid;
+      grid-template-columns: repeat(var(--dock-columns), var(--dock-tile-width));
+      gap: var(--dock-gap);
+      width: var(--dock-nine-col-width);
       align-items: flex-start;
       /* Container itself stays draggable (inherits drag from body/.panel)
          so the gaps between tiles and any unused right-side space are valid
@@ -213,7 +219,7 @@
       flex-direction: column;
       align-items: center;
       gap: 4px;
-      width: 60px;
+      width: var(--dock-tile-width);
       -webkit-app-region: no-drag;
     }
     .tile-top-controls {
@@ -3685,6 +3691,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      box-sizing: border-box;
+      padding: 24px;
+      overflow-y: auto;
       -webkit-app-region: no-drag;
     }
     .avatar-cropper-modal {
@@ -5614,6 +5623,7 @@
       menu.classList.remove('open');
       orbsLayer.classList.remove('settled');
       settingsLayer.classList.remove('visible');
+      settingsLayer.setAttribute('aria-hidden', 'true');
       radialOpenForId = null;
       if (radialSettleTimer) { clearTimeout(radialSettleTimer); radialSettleTimer = null; }
       if (radialLabelTimer)  { clearTimeout(radialLabelTimer);  radialLabelTimer  = null; }
@@ -5662,11 +5672,61 @@
     // the local agents[id] object so the UI stays in sync without a full reload
     // (a reload would yank focus from the input the user just edited).
     // ---------------------------------------------------------------------
+    const SETTINGS_PANEL_MARGIN = 12;
+    const SETTINGS_PANEL_GROW_PAD = 4;
+
+    function measureSettingsPanelNaturalHeight(layer) {
+      return Math.ceil(layer.scrollHeight || layer.getBoundingClientRect().height || 290);
+    }
+
+    function clampSettingsPanelCenterY(wantedY, halfHeight, viewportHeight) {
+      const minCenter = SETTINGS_PANEL_MARGIN + halfHeight;
+      const maxCenter = viewportHeight - SETTINGS_PANEL_MARGIN - halfHeight;
+      if (maxCenter < minCenter) return Math.round(viewportHeight / 2);
+      return Math.max(minCenter, Math.min(maxCenter, wantedY));
+    }
+
+    function requestWindowForSettingsPanel(layer, wantedY) {
+      const naturalHeight = measureSettingsPanelNaturalHeight(layer);
+      const naturalHalf = Math.ceil(naturalHeight / 2) + SETTINGS_PANEL_GROW_PAD;
+      const topSafeCenter = Math.max(wantedY, SETTINGS_PANEL_MARGIN + naturalHalf);
+      const neededHeight = topSafeCenter + naturalHalf + SETTINGS_PANEL_MARGIN;
+      if (neededHeight > window.innerHeight) {
+        ipcRenderer.send('resize-window', {
+          width: window.innerWidth,
+          height: Math.ceil(neededHeight)
+        });
+      }
+      return naturalHeight;
+    }
+
+    function positionSettingsPanel(layer, sx, wantedY, naturalHeight) {
+      const measuredHeight = naturalHeight || measureSettingsPanelNaturalHeight(layer);
+      const availableHeight = Math.max(0, window.innerHeight - SETTINGS_PANEL_MARGIN * 2);
+      const effectiveHeight = Math.min(measuredHeight, availableHeight || measuredHeight);
+      const effectiveHalf = Math.ceil(effectiveHeight / 2);
+      const sy = clampSettingsPanelCenterY(wantedY, effectiveHalf, window.innerHeight);
+      layer.style.setProperty('--sx', `${sx}px`);
+      layer.style.setProperty('--sy', `${sy}px`);
+    }
+
+    function layoutSettingsPanel(layer, sx, wantedY, options = {}) {
+      const naturalHeight = requestWindowForSettingsPanel(layer, wantedY);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        positionSettingsPanel(layer, sx, wantedY, naturalHeight);
+        if (options.reveal) {
+          layer.classList.add('visible');
+          layer.setAttribute('aria-hidden', 'false');
+        }
+      }));
+    }
+
     function toggleSettingsPanel(id, gearOrbEl) {
       const layer = document.getElementById('radial-settings');
       // Already open for THIS gear → close.
       if (layer.classList.contains('visible') && layer.dataset.agentId === id) {
         layer.classList.remove('visible');
+        layer.setAttribute('aria-hidden', 'true');
         gearOrbEl.classList.remove('open');
         return;
       }
@@ -5758,84 +5818,27 @@
       const tryLeftX = center.x - ORB_HALF - PANEL_GAP - PANEL_W;
       const flipRightX = center.x + ORB_HALF + PANEL_GAP;
       const sx = tryLeftX >= 12 ? tryLeftX : Math.min(flipRightX, window.innerWidth - PANEL_W - 12);
-      // Vertically clamp so the panel doesn't poke off the top/bottom of the
-      // viewport. The popover's height varies with content (auto-restart row +
-      // 3 text inputs + gaps + padding) — the v2.5 hardcoded PANEL_HALF_H = 145
-      // undersized once the detach-section landed (since retired in ALS-010)
-      // and the STARTUP row clipped at the bottom on Richard's display.
-      //
-      // Fix: measure the actual rendered height BEFORE applying transforms,
-      // derive PANEL_HALF_H from that, then ask main to grow the window
-      // enough to fit it. main caps at the display's workArea bottom; if we
-      // hit that cap, the inner clamp below shifts the popover's center up
-      // so the bottom edge stays in-frame, and the v2.7 max-height +
-      // overflow-y on .radial-settings catches whatever still doesn't fit
-      // by letting the user scroll inside the popover.
-      //
-      // Why measure pre-visible: the .visible class triggers a scale + opacity
-      // transition; we need natural height, which requires the element to be
-      // laid out (display:flex with content) but unscaled. The .radial-settings
-      // base CSS uses `transform: ... scale(0.92)` and `opacity: 0` but the
-      // bounding-rect ignores transforms and reports the layout box, so
-      // measuring here is correct.
-      //
-      // v2.7: use scrollHeight (the unconstrained content height) instead of
-      // getBoundingClientRect().height. scrollHeight ignores the new
-      // `max-height: calc(100vh - 80px)` cap, so we still see the natural
-      // content size and ask main to grow accordingly. Without this swap, on
-      // a fresh launch where window.innerHeight is small, max-height would
-      // pre-clamp the measured value and we'd never request a grow.
+      // Measure natural content height offscreen, ask the BrowserWindow to grow,
+      // then position against the post-resize viewport. The position pass uses
+      // the effective visible height after the CSS max-height fallback, not the
+      // natural height, so a display-height cap cannot push the bottom edge out
+      // of frame.
       // Position offscreen first to allow measurement without a flash.
       layer.style.setProperty('--sx', `-9999px`);
       layer.style.setProperty('--sy', `-9999px`);
       // Force a reflow so the rect is current after innerHTML replacement.
       void layer.offsetHeight;
-      const measuredH = layer.scrollHeight || layer.getBoundingClientRect().height || 290;
-      const PANEL_HALF_H = Math.ceil(measuredH / 2) + 4;   // +4 for safety pad
       const wantedY = center.y;
-      // If the popover (centered at wantedY, half-height = PANEL_HALF_H)
-      // would extend below the current window bottom, grow the window down
-      // to fit. main caps at workArea.bottom — if we hit that, the inner
-      // clamp below moves the popover up to fit whatever room main granted
-      // us. Same applies if it would extend above the current window top:
-      // we can't grow the window upward (top-left fixed), so the clamp
-      // alone handles that side by snapping the popover down.
-      // The popover's vertical center clamps to max(wantedY, 12+PANEL_HALF_H)
-      // so its top stays >= 12 in-frame. That means when wantedY is small
-      // (gear orb sits high in the window — common: the orb's at y=105ish
-      // and the popover is ~330px tall), the popover effectively centers at
-      // lo = 12 + PANEL_HALF_H and its bottom lands at lo + PANEL_HALF_H + 12
-      // = 2*PANEL_HALF_H + 24 = ~measuredH + 24. Previously this code asked
-      // main to grow to wantedY + PANEL_HALF_H + 12, which is short by exactly
-      // (lo - wantedY) when wantedY < lo — and the bottom of the popover then
-      // poked off the window. Compute the post-clamp bottom and grow to that.
-      const lo = 12 + PANEL_HALF_H;
-      const popoverCenterAfterClamp = Math.max(wantedY, lo);
-      const popoverBottomNeeded = popoverCenterAfterClamp + PANEL_HALF_H + 12;
-      if (popoverBottomNeeded > window.innerHeight) {
-        ipcRenderer.send('resize-window', {
-          width: window.innerWidth,
-          height: Math.ceil(popoverBottomNeeded)
-        });
-      }
-      // Enable the slide-in transition on the next frame so it actually
-      // animates rather than appearing instantly. Two rAF passes — one for
-      // the resize-window IPC to land + lay out, one for the new
-      // window.innerHeight to be readable. This ensures the clamp uses the
-      // grown size, not the pre-grow size (otherwise the popover snaps up
-      // even after we asked for more room).
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const sy = Math.max(12 + PANEL_HALF_H, Math.min(window.innerHeight - 12 - PANEL_HALF_H, wantedY));
-        layer.style.setProperty('--sx', `${sx}px`);
-        layer.style.setProperty('--sy', `${sy}px`);
-        layer.classList.add('visible');
-      }));
+      const relayoutSettingsPanel = (reveal = false) =>
+        layoutSettingsPanel(layer, sx, wantedY, { reveal });
+      relayoutSettingsPanel(true);
 
       const settingsClose = layer.querySelector('#settings-close-btn');
       if (settingsClose) {
         settingsClose.addEventListener('click', (ev) => {
           ev.stopPropagation();
           layer.classList.remove('visible');
+          layer.setAttribute('aria-hidden', 'true');
           if (gearOrbEl) gearOrbEl.classList.remove('open');
         });
       }
@@ -5879,11 +5882,13 @@
         if (!opts.length) {
           modelSelect.innerHTML = '<option value="">(no models registered for this harness)</option>';
           modelSelect.disabled = true;
+          relayoutSettingsPanel(false);
           return;
         }
         modelSelect.innerHTML = opts.join('');
         modelSelect.value = currentModel || defaultModel || '';
         modelSelect.disabled = false;
+        relayoutSettingsPanel(false);
       }
 
       // When the harness changes in the settings popover, re-render the whole

@@ -2,7 +2,7 @@
 
 ## Last working on
 
-AgentRemote four-commit shipping run: v1.3.6 slug-collision fix in pet chat (cross-slug entry collection across `_→-` and preserved-`_` Claude project slug variants); expanded Codex model lineup from 2 → 7 in agent settings picker (gpt-5.5 / 5 / 5-codex / 5.1 / 5.1-codex / 5-mini / 5-nano); v1.4.0 Hermes/OpenClaw profile-name field replaces the model picker (id auto-suffixed `<profile>-hermes-tmux` / `<profile>-openclaw-tmux` to distinguish tmux pane twins from headless Telegram routes); v1.4.1 edit/create-agent modal grows the window when the form's `max-height` clamps under a 3-row roster. Test suite 94 → 108. Live HUD will pick up all four on the upcoming relaunch.
+AgentRemote v1.4.4 UI/model repair: settings gear drawer now measures natural content height, grows the BrowserWindow, then positions from the post-resize visible height so bottom content does not clip; avatar cropper opened from settings also requests HUD growth with dark-scroll fallback. Codex model dropdown source is local `remote-app/config/harness-models.json` via `remote-app/harness-models.js` and `get-harness-models` IPC. Codex lineup is coding-model only: `gpt-5.3-codex` default plus `gpt-5.3-codex-spark`; all saved Codex `gpt-5.5` / stale model pins were moved to `gpt-5.3-codex` except the existing spark agent. Dock now uses a fixed 9-column roster grid (`668px` panel width / `636px` dock width) instead of wrapping at 7 columns and leaving the right-side void. Full `remote-app` `npm test` passes after tmux escalation. Live HUD relaunched from this worktree for Richard verification.
 
 ## Open priorities
 
@@ -14,7 +14,7 @@ AgentRemote four-commit shipping run: v1.3.6 slug-collision fix in pet chat (cro
 
 ## Cross-session comms
 
-- 2026-05-09 Richard: requested skills pass-through verification + Codex model expansion + Hermes/OpenClaw profile field + modal-clip fix. Three of four shipped this session; skills wiring blocked on Swarmy coord.
+- 2026-05-13 Richard: reported settings surfaces clipping and stale GPT models, clarified to use coding models instead of `gpt-5.5`, then asked for the dock to render 9 across. v1.4.4 fixes the settings growth path, avatar cropper fallback, model config, saved Codex model pins, and 9-column dock grid; docs updated in `docs/operations/agentremote-recovery-list.md`, `docs/exec-plans/active/agentremote-v1-pivot-plan.md`, and `remote-app/AGENTS.md`.
 - 2026-05-09 Richard: persistent wrong-session pet chat across reloads — slug-variant root cause shipped in v1.3.6.
 - 2026-05-09 Swarmy (`overlord-swarmy-hermes`): two prior coord drops still unacknowledged (`cid neo-claude-to-overlordswarmy-1778356367` auto-send-task, `cid neo-claude-to-overlordswarmy-1778357741` permission-mode default — second one needs walkback).
 

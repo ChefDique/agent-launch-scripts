@@ -26,7 +26,7 @@ Priority order:
 
 1. Fix `MULTI` / `ittab` layout truth.
 2. Resolve `tiled` mode inconsistency.
-3. Fix settings popover clipping.
+3. Fix settings popover clipping. **Code fixed in remote-app v1.4.4; needs Richard live verification.**
 4. Patch chat optimistic-send correlation bug.
 5. Update stale voice-recording backlog notes.
 6. Deprecate or fix legacy remotes.
@@ -57,6 +57,8 @@ The post-port `doSend()` fires a toast immediately and clears the input regardle
 
 **3. Settings popover clipping.**
 The gear drawer is positioned `fixed` and absolute-positioned within the BrowserWindow. With the window at 820×280, the drawer's max-height of 70vh = ~196px is too cramped, and on multi-monitor setups the popover can hit the screen edge. **Fix:** either grow the BrowserWindow when the drawer opens (already attempted via `resize-window` IPC — verify it's not capped by `Math.min(1200, ...)` at `main.js:342`), or open the drawer in a separate child BrowserWindow that can extend past the panel. The latter is the cleaner long-term answer.
+
+2026-05-13 update: v1.4.4 keeps the inline drawer path, but changes it to measure natural settings height, ask Electron to resize, then position from the post-resize visible height so display caps fall back to the dark internal scrollbar instead of cutting off the bottom. The avatar cropper opened from settings also requests HUD growth. The dock now uses a fixed nine-column grid to avoid the persistent seven-column wrap void.
 
 **5. Voice-recording backlog notes.**
 `CLAUDE.md` "Outstanding for AgentRemote" still names voice as broken — Web SpeechRecognition was swapped to local Whisper at commit `95879e7` and the legacy renderer wired hold-key-1-5 to that flow. The post-port renderer dropped the wiring entirely. **Fix:** restore hold-key-1-5 → `getUserMedia` → `MediaRecorder` → `transcribe-voice` IPC (handler at `main.js:388` is intact) → `broadcast-message` to that single agent. Reference legacy implementation at `git show 7931e16:remote-app/index.html` lines 357–619 (audit-team is enumerating the exact set).
