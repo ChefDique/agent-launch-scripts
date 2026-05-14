@@ -6835,6 +6835,8 @@
       setAgentFormMode('add');
       resetAgentForm();
       document.body.classList.add('adding');
+      const _af0 = document.getElementById('add-form');
+      if (_af0) _af0.scrollTop = 0;
       syncWindowSize();
       requestAnimationFrame(() => document.getElementById('f-id').focus());
     }
@@ -6872,6 +6874,8 @@
       }
       syncPetSelect(id);
       document.body.classList.add('adding');
+      const _af1 = document.getElementById('add-form');
+      if (_af1) _af1.scrollTop = 0;
       syncWindowSize();
       requestAnimationFrame(() => {
         const idEl = document.getElementById('f-id');

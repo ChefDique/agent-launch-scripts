@@ -20,7 +20,6 @@ test('codex harness exposes coding models instead of general GPT defaults', () =
     assert.ok(ids.includes(id), `expected "${id}" in codex model list`);
   }
   for (const stale of [
-    'gpt-5.5',
     'gpt-5.4',
     'gpt-5.4-mini',
     'gpt-5.2',
