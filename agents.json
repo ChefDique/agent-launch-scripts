@@ -179,8 +179,7 @@
       "allow_claude_runtime": true,
       "model": "claude-opus-4-7[1m]",
       "reasoning_effort": "max",
-      "avatar": "xavier.png",
-      "auto_restart": false
+      "avatar": "xavier.png"
     },
     {
       "id": "mini-mugatu",
@@ -333,7 +332,6 @@
       "local_mode": "visible_tmux",
       "local_attach": "iterm_control_mode",
       "avatar": "neo.gif",
-      "auto_restart": false,
       "allow_claude_runtime": true
     },
     {
@@ -443,6 +441,20 @@
       "startup_slash": "",
       "theme_color": "#eeff00",
       "auto_restart": false
+    },
+    {
+      "id": "kenpachi",
+      "display_name": "KENPACHI",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/08_creative-production-pod",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "gpt-5.3-codex",
+      "reasoning_effort": "high",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "theme_color": "#00f2ff",
+      "avatar": "kenpachi.png"
     }
   ]
 }
