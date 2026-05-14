@@ -5638,20 +5638,21 @@
           orbsLayer.innerHTML = '';
           document.getElementById('radial-labels').innerHTML = '';
           settingsLayer.innerHTML = '';
-          // Restore the pre-open height. syncWindowSize would also do this
-          // by remeasuring the panel, but using the captured value avoids a
-          // re-layout dependency. Reset the capture so the next open arc
-          // re-captures fresh.
+          // Restore the pre-open height. Skip if the add/edit form opened
+          // during or immediately after the radial cycle — sending the
+          // pre-open (smaller) height clips the form's top harness row for
+          // one rendering frame. syncWindowSize below measures correctly.
           if (radialPreOpenHeight !== null) {
-            ipcRenderer.send('resize-window', {
-              width: window.innerWidth,
-              height: radialPreOpenHeight
-            });
+            if (!document.body.classList.contains('adding')) {
+              ipcRenderer.send('resize-window', {
+                width: window.innerWidth,
+                height: radialPreOpenHeight
+              });
+            }
             radialPreOpenHeight = null;
           }
-          // Belt-and-suspenders: renormalise in case anything drifted (e.g.
-          // add-form was opened across the radial cycle and changed the
-          // natural height while the radial was up).
+          // Renormalise to the current content height (catches any drift while
+          // the radial was up, and is the sole resizer when form is open).
           syncWindowSize();
         }
       }, 320);
