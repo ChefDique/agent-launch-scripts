@@ -182,8 +182,8 @@
       "avatar": "xavier.png"
     },
     {
-      "id": "mini-mugatu",
-      "display_name": "MINI-MUGATU",
+      "id": "mugatu-claude",
+      "display_name": "MUGATU",
       "runtime": "claude",
       "cwd": "/Users/richardadair/ai_projects/ecommerce",
       "color": "cyan",
@@ -192,8 +192,7 @@
       "reasoning_effort": "max",
       "theme_color": "#ff0000",
       "avatar": "mugatu.gif",
-      "allow_claude_runtime": true,
-      "auto_restart": false
+      "allow_claude_runtime": true
     },
     {
       "id": "ballstein",
@@ -280,6 +279,19 @@
       "avatar": "gara.gif"
     },
     {
+      "id": "kenpachi",
+      "display_name": "KENPACHI",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/08_creative-production-pod",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "theme_color": "#00f2ff",
+      "avatar": "kenpachi.png",
+      "allow_claude_runtime": true
+    },
+    {
       "id": "lucius",
       "display_name": "LUCIUS",
       "runtime": "codex",
@@ -304,18 +316,17 @@
     },
     {
       "id": "dasha",
-      "display_name": "KIA MHALIFA",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/CorporateHQ/ACRM",
+      "display_name": "dasha",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/web-designer",
       "color": "cyan",
       "startup_slash": "figure out why the dashboard uses up so much resources in both locally and in supabase. we hit free supabase account cap.",
-      "theme_color": "#22d3ee",
+      "theme_color": "#ff0000",
       "auto_restart": false,
       "avatar": "acrm-builder.png",
-      "model": "gpt-5.3-codex",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "allow_claude_runtime": true
     },
     {
       "id": "neo",
@@ -441,20 +452,6 @@
       "startup_slash": "",
       "theme_color": "#eeff00",
       "auto_restart": false
-    },
-    {
-      "id": "kenpachi",
-      "display_name": "KENPACHI",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/08_creative-production-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.3-codex",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "theme_color": "#00f2ff",
-      "avatar": "kenpachi.png"
     }
   ]
 }
