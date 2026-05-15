@@ -1,12 +1,27 @@
 # Handoff — Neo (`tmux-masta`)
 
-## Last working on
+## Active thread (overwritten each /chores — read FIRST at startup)
+**Last working on:** AgentRemote attach fix — detached windows still need resolution
+**State at last pause (2026-05-15T22:50Z):**
+- Fixed mugatu-claude tmux_target mismatch (d720f38, pushed)
+- Broke panes layout → teams: each agent now in own tmux window
+- PROBLEM: iTerm control-mode session predates break-pane ops — stale connection causes "detach everyone" when user clicks Attach in app. Fix: kill stale control-mode client, redeploy via AgentRemote Deploy button to get fresh tmux -CC attach session
+- Next model: Richard wants Neo on Opus
+**Next verifiable step:** Richard restarts Neo on Opus; in new session run `tmux detach-client -t /dev/ttys008` then click Deploy in AgentRemote to get fresh control-mode session
+**If that step fails:** check `tmux list-clients` — if client gone already, just click Deploy
+**Pending uncommitted diff:** .claude/memory/handoff.md, agents.json (pre-existing uncommitted changes from UI)
+---
 
-AgentRemote v1.4.6 — form scroll bug investigation.
+Richard reported "can't attach anyone, everyone headless." Root causes:
+1. Session was deployed in `panes` layout (all agents crammed in one tmux window) instead of `teams` (one window per agent). The `panes` layout forces break-pane on every attach, causing iTerm "detached" tab instability.
+2. `mugatu-claude` had no `tmux_target` — the resolver needle was "mugatu-claude" but the pane title is "MUGATU", so AgentRemote couldn't see MUGATU at all.
 
-Richard showed two screenshots of the edit form: one showing bottom rows (AVATAR/PET/ARMORY AGENTS), one showing top rows (ID/NAME). Diagnosed as a scroll-position-persistence bug and shipped v1.4.6 (reset `scrollTop = 0` on form open). Richard then showed the full form rendering correctly and said "you made a horrible assumption." The actual root cause was not confirmed — the scroll reset is benign/good UX but may not have addressed whatever the real underlying issue was.
+Fixes applied:
+- Added `tmux_target: "mugatu"` to mugatu-claude registry entry (committed d720f38, pushed).
+- Manually broke all shared panes out to their own windows (non-destructive, processes kept running): dasha → chq:0, Xavier → chq:1, MUGATU → chq:2, LUCIUS → chq:3, NEO → chq:4.
+- Set `@chq_layout teams` on the chq session so next deploy uses teams layout.
 
-Also this session: committed registry changes from UI edits (mugatu rename → mugatu-claude, kenpachi runtime → claude, dasha reconfigured to claude/web-designer).
+Next: Richard should open AgentRemote and test Attach on each agent. If it still shows "detached," the iTerm control-mode client may have dropped and needs re-attach via Deploy.
 
 ## Open priorities
 
