@@ -1,15 +1,17 @@
 # Handoff — Neo (`tmux-masta`)
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
-**Last working on:** AgentRemote attach fix — detached windows still need resolution
-**State at last pause (2026-05-15T22:50Z):**
-- Fixed mugatu-claude tmux_target mismatch (d720f38, pushed)
-- Broke panes layout → teams: each agent now in own tmux window
-- PROBLEM: iTerm control-mode session predates break-pane ops — stale connection causes "detach everyone" when user clicks Attach in app. Fix: kill stale control-mode client, redeploy via AgentRemote Deploy button to get fresh tmux -CC attach session
-- Next model: Richard wants Neo on Opus
-**Next verifiable step:** Richard restarts Neo on Opus; in new session run `tmux detach-client -t /dev/ttys008` then click Deploy in AgentRemote to get fresh control-mode session
-**If that step fails:** check `tmux list-clients` — if client gone already, just click Deploy
-**Pending uncommitted diff:** .claude/memory/handoff.md, agents.json (pre-existing uncommitted changes from UI)
+**Last working on:** iTerm tmux integration broken — Opus-Neo handed off to Codex-Neo
+**State at last pause (2026-05-16T00:30Z):**
+- All 5 agents alive in chq: dasha (w0, pid 24210), Xavier (w1, pid 24118), MUGATU (w2, pid 24148), LUCIUS (w3, pid 2282), NEO (w4, pid 27989)
+- chq has no attached clients (cleanly idle)
+- iTerm fully quit
+- ROOT CAUSE DIAGNOSED (not fixed): iTerm 3.6.10 tmux integration broken at system level. `tmux -CC attach` against BOTH chq and a sterile brand-new test session yielded the "Command Menu" stuck view — control-mode handshake completes (`** tmux mode started **`) but iTerm does not materialize native windows for tmux windows. Not a chq corruption — iTerm-side bug.
+- TRIED (didn't fix): killing prior stale client `/dev/ttys008`; flipping `OpenTmuxWindowsIn` from 1 to 0 via `defaults write`; full iTerm relaunch via killall+open; sterile new test session.
+- MY MISTAKES that compounded Richard's pain: (1) used plain `tmux attach` as workaround twice — exact violation of LRN-20260508-001; (2) created grouped sessions `view-dasha/xavier/mugatu/lucius/neo` to fake native windows — cleaned up now; (3) detached `/dev/ttys008` per handoff prescription without holding visibility for Richard.
+- NOT YET TRIED: clearing iTerm Saved Application State (`rm ~/Library/"Saved Application State"/com.googlecode.iterm2.savedState`); inspecting iTerm GUI prefs for tmux integration toggles; iTerm Python API path; checking if AgentRemote Deploy via the running Electron HUD behaves any differently from the bare osascript path (it uses the same `buildITermAttachScript` in `remote-app/iterm-attach.js` so unlikely to differ).
+**Next verifiable step:** Codex-Neo investigates iTerm 3.6.10 tmux integration failure mode; cheapest probe is clearing iTerm Saved Application State + relaunch + sterile `tmux -CC attach -t test`. If that doesn't spawn a native window, integration is broken in iTerm itself and may need version reinstall or manual GUI pref audit.
+**Pending uncommitted diff:** .claude/memory/handoff.md only (this update)
 ---
 
 Richard reported "can't attach anyone, everyone headless." Root causes:
