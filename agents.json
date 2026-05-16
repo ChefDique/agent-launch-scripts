@@ -245,7 +245,8 @@
       "local_mode": "visible_tmux",
       "local_attach": "iterm_control_mode",
       "avatar": "neo.gif",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "auto_restart": false
     },
     {
       "id": "ballstein",
