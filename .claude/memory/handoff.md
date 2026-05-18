@@ -1,18 +1,17 @@
 # Handoff — Neo (`tmux-masta`)
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
-**Last working on:** Diagnosed AgentRemote Deploy failure — tmux `@hidden` user option residue blocked iTerm native-window spawn. Runtime cleared. Code fix not yet applied.
-**State at last pause (2026-05-16T01:00Z):**
-- All 5 agents alive in chq with conversation context intact: dasha (w0, pid 24210), Xavier (w1, pid 24118), MUGATU (w2, pid 24148), LUCIUS (w3, pid 2282), NEO (w4, pid 27989). Uptime 2h / 1h 18min / 51min respectively.
-- AgentRemote Electron HUD still running (PID 19330, canonical checkout).
-- 7 unmarked iTerm windows on Richard's desktop from my mistakes — Richard did NOT authorize cleanup. They violate the operator contract Window Hygiene rule. Codex-Neo: do not touch unless Richard says so.
-- ROOT CAUSE FOUND AND CLEARED IN RUNTIME: iTerm tracks hidden tmux windows via the `@hidden` user option on the session. chq's `@hidden` had accumulated all 5 chq window IDs plus one stale @627. With `@hidden` listing every window, iTerm refused to spawn natives for any of them on `-CC attach` — instead showing the "Command Menu" stuck view that we mistook for broken integration. Sterile test session worked because it had no `@hidden`. Cleared `@hidden` + `@buried_indexes` + `@affinities` + `@origins` + `@per_tab_settings` + `@per_window_settings` + `@tab_colors` + `@iterm2_id` via `tmux set-option -t chq -u <opt>`. iTerm will re-create the auxiliary tracking options on next attach; only `@hidden` had to go to unblock spawn.
-- Verified the fix works: after clear, `tmux -CC attach -t chq` from a fresh iTerm spawned all 5 native windows (DASHA, Professor Xavier, MUGATU, LUCIUS, NEO).
-- Recurrence risk: every time iTerm Hide is used on a chq tab, that window ID is re-added to `@hidden`. If all 5 get hidden again, Deploy breaks again. Permanent fix is code-level — clear `@hidden` (and `@buried_indexes`) in `remote-app/main.js` Deploy flow before calling `buildITermAttachScript`. NOT YET APPLIED.
-- MY MISTAKES this session that compounded Richard's pain (do not repeat): (a) used plain `tmux attach` as workaround twice — exact LRN-20260508-001 violation; (b) created scattered unmarked iTerm windows via raw osascript, violating Window Hygiene; (c) tried to "fix" by quitting iTerm twice after Richard said STOP QUITTING ITERM; (d) wrote initial wrong handoff blaming "iTerm broken at system level" before discovering `@hidden`; (e) skipped reading the operator contract for 90+ minutes of thrashing.
-**Next verifiable step:** Apply code fix in `remote-app/main.js`: before each `buildITermAttachScript` call in the deploy/attach paths, run `tmux set-option -t <session> -u @hidden` and `tmux set-option -t <session> -u @buried_indexes`. Add to `iterm-attach.js` or call site in `main.js`. Verify by clicking Hide on a tab, then Deploy — natives should still spawn.
-**If that step fails:** double-check `@hidden` is actually cleared with `tmux show-options -t chq | grep @hidden` after Deploy. If iTerm rewrites it between the clear and the attach, may need to clear in-flight via tmux hook.
-**Pending uncommitted diff:** .claude/memory/handoff.md only (this update)
+**Last working on:** Codex lifecycle hook parity for `/chores` and `/done` checkpoint nudges.
+**State at last pause (2026-05-18T13:45-0700):**
+- Added repo-owned Codex lifecycle hook script: `scripts/codex-lifecycle-hook.sh`.
+- Added audit/dry-run proof command: `scripts/audit-codex-lifecycle-hooks.sh`.
+- Added docs: `docs/operations/codex-lifecycle-hooks.md`; updated `docs/operations/launch-scripts.md` and `docs/README.md`.
+- Verified: hook scripts parse; completion, failure, and closeout-language dry runs emit lifecycle checkpoints; `bash scripts/audit-codex-lifecycle-hooks.sh` passes with no warnings after planner merged the global hook entries.
+- Global `~/.codex/hooks.json` now references the repo-owned lifecycle hook while preserving existing self-improving and message-agent hooks.
+- Existing AgentRemote `@hidden` iTerm/native-window code fix remains pending and was not touched.
+**Next verifiable step:** Observe the next Codex lead completion/failure boundary and confirm the hook injects a lifecycle checkpoint in-session.
+**If that step fails:** inspect the actual Codex hook event payload shape for `PostToolUse`, adjust matchers or parser fields in `scripts/codex-lifecycle-hook.sh`, then rerun the dry-run audit.
+**Pending uncommitted diff:** `docs/README.md`, `docs/operations/launch-scripts.md`, `docs/operations/codex-lifecycle-hooks.md`, `scripts/codex-lifecycle-hook.sh`, `scripts/audit-codex-lifecycle-hooks.sh`, plus pre-existing unrelated `agents.json`, `graphify-out/`, and `remote-app/assets/homelander.png`.
 ---
 
 Richard reported "can't attach anyone, everyone headless." Root causes:
@@ -28,6 +27,7 @@ Next: Richard should open AgentRemote and test Attach on each agent. If it still
 
 ## Open priorities
 
+- [ACTIVE] AgentRemote Deploy permanent fix still pending: clear tmux `@hidden` and `@buried_indexes` before iTerm control-mode attach/deploy.
 - [PENDING-RICHARD] Skills (Armory → agent) wiring is broken at five steps: form has no input, IPC save (`main.js` UPDATABLE_FIELDS) doesn't whitelist `skills`, `launch-agent.sh` doesn't extract it, Swarmy's `agentremote_runtime.py` doesn't export it to the spawned process. Touches `~/ai_projects/swarmy` (overlord-swarmy's repo) — needs explicit Richard direction or a coordinated job dispatched through overlord-swarmy.
 - [PENDING-RICHARD] Confirm what the actual form rendering issue was (v1.4.6 scroll fix shipped but root cause unconfirmed — "horrible assumption" warning from Richard).
 - [PENDING-RICHARD] bypass-perms walkback to Swarmy — prior coord drop `cid neo-claude-to-overlordswarmy-1778357741` (permission-mode default) needs acknowledgement.
@@ -36,6 +36,7 @@ Next: Richard should open AgentRemote and test Attach on each agent. If it still
 
 ## Cross-session comms
 
+- 2026-05-18 worker+planner: Codex lifecycle hook parity implemented as repo-owned hook/audit/docs. Planner merged the hook into global `~/.codex/hooks.json`; strict audit now passes with no warnings.
 - 2026-05-15 Richard: AgentRemote Deploy stopped spawning iTerm native windows — diagnosed as tmux `@hidden` user option residue; runtime cleared (verified 5 native windows spawn). Code fix in `remote-app/main.js` Deploy flow still pending. Session ended badly — Richard furious from 90min of my thrashing before reading docs.
 - 2026-05-14 Richard: form showing bottom rows on open, then "now it's the top" — shipped v1.4.6 scroll reset; Richard flagged "horrible assumption" — root cause unconfirmed.
 - 2026-05-14 Richard: Codex dropdown missing gpt-5.5; edit form top cut off on open. Both fixed in v1.4.5.

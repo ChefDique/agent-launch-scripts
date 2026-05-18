@@ -10,12 +10,13 @@ This directory is the durable knowledge base for `agent-launch-scripts`. Keep `A
 4. `product/agentremote.md` — product boundary and money-path focus.
 5. `operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
 6. `operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-7. `operations/agentremote-recovery-list.md` — recurring AgentRemote/iTerm/tmux fixes Richard should not have to restate.
-8. `../DESIGN.md` — current AgentRemote visual system and migration target.
-9. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
-10. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
-11. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
-12. `references/2026-05-06-codex-skill-command-visibility-report.md` — Codex lifecycle skill visibility report for Lucius/R&D.
+7. `operations/codex-lifecycle-hooks.md` — Codex hook parity for `/chores` and `/done` checkpoint nudges.
+8. `operations/agentremote-recovery-list.md` — recurring AgentRemote/iTerm/tmux fixes Richard should not have to restate.
+9. `../DESIGN.md` — current AgentRemote visual system and migration target.
+10. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
+11. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
+12. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
+13. `references/2026-05-06-codex-skill-command-visibility-report.md` — Codex lifecycle skill visibility report for Lucius/R&D.
 
 ## Directory Contract
 

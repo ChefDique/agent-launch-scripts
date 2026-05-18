@@ -31,6 +31,7 @@ gateway-only.
 | `bash launch-remote.sh` | Start AgentRemote after killing a prior instance. |
 | `bash launch-remote.sh stop` | Stop AgentRemote. |
 | `bash scripts/session-end-cleanup.sh` | Session closeout cleanup: stop stale AgentRemote instances across main/worktrees, clear Chromium caches, and report git/worktree/process state. |
+| `bash scripts/audit-codex-lifecycle-hooks.sh` | Verify Codex lifecycle hook readiness and dry-run `/chores`/`/done` checkpoint nudges. |
 | `bash scripts/cron-poke.sh <agent> "message"` | Scheduled tmux send-keys helper. |
 
 ## Load-Bearing Invariants
@@ -115,6 +116,7 @@ gateway-only.
 python3 -m pytest ~/ai_projects/swarmy/tests/test_agentremote_runtime.py -q
 python3 -m py_compile ~/ai_projects/swarmy/scripts/agentremote_runtime.py
 bash -n launch-agent.sh launch-remote.sh scripts/cron-poke.sh
+bash scripts/audit-codex-lifecycle-hooks.sh
 bash test/launch-agent-runtime.test.sh
 cd remote-app && npm install
 bash ../launch-remote.sh
