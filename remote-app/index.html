@@ -1300,6 +1300,8 @@
       border-radius: 12px;
       -webkit-app-region: no-drag;
       max-height: calc(100vh - 48px);
+      max-height: var(--add-form-max-height, calc(100vh - 48px));
+      min-height: 0;
       overflow-y: auto;
       scrollbar-gutter: stable;
     }
@@ -1631,10 +1633,21 @@
     }
 
     .form-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 3;
       display: flex;
       justify-content: flex-end;
       gap: 8px;
       margin-top: 4px;
+      margin-inline: -4px;
+      margin-bottom: -4px;
+      padding: 8px 4px 4px;
+      background:
+        linear-gradient(180deg, rgba(19, 16, 20, 0), rgba(19, 16, 20, 0.92) 42%),
+        rgba(19, 16, 20, 0.76);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
     }
     .form-actions button {
       background: transparent;
@@ -4302,6 +4315,8 @@
     let lastResizeWindowKey = '';
     let windowSizeResizeObserver = null;
     let windowSizeMutationObserver = null;
+    const ADD_FORM_MIN_VISIBLE_HEIGHT = 180;
+    const ADD_FORM_BOTTOM_SAFE = 24;
 
     function isResizeMeasurable(el) {
       if (!el) return false;
@@ -4326,6 +4341,34 @@
         right: rect.right + growX,
         bottom: rect.bottom + growY
       };
+    }
+
+    function visibleFollowingSiblingHeight(el) {
+      if (!el || !el.parentElement) return 0;
+      const parentStyle = getComputedStyle(el.parentElement);
+      const gap = parseFloat(parentStyle.rowGap || parentStyle.gap) || 0;
+      let total = 0;
+      let visibleCount = 0;
+      for (let next = el.nextElementSibling; next; next = next.nextElementSibling) {
+        if (!isResizeMeasurable(next)) continue;
+        total += next.getBoundingClientRect().height;
+        visibleCount += 1;
+      }
+      return Math.ceil(total + (visibleCount * gap));
+    }
+
+    function syncAddFormViewportClamp() {
+      const addForm = document.getElementById('add-form');
+      if (!addForm) return;
+      if (!document.body.classList.contains('adding')) {
+        addForm.style.removeProperty('--add-form-max-height');
+        return;
+      }
+      const rect = addForm.getBoundingClientRect();
+      const lowerRows = visibleFollowingSiblingHeight(addForm);
+      const available = Math.floor(window.innerHeight - rect.top - lowerRows - ADD_FORM_BOTTOM_SAFE);
+      const maxHeight = Math.max(ADD_FORM_MIN_VISIBLE_HEIGHT, available);
+      addForm.style.setProperty('--add-form-max-height', `${maxHeight}px`);
     }
 
     function sendResizeWindow(width, height) {
@@ -4380,6 +4423,7 @@
         if (typeof isChatOverlayOpen === 'function' && isChatOverlayOpen()) return;
         const panel = document.getElementById('panel');
         if (!panel) return;
+        syncAddFormViewportClamp();
         const rect = panel.getBoundingClientRect();
         const bodyStyle = getComputedStyle(document.body);
         const padTop = parseFloat(bodyStyle.paddingTop) || 0;

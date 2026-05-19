@@ -54,12 +54,20 @@ test('syncWindowSize compensates for .add-form max-height clamp dynamically', ()
 
 test('add-form keeps its max-height + dark scrollbar styling as the absolute fallback', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  // The fix is window-grow first, internal-scroll-as-fallback. The CSS clamp
-  // and dark scrollbar styling must remain so a tiny workarea (laptop without
-  // external display, e.g. 13" at HiDPI) still degrades gracefully without
-  // exposing the white native Chromium scrollbar.
+  // The fix is window-grow first, visible-form-scroll-as-fallback. The CSS
+  // clamp and dark scrollbar styling must remain so a tiny workarea (laptop
+  // without external display, e.g. 13" at HiDPI) still degrades gracefully
+  // without exposing the white native Chromium scrollbar.
   assert.match(html, /\.add-form\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-\s*\d+px\)[\s\S]*?overflow-y:\s*auto/,
     '.add-form must keep its max-height + overflow-y:auto fallback');
+  assert.match(html, /max-height:\s*var\(--add-form-max-height,\s*calc\(100vh\s*-\s*\d+px\)\)/,
+    '.add-form must accept the renderer-computed visible-height clamp');
+  assert.match(html, /function syncAddFormViewportClamp\(\)/,
+    'renderer must clamp .add-form to the visible viewport after lower panel rows');
+  assert.match(html, /visibleFollowingSiblingHeight\(addForm\)/,
+    'visible add-form height must reserve room for chat/meta rows below it');
+  assert.match(html, /\.form-actions\s*\{[\s\S]*?position:\s*sticky[\s\S]*?bottom:\s*0/,
+    'form actions must remain reachable when the form falls back to internal scroll');
   assert.match(html, /\.add-form::-webkit-scrollbar-thumb/,
     '.add-form must keep its dark scrollbar thumb styling');
 });
