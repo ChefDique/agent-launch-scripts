@@ -3371,15 +3371,36 @@ ipcMain.handle('stop-pane-pipe', async (_event, payload) => {
   return { ok: true };
 });
 
+function sendPaneLiteral(paneId, text) {
+  execFile('tmux', ['send-keys', '-t', paneId, '-l', text], () => {});
+}
+
+function sendPaneKeys(paneId, keys) {
+  execFile('tmux', ['send-keys', '-t', paneId, ...keys], () => {});
+}
+
+const TERMINAL_WORD_KEY_SEQUENCES = new Map([
+  ['\x1bb', ['Escape', 'b']],
+  ['\x1bf', ['Escape', 'f']],
+  ['\x1b\x7f', ['Escape', 'BSpace']],
+  ['\x1bd', ['Escape', 'd']],
+]);
+
 // pane-input — renderer sends keystrokes typed into the xterm.
-// Forwards raw text via tmux send-keys -l (literal, no special-key expansion)
-// so the agent's TUI sees the characters as-is.
+// Text is forwarded literally. Known word-edit escape sequences are forwarded
+// as real keys so tmux does not flatten them into inert literal bytes.
 ipcMain.on('pane-input', (_event, { id, data }) => {
   const safeId = String(id || '').trim().toLowerCase();
   if (!/^[a-z0-9_-]+$/.test(safeId)) return;
   const entry = activePipeReaders[safeId];
   if (!entry || !entry.paneId) return;
   if (typeof data !== 'string' || data.length === 0) return;
+
+  const wordKeys = TERMINAL_WORD_KEY_SEQUENCES.get(data);
+  if (wordKeys) {
+    sendPaneKeys(entry.paneId, wordKeys);
+    return;
+  }
 
   // Handle special sequences: Enter key (\r or \n) → send as Enter keystroke
   // so the agent's readline/TUI sees a real Return. All other bytes via -l (literal).
@@ -3389,16 +3410,16 @@ ipcMain.on('pane-input', (_event, { id, data }) => {
   for (const part of parts) {
     if (part === '\r' || part === '\n') {
       if (pending.length > 0) {
-        execFile('tmux', ['send-keys', '-t', entry.paneId, '-l', pending], () => {});
+        sendPaneLiteral(entry.paneId, pending);
         pending = '';
       }
-      execFile('tmux', ['send-keys', '-t', entry.paneId, 'Enter'], () => {});
+      sendPaneKeys(entry.paneId, ['Enter']);
     } else {
       pending += part;
     }
   }
   if (pending.length > 0) {
-    execFile('tmux', ['send-keys', '-t', entry.paneId, '-l', pending], () => {});
+    sendPaneLiteral(entry.paneId, pending);
   }
 });
 

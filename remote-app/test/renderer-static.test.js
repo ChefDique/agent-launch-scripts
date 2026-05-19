@@ -332,6 +332,7 @@ test('embedded terminal keeps text selection usable (drag-safe and selection opt
     html.indexOf('const term = new Terminal({'),
     html.indexOf('const fitAddon = new FitAddon();')
   );
+  assert.match(xtermConfigBlock, /macOptionIsMeta:\s*true/);
   assert.match(xtermConfigBlock, /macOptionClickForcesSelection:\s*true/);
   assert.match(xtermConfigBlock, /rightClickSelectsWord:\s*true/);
 
@@ -370,6 +371,20 @@ test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', 
   assert.match(terminalAttachBlock, /const terminalWordShortcut = isTerminalWordShortcut\(ev\);/);
   assert.match(terminalAttachBlock, /if \(terminalWordShortcut\) \{/);
   assert.match(terminalAttachBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: terminalWordShortcut \}\);?/);
+});
+
+test('embedded terminal sends word-edit escape sequences as tmux keys', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const paneInputBlock = main.slice(
+    main.indexOf('const TERMINAL_WORD_KEY_SEQUENCES = new Map'),
+    main.indexOf('// Tear down pipe for one agent')
+  );
+
+  assert.match(paneInputBlock, /'\\x1bb', \['Escape', 'b'\]/);
+  assert.match(paneInputBlock, /'\\x1bf', \['Escape', 'f'\]/);
+  assert.match(paneInputBlock, /'\\x1b\\x7f', \['Escape', 'BSpace'\]/);
+  assert.match(paneInputBlock, /'\\x1bd', \['Escape', 'd'\]/);
+  assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, wordKeys\)/);
 });
 
 test('floating pet chat uses clean team chat stream and supports pasted images', () => {

@@ -73,12 +73,12 @@ if awk -F: '$3 != 1 { bad=1 } END { exit bad ? 0 : 1 }' <<< "$windows"; then
 fi
 
 key_bindings="$(tmux list-keys -T root)"
-if grep -Fq 'bind-key -T root M-Left' <<< "$key_bindings"; then
-  echo "Option+Left must not be intercepted by tmux; Codex needs the real key sequence" >&2
+if ! grep -Fq 'bind-key -T root M-Left' <<< "$key_bindings"; then
+  echo "expected Option+Left to be normalized to Codex word-left bytes" >&2
   exit 1
 fi
-if grep -Fq 'bind-key -T root M-BSpace' <<< "$key_bindings"; then
-  echo "Option+Backspace must not be intercepted by tmux; Codex needs the real key sequence" >&2
+if ! grep -Fq 'bind-key -T root M-BSpace' <<< "$key_bindings"; then
+  echo "expected Option+Backspace to be normalized to Codex word-delete bytes" >&2
   exit 1
 fi
 if ! grep -Fq 'paste-clipboard-image-to-pane.sh' <<< "$key_bindings"; then
