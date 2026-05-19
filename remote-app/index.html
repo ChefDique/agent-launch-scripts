@@ -1341,6 +1341,19 @@
     .form-row.form-row-harness > label {
       padding-top: 20px;
     }
+    .form-row.startup-row {
+      align-items: flex-start;
+    }
+    .form-row.startup-row .startup-stack {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .form-row.startup-row .startup-stack input {
+      width: 100%;
+    }
     .form-row.form-row-toggle {
       min-height: 28px;
     }
@@ -2413,7 +2426,7 @@
        Inline settings panel — owned by the radial menu
        ---------------------------------------------------------------------
        The 5th orb (gear) toggles a glass mini-panel that hosts the auto-restart
-       switch + 3 startup-command text fields (color, rename_to, startup_slash).
+       switch + 3 startup-command text fields (startup_lines).
        It lives in #radial-menu (not the main panel) so it dismisses with the
        rest of the radial UI on outside-click / Escape / blur, and so it
        inherits the upward-anchored growth math.
@@ -2508,6 +2521,19 @@
     }
     .radial-settings .settings-row.settings-row-harness label {
       padding-top: 21px;
+    }
+    .radial-settings .settings-row.settings-row-startup {
+      align-items: flex-start;
+    }
+    .radial-settings .settings-row.settings-row-startup .settings-startup-stack {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .radial-settings .settings-row.settings-row-startup .settings-startup-stack input {
+      width: 100%;
     }
     .radial-settings .settings-row label {
       flex: 0 0 80px;
@@ -3859,9 +3885,14 @@
         <label>color</label>
         <input type="color" id="f-color" value="#00f2ff" title="Pick a theme color for this agent's active-state glow" />
       </div>
-      <div class="form-row">
+      <div class="form-row startup-row">
         <label>startup</label>
-        <input id="f-slash" value="/lead-gogo" />
+        <div class="startup-stack">
+          <input id="f-slash" value="/lead-gogo" placeholder="/lead-gogo" autocomplete="off" spellcheck="false" />
+          <input id="f-startup-line-1" placeholder="/color {{color}}" autocomplete="off" spellcheck="false" />
+          <input id="f-startup-line-2" placeholder="/rename {{rename_to}}" autocomplete="off" spellcheck="false" />
+          <input id="f-startup-line-3" placeholder="{{startup_slash}}" autocomplete="off" spellcheck="false" />
+        </div>
       </div>
       <div class="form-row">
         <label>avatar</label>
@@ -5796,12 +5827,21 @@
           <label>Avatar</label>
           <button class="pick-btn" id="set-avatar-pick" type="button">Change avatar</button>
         </div>
-        <div class="settings-row">
+        <div class="settings-row settings-row-startup">
           <label for="set-slash">Startup</label>
-          <input type="text" id="set-slash" value="${escapeHtml(agent.startupSlash || '')}"
-                 placeholder="/lead-gogo (empty = none)" autocomplete="off" spellcheck="false" />
+          <div class="settings-startup-stack">
+            <input type="text" id="set-slash" value="${escapeHtml(agent.startupSlash || '')}"
+                   placeholder="/lead-gogo (empty = none)" autocomplete="off" spellcheck="false" />
+            <input type="text" id="set-startup-line-1" placeholder="/color {{color}}" autocomplete="off" spellcheck="false" />
+            <input type="text" id="set-startup-line-2" placeholder="/rename {{rename_to}}" autocomplete="off" spellcheck="false" />
+            <input type="text" id="set-startup-line-3" placeholder="{{startup_slash}}" autocomplete="off" spellcheck="false" />
+          </div>
         </div>
       `;
+      setStartupLinesIntoInputs(
+        SETTINGS_STARTUP_LINE_IDS,
+        registryStartupLinesForAgent(agent)
+      );
 
       // Position the panel to the LEFT of the gear orb, vertically centered
       // on the orb. If there's not enough room on the left (e.g. gear was
@@ -6063,6 +6103,58 @@
             el.value = el.dataset.savedValue;
             el.classList.remove('invalid');
             el.blur();
+          }
+        });
+      });
+
+      // Startup lines are stored as a registry array:
+      // one command per line (line 1 + line 2 + line 3).
+      const startupLineInputs = SETTINGS_STARTUP_LINE_IDS
+        .map(id => layer.querySelector(`#${id}`))
+        .filter(Boolean);
+      let savedStartupLines = JSON.stringify(startupLinesFromInputs(SETTINGS_STARTUP_LINE_IDS));
+
+      const readStartupLinesFromSettings = () => startupLinesFromInputs(SETTINGS_STARTUP_LINE_IDS);
+      startupLineInputs.forEach((input) => { input.dataset.savedValue = input.value; });
+
+      const saveStartupLines = async () => {
+        const startupLines = readStartupLinesFromSettings();
+        const next = JSON.stringify(startupLines);
+        if (next === savedStartupLines) return;
+        const res = await ipcRenderer.invoke('update-agent', {
+          id,
+          patch: { startup_lines: startupLines }
+        });
+        if (!res.ok) {
+          flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          return;
+        }
+        const returned = (res.entry && Array.isArray(res.entry.startup_lines))
+          ? normalizeStartupLines(res.entry.startup_lines)
+          : startupLines;
+        setStartupLinesIntoInputs(SETTINGS_STARTUP_LINE_IDS, returned);
+        savedStartupLines = JSON.stringify(returned);
+        startupLineInputs.forEach(input => {
+          input.dataset.savedValue = input.value;
+          input.classList.add('saved');
+          setTimeout(() => input.classList.remove('saved'), 700);
+        });
+      };
+
+      startupLineInputs.forEach((input) => {
+        input.addEventListener('blur', saveStartupLines);
+        input.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            ev.stopPropagation();
+            saveStartupLines();
+            input.blur();
+          }
+          if (ev.key === 'Escape') {
+            ev.preventDefault();
+            ev.stopPropagation();
+            input.value = input.dataset.savedValue || '';
+            input.blur();
           }
         });
       });
@@ -6815,12 +6907,63 @@
       if (importBtn) importBtn.style.display = '';
     }
 
+    const ADD_FORM_STARTUP_LINE_IDS = ['f-startup-line-1', 'f-startup-line-2', 'f-startup-line-3'];
+    const SETTINGS_STARTUP_LINE_IDS = ['set-startup-line-1', 'set-startup-line-2', 'set-startup-line-3'];
+
+    function normalizeStartupLines(value, maxLines = 3) {
+      if (!Array.isArray(value)) return [];
+      return value
+        .map(v => String(v || '').trim())
+        .filter(v => v.length > 0)
+        .slice(0, maxLines);
+    }
+
+    function registryStartupLinesForAgent(agent) {
+      const saved = normalizeStartupLines(agent && agent.startupLines);
+      if (agent && agent.startupLinesConfigured) return saved;
+      if (saved.length > 0) return saved;
+      if (!agent || String(agent.runtime || '').toLowerCase() !== 'claude') return [];
+      const lines = [];
+      if (agent.color) lines.push('/color {{color}}');
+      if (agent.renameTo) lines.push('/rename {{rename_to}}');
+      if (agent.startupSlash) lines.push('{{startup_slash}}');
+      return lines.slice(0, 3);
+    }
+
+    function startupLinesFromInputs(ids) {
+      const rows = Array.isArray(ids) ? ids : [];
+      return rows
+        .map(id => {
+          const el = document.getElementById(id);
+          return el ? el.value.trim() : '';
+        })
+        .filter(v => v.length > 0)
+        .slice(0, 3);
+    }
+
+    function startupLinesChangedFromOriginal(agent, ids) {
+      const original = JSON.stringify(registryStartupLinesForAgent(agent));
+      const current = JSON.stringify(startupLinesFromInputs(ids));
+      return current !== original;
+    }
+
+    function setStartupLinesIntoInputs(ids, values = []) {
+      const rows = Array.isArray(ids) ? ids : [];
+      const nextValues = Array.isArray(values) ? values : [];
+      rows.forEach((id, index) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = nextValues[index] || '';
+      });
+    }
+
     function resetAgentForm() {
       ['f-id', 'f-name', 'f-cwd', 'f-avatar', 'f-profile'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
       document.getElementById('f-slash').value = '/lead-gogo';
+      setStartupLinesIntoInputs(ADD_FORM_STARTUP_LINE_IDS, []);
       document.getElementById('f-color').value = '#00f2ff';
       document.getElementById('f-autorestart').checked = true;
       document.getElementById('f-error').textContent = '';
@@ -6854,6 +6997,10 @@
       document.getElementById('f-cwd').value = agent.cwd || '';
       document.getElementById('f-avatar').value = agent.avatar || '';
       document.getElementById('f-slash').value = agent.startupSlash || '';
+      setStartupLinesIntoInputs(
+        ADD_FORM_STARTUP_LINE_IDS,
+        registryStartupLinesForAgent(agent)
+      );
       document.getElementById('f-color').value = agent.themeColor || '#00f2ff';
       document.getElementById('f-autorestart').checked = agent.autoRestart !== false;
       setAddHarnessRuntime(agent.runtime || 'codex');
@@ -7089,6 +7236,12 @@
         model: useProfile ? '' : (modelEl ? modelEl.value : ''),
         autoRestart: document.getElementById('f-autorestart').checked
       };
+      if (
+        agentFormMode !== 'edit'
+        || startupLinesChangedFromOriginal(agents[editingAgentId], ADD_FORM_STARTUP_LINE_IDS)
+      ) {
+        payload.startupLines = startupLinesFromInputs(ADD_FORM_STARTUP_LINE_IDS);
+      }
       payload.runtime = addFormRuntime;
       const result = agentFormMode === 'edit'
         ? await ipcRenderer.invoke('update-agent-form', payload)

@@ -14,7 +14,7 @@
 #   2. Run the optional pre_launch hook (typically telegram-cleanup --pre-launch).
 #   3. Export any per-agent env vars from the registry's "env" map.
 #   4. For Claude runtimes only, schedule the boot-time tmux auto-injects:
-#      warning ack at 4s, /color + /rename at 10s, startup_slash at 12s.
+#      warning ack at 4s, then runtime-safe startup lines.
 #      Stale subshell PID cleanup runs first.
 #   5. exec the configured runtime command (claude, codex, hermes, openclaw).
 #
@@ -23,6 +23,10 @@
 #   STARTUP_SLASH  — overrides the registry startup_slash (empty disables)
 #   SWARMY_RUNTIME_OVERRIDE / SWARMY_MODEL_OVERRIDE /
 #   SWARMY_REASONING_EFFORT_OVERRIDE — launch-time overrides from AgentRemote.
+# Registry field:
+#   startup_lines  — JSON array of up to three startup text lines sent to Claude
+#                    via tmux after boot. Supports {{color}}, {{rename_to}},
+#                    {{startup_slash}}, {{display_name}}, {{agent_id}}, {{cwd}}.
 #
 # These mirror what xavier.sh / gekko.sh exposed before. They're agent-agnostic.
 # ============================================================================
@@ -181,6 +185,54 @@ else
   STARTUP="$(field startup_slash)"
 fi
 
+expand_startup_line() {
+  local line="$1"
+  line="${line//'{{agent_id}}'/$AGENT_ID}"
+  line="${line//'{{display_name}}'/$DISPLAY_NAME}"
+  line="${line//'{{color}}'/$COLOR}"
+  line="${line//'{{rename_to}}'/$RENAME_TO}"
+  line="${line//'{{startup_slash}}'/$STARTUP}"
+  line="${line//'{{cwd}}'/$CWD}"
+  printf '%s\n' "$line"
+}
+
+read_startup_lines() {
+  STARTUP_LINES=()
+  if jq -e '.startup_lines != null' <<< "$ENTRY" >/dev/null; then
+    HAS_STARTUP_LINES=true
+    if ! jq -e '.startup_lines | type == "array"' <<< "$ENTRY" >/dev/null; then
+      echo "launch-agent: startup_lines for agent '$AGENT_ID' must be a JSON array" >&2
+      exit 2
+    fi
+    if ! jq -e 'all(.startup_lines[]; type == "string")' <<< "$ENTRY" >/dev/null; then
+      echo "launch-agent: startup_lines for agent '$AGENT_ID' must contain only strings" >&2
+      exit 2
+    fi
+    while IFS= read -r startup_line; do
+      startup_line="$(expand_startup_line "$startup_line")"
+      [[ -n "$startup_line" ]] && STARTUP_LINES+=("$startup_line")
+    done < <(jq -r '.startup_lines[:3][]' <<< "$ENTRY")
+    return
+  fi
+  HAS_STARTUP_LINES=false
+
+  # Backward-compatible fallback uses legacy fields:
+  #   * COLOR => /color COLOR
+  #   * rename_to => /rename RENAME_TO
+  #   * startup_slash => startup command
+  if [[ -n "$COLOR" ]]; then
+    STARTUP_LINES+=("/color $COLOR")
+  fi
+  STARTUP_LINES+=("/rename $RENAME_TO")
+  [[ -n "$STARTUP" ]] && STARTUP_LINES+=("$STARTUP")
+}
+
+send_tmux_literal_line() {
+  local line="$1"
+  tmux send-keys -t "$TMUX_PANE" -l "$line"
+  tmux send-keys -t "$TMUX_PANE" Enter
+}
+
 cd "$CWD"
 
 # ---------------------------------------------------------------------------
@@ -327,16 +379,24 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
   # Stage 1: dismiss the --dangerously-load-development-channels warning.
   ( sleep "$CLAUDE_WARNING_ACK_DELAY"; tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
 
-  # Stage 2: pane color + rename. Matches the legacy 10s+0.5s spacing.
-  if [[ -n "$COLOR" ]]; then
-    ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/color $COLOR" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-  else
-    ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-  fi
-
-  # Stage 3: startup slash. Skip if empty.
-  if [[ -n "$STARTUP" ]]; then
-    ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
+  read_startup_lines
+  if (( ${#STARTUP_LINES[@]} > 0 )); then
+    if [[ "$HAS_STARTUP_LINES" == true ]]; then
+      # When registry-supplied, send all lines together at startup delay.
+      ( sleep "$CLAUDE_STARTUP_DELAY"; for line in "${STARTUP_LINES[@]}"; do send_tmux_literal_line "$line"; sleep 0.5; done ) & echo $! >> "$PIDFILE"
+    elif [[ -n "$COLOR" ]]; then
+      # Legacy path keeps historical spacing: color + rename, then startup.
+      ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/color $COLOR" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
+      if [[ -n "$STARTUP" ]]; then
+        ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
+      fi
+    else
+      # Legacy path for entries that only specified rename/startup_slash.
+      ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
+      if [[ -n "$STARTUP" ]]; then
+        ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
+      fi
+    fi
   fi
 fi
 

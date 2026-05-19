@@ -57,6 +57,15 @@ test('add-agent form supports image avatars and harness mascot fallback', () => 
   assert.match(html, /harnessOptionFor\(agent\.runtime/);
 });
 
+test('add-agent form exposes startup slash + 3 startup injection lines', () => {
+  assert.match(html, /id="f-slash"/);
+  assert.match(html, /id="f-startup-line-1"/);
+  assert.match(html, /id="f-startup-line-2"/);
+  assert.match(html, /id="f-startup-line-3"/);
+  assert.match(html, /SETTINGS_STARTUP_LINE_IDS/);
+  assert.doesNotMatch(html, /id="f-startup-line-4"/);
+});
+
 test('avatar crop modal is wired: script loaded, IPC calls present, cropper invoked', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   // Script tag loads the crop module
@@ -104,6 +113,34 @@ test('right-click settings routes to the shared add/edit form', () => {
   assert.match(html, /action: \(\) => openEditAgentForm\(id\)/);
   assert.match(html, /id="f-autorestart"/);
   assert.match(html, /update-agent-form/);
+  assert.match(html, /id="set-startup-line-1"/);
+  assert.match(html, /id="set-startup-line-2"/);
+  assert.match(html, /id="set-startup-line-3"/);
+  assert.match(html, /placeholder="\/color \{\{color\}\}"/);
+  assert.match(html, /placeholder="\/rename \{\{rename_to\}\}"/);
+  assert.match(html, /placeholder="\{\{startup_slash\}\}"/);
+});
+
+test('submit payload includes startup_lines array and settings patch supports array writes', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(html, /startupLinesFromInputs\(ADD_FORM_STARTUP_LINE_IDS\)/);
+  assert.match(html, /function startupLinesChangedFromOriginal\(agent, ids\)/);
+  assert.match(html, /payload\.startupLines = startupLinesFromInputs\(ADD_FORM_STARTUP_LINE_IDS\)/);
+  assert.match(html, /patch: \{ startup_lines: startupLines \}/);
+  assert.match(html, /const readStartupLinesFromSettings/);
+  assert.match(html, /function registryStartupLinesForAgent\(agent\)/);
+  assert.match(html, /agent && agent\.startupLinesConfigured/);
+  assert.match(html, /lines\.push\('\/color \{\{color\}\}'\)/);
+  assert.match(html, /lines\.push\('\/rename \{\{rename_to\}\}'\)/);
+  assert.match(html, /lines\.push\('\{\{startup_slash\}\}'\)/);
+  assert.match(html, /registryStartupLinesForAgent\(agent\)/);
+  assert.match(html, /setStartupLinesIntoInputs\(SETTINGS_STARTUP_LINE_IDS, returned\)/);
+  assert.match(main, /startupLines: normalizeStartupLines\(a\.startup_lines\)/);
+  assert.match(main, /startupLinesConfigured: Array\.isArray\(a\.startup_lines\)/);
+  assert.match(main, /const hasStartupLines = Object\.prototype\.hasOwnProperty\.call\(payload, 'startupLines'\)/);
+  assert.match(main, /const startupLines = normalizeStartupLines\(payload\.startupLines\)/);
+  assert.match(main, /startup_lines: v => normalizeStartupLines\(v\)/);
+  assert.doesNotMatch(main, /delete entry\.startup_lines;\s*\n\s*if \(cleanPatch\.runtime\)/);
 });
 
 test('agent pets are per-agent and use the Codex pet roster instead of a hard-coded companion', () => {

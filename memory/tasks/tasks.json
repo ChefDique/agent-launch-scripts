@@ -3,7 +3,7 @@
   "_schema_version": "1.0",
   "_project": "agent-launch-scripts",
   "_owner": "tmux-masta",
-  "_updated_at": "2026-05-18T19:34:14-0700",
+  "_updated_at": "2026-05-18T19:55:18-0700",
   "tasks": [
     {
       "id": "ALS-LOCAL-001",
@@ -17,49 +17,49 @@
       "tags": ["agentremote", "paste", "image", "tmux"],
       "notes": "Code shipped in 2f4a2c2. Need live paste check after canonical AgentRemote relaunch.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T19:34:14-0700"
+      "updated_at": "2026-05-18T19:55:18-0700"
     },
     {
       "id": "ALS-LOCAL-002",
       "title": "Add dynamic post-startup injection fields",
       "description": "Add three editable text inputs adjacent to startup_slash in AgentRemote add/edit settings. Each field represents a separate line to inject after session start.",
-      "status": "in_progress",
+      "status": "review_pending",
       "priority": "high",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
       "blocked_by": null,
       "tags": ["agentremote", "startup", "ui", "registry"],
-      "notes": "Persist to agents.json using a registry-driven field, then test add/edit save behavior.",
+      "notes": "Implemented in AgentRemote v1.4.8. Add/edit and settings expose three startup_lines inputs; renderer/main persistence is covered by static tests.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T19:34:14-0700"
+      "updated_at": "2026-05-18T19:55:18-0700"
     },
     {
       "id": "ALS-LOCAL-003",
       "title": "Replace hardcoded startup commands with registry-driven lines",
       "description": "Move hardcoded startup injections such as /color-style behavior into dynamic registry values consumed by launch-agent.sh.",
-      "status": "not_started",
+      "status": "review_pending",
       "priority": "high",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
-      "blocked_by": "ALS-LOCAL-002",
+      "blocked_by": null,
       "tags": ["launcher", "startup", "tmux", "registry"],
-      "notes": "Preserve runtime safety: do not reintroduce delayed generic send-keys for Codex. Tests must prove dynamic lines are runtime-scoped and argv-safe.",
+      "notes": "Implemented in launch-agent.sh for Claude tmux startup only. startup_lines supports placeholders, uses literal tmux send for configured lines, preserves legacy fallback only when startup_lines is absent, and respects explicit empty arrays.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T19:34:14-0700"
+      "updated_at": "2026-05-18T19:55:18-0700"
     },
     {
       "id": "ALS-LOCAL-004",
       "title": "Run lint/review agents and merge cleanly",
       "description": "After implementation, run focused tests and use cheap review agents for lint/static-review and code-review before merge, push, cleanup, and canonical AgentRemote relaunch.",
-      "status": "not_started",
+      "status": "review_pending",
       "priority": "medium",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
-      "blocked_by": "ALS-LOCAL-002, ALS-LOCAL-003",
+      "blocked_by": null,
       "tags": ["review", "tests", "merge", "agentremote"],
-      "notes": "Keep worktree boundaries clean; no live iTerm/tmux mutation except canonical relaunch after merge.",
+      "notes": "Cheap lint/static pass was clean. Cheap code review found legacy-edit drift, which was fixed. Final cheap re-review was clean. Full local verification passed before merge.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T19:34:14-0700"
+      "updated_at": "2026-05-18T19:55:18-0700"
     }
   ]
 }

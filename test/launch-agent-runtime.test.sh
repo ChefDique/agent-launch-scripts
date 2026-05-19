@@ -143,7 +143,12 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "allow_claude_runtime": true,
       "color": "purple",
       "rename_to": "INTENTIONAL",
-      "startup_slash": "/lead-gogo"
+      "startup_slash": "/lead-gogo",
+      "startup_lines": [
+        "/color {{color}}",
+        "/rename {{rename_to}}",
+        "{{startup_slash}}"
+      ]
     },
     {
       "id": "xavier",
@@ -256,16 +261,15 @@ tmux_claude_output="$(
     TMUX_PANE="%testpane" \
     TMUX_CALLS="$TMUX_CALLS" \
     CLAUDE_WARNING_ACK_DELAY=0 \
-    CLAUDE_RENAME_DELAY=0 \
     CLAUDE_STARTUP_DELAY=0 \
     bash "$REPO_ROOT/launch-agent.sh" intentional-runtime
 )"
 grep -qx 'COMMAND:claude' <<< "$tmux_claude_output"
 sleep 1
 grep -Fxq 'send-keys -t %testpane Enter' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane /color purple Enter' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane /rename INTENTIONAL Enter' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane /lead-gogo Enter' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l /color purple' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l /rename INTENTIONAL' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l /lead-gogo' "$TMUX_CALLS"
 
 launch_override_claude_output="$(SWARMY_RUNTIME_OVERRIDE=claude run_agent codex 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$launch_override_claude_output"
@@ -353,7 +357,7 @@ fi
 grep -q "unknown profile_preset" <<< "$preset_unknown_output"
 
 grep -q 'tmux send-keys -t "$TMUX_PANE" Enter' "$REPO_ROOT/launch-agent.sh"
-grep -q 'tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter' "$REPO_ROOT/launch-agent.sh"
+grep -q 'read_startup_lines()' "$REPO_ROOT/launch-agent.sh"
 ! grep -q 'submit_tmux_text' "$REPO_ROOT/launch-agent.sh"
 
 if jq -e '[.agents[] | select((.runtime // "codex") == "claude" and (.allow_claude_runtime != true))] | length == 0' "$REPO_ROOT/agents.json" >/dev/null; then

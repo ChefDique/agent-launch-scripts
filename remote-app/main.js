@@ -671,6 +671,8 @@ function loadAgents() {
         // label follows display_name.
         renameTo: a.rename_to || '',
         startupSlash: a.startup_slash || '',
+        startupLines: normalizeStartupLines(a.startup_lines),
+        startupLinesConfigured: Array.isArray(a.startup_lines),
         avatar: a.avatar || bundledAvatarForId(a.id),
         // hidden: true means "kept in registry but hidden from the dock bar".
         // Set via the "Remove from bar" radial action; cleared via "Show hidden".
@@ -681,6 +683,14 @@ function loadAgents() {
     console.error(`[remote] failed to read registry ${REGISTRY_PATH}: ${err.message}`);
     return [];
   }
+}
+
+function normalizeStartupLines(value, maxLines = 3) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .slice(0, maxLines);
 }
 
 function parseEnvFile(filePath) {
@@ -1967,6 +1977,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
       ? DEFAULT_LEAD_STARTUP_SLASH
       : String(payload.startupSlash).trim();
+    const startupLines = normalizeStartupLines(payload.startupLines);
     const autoRestart = payload.autoRestart === false ? false : true;
     const rawRuntime = String(payload.runtime || 'codex').trim().toLowerCase();
     const runtime = normalizeRuntime(rawRuntime);
@@ -2000,6 +2011,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
         color,
         startup_slash: startupSlash
       };
+      if (startupLines.length) entry.startup_lines = startupLines;
       // Explicit model from the form (now that the add-agent UI exposes a
       // per-harness dropdown) takes precedence over applyRuntimePolicy's
       // defaults; the policy only patches missing/wrong-runtime values.
@@ -2141,7 +2153,7 @@ ipcMain.handle('restart-agent', async (event, id) => {
 });
 
 // Update-agent IPC — partial PATCH of a registry entry. The right-click menu
-// uses this to toggle auto_restart and edit display_name / color / startup_slash.
+// uses this to toggle auto_restart and edit display_name / color / startup fields.
 // Whitelist the writable fields so a renderer bug can't clobber load-bearing
 // keys like id or cwd. Booleans are coerced; strings are trimmed.
 const UPDATABLE_FIELDS = {
@@ -2162,7 +2174,8 @@ const UPDATABLE_FIELDS = {
   sandbox:       v => String(v || '').trim(),
   approval_policy: v => String(v || '').trim(),
   rename_to:     v => String(v || '').trim(),
-  startup_slash: v => String(v || '').trim()
+  startup_slash: v => String(v || '').trim(),
+  startup_lines: v => normalizeStartupLines(v)
 };
 
 function applyRuntimePolicy(entry, runtime) {
@@ -2214,6 +2227,8 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
       ? ''
       : String(payload.startupSlash).trim();
+    const hasStartupLines = Object.prototype.hasOwnProperty.call(payload, 'startupLines');
+    const startupLines = hasStartupLines ? normalizeStartupLines(payload.startupLines) : [];
     const autoRestart = payload.autoRestart === false ? false : true;
     const explicitModel = payload.model ? String(payload.model).trim() : '';
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
@@ -2253,6 +2268,13 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
         applyRuntimePolicy(entry, runtime);
       }
       entry.startup_slash = startupSlash;
+      if (hasStartupLines && startupLines.length) {
+        entry.startup_lines = startupLines;
+      } else if (hasStartupLines && normalizeRuntime(entry.runtime || 'codex') === 'claude') {
+        entry.startup_lines = [];
+      } else if (hasStartupLines) {
+        delete entry.startup_lines;
+      }
       if (themeColor) entry.theme_color = themeColor;
       else delete entry.theme_color;
       if (autoRestart) delete entry.auto_restart;

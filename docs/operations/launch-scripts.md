@@ -48,12 +48,18 @@ gateway-only.
   a stale runtime under the same display name.
 - The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
 - Per-agent scripts launch the configured runtime, clean stale Claude delayed
-  injection jobs, and schedule Claude-only boot-time warning/color/rename/startup
-  injections. They must not own nested restart loops.
+  injection jobs, and schedule Claude-only boot-time warning plus startup lines
+  via tmux. Registry `startup_lines` supports `{{color}}`, `{{rename_to}}`,
+  `{{startup_slash}}`, `{{display_name}}`, `{{agent_id}}`, and `{{cwd}}` so the
+  old `/color` and `/rename` commands can be edited as normal startup text.
+  An explicit empty `startup_lines: []` disables the legacy fallback. The legacy
+  registry fields (`color`, `rename_to`, `startup_slash`) are still supported as
+  a fallback for pre-existing entries.
 - Claude runtime launches in tmux must schedule the legacy boot-time injections:
-  warning ack, optional `/color` + `/rename`, and `startup_slash`. Do not remove
-  that path just because generic validation dislikes broad `tmux send-keys`; the
-  send-keys behavior is scoped to Claude startup only.
+  warning ack, and either registry `startup_lines` or fallback legacy `/color` +
+  `/rename` + `startup_slash`. Do not remove that path just because generic
+  validation dislikes broad `tmux send-keys`; the send-keys behavior is scoped
+  to Claude startup only.
 - Layout state can persist in the running tmux session through `@chq_layout`;
   Swarmy also records browser-safe team layout metadata in
   `@swarmy_team_layout`.
