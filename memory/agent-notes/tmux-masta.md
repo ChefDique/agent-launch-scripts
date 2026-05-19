@@ -36,6 +36,12 @@ Don't <X> because <Y>. Always <Z> instead.
 Pairs with [[related-learning-slug]] (cross-link).
 -->
 
+### 2026-05-18 — keep generated fallback settings display-only
+
+When AgentRemote shows legacy behavior as editable fields, keep those values display-only unless the user changes the field. Persisting generated defaults during an unrelated save can silently convert old registry semantics into new explicit config.
+**Why:** The v1.4.8 startup-lines review caught that synthesized `/color {{color}}`, `/rename {{rename_to}}`, and `{{startup_slash}}` lines could be saved unintentionally for legacy Claude entries.
+**How to apply:** For compatibility UI, expose an explicit `configured` bit from the registry and compare current inputs against the opened state before adding derived fields to save payloads.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):

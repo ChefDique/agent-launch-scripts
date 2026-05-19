@@ -310,3 +310,35 @@ Treat `/done` as a blocking closeout gate: if intentional work is only on a feat
 - **Notes**: Added an explicit `/done` completion contract requiring commit, merge/preserve or PR, stale worktree cleanup, generated junk deletion, and clean working trees before final response.
 
 ---
+
+## [LRN-20260518-001] best_practice
+
+**Logged**: 2026-05-18T20:16:48-0700
+**Priority**: medium
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+Generated fallback values in AgentRemote settings must remain display-only until the user actually changes those inputs.
+
+### Details
+During the v1.4.8 startup-lines work, the first implementation displayed legacy Claude startup behavior as editable `startup_lines` values for agents that did not yet have explicit `startup_lines`. A review pass caught that saving an unrelated field could persist those generated fallback lines and change launcher timing semantics. The correct pattern is to distinguish persisted registry data from UI-derived display defaults, and only write the new registry field when the corresponding inputs differ from the opened state.
+
+### Suggested Action
+When a form shows derived defaults for backward compatibility, track whether the source field was explicitly configured and whether the user changed the derived inputs. Do not include derived fields in save payloads unless the user changed them; add static tests for the guard.
+
+### Metadata
+- Source: conversation
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/index.html, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/renderer-static.test.js, /Users/richardadair/ai_projects/agent-launch-scripts/launch-agent.sh
+- Tags: agentremote, startup-lines, backward-compatibility, generated-defaults, review
+- Pattern-Key: agentremote.generated_defaults_display_only
+- Recurrence-Count: 1
+- First-Seen: 2026-05-18
+- Last-Seen: 2026-05-18
+
+### Resolution
+- **Resolved**: 2026-05-18T20:16:48-0700
+- **Commit/PR**: `7935e5b`
+- **Notes**: `startupLinesConfigured` now distinguishes explicit registry arrays from legacy display defaults; edit-form save only sends `startupLines` when the three inputs change, and static tests assert the guard.
+
+---
