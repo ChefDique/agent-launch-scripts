@@ -1,17 +1,16 @@
 # Handoff — Neo (`tmux-masta`)
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
-**Last working on:** Codex lifecycle hook parity for `/chores` and `/done` checkpoint nudges.
-**State at last pause (2026-05-18T13:45-0700):**
-- Added repo-owned Codex lifecycle hook script: `scripts/codex-lifecycle-hook.sh`.
-- Added audit/dry-run proof command: `scripts/audit-codex-lifecycle-hooks.sh`.
-- Added docs: `docs/operations/codex-lifecycle-hooks.md`; updated `docs/operations/launch-scripts.md` and `docs/README.md`.
-- Verified: hook scripts parse; completion, failure, and closeout-language dry runs emit lifecycle checkpoints; `bash scripts/audit-codex-lifecycle-hooks.sh` passes with no warnings after planner merged the global hook entries.
-- Global `~/.codex/hooks.json` now references the repo-owned lifecycle hook while preserving existing self-improving and message-agent hooks.
-- Existing AgentRemote `@hidden` iTerm/native-window code fix remains pending and was not touched.
-**Next verifiable step:** Observe the next Codex lead completion/failure boundary and confirm the hook injects a lifecycle checkpoint in-session.
-**If that step fails:** inspect the actual Codex hook event payload shape for `PostToolUse`, adjust matchers or parser fields in `scripts/codex-lifecycle-hook.sh`, then rerun the dry-run audit.
-**Pending uncommitted diff:** `docs/README.md`, `docs/operations/launch-scripts.md`, `docs/operations/codex-lifecycle-hooks.md`, `scripts/codex-lifecycle-hook.sh`, `scripts/audit-codex-lifecycle-hooks.sh`, plus pre-existing unrelated `agents.json`, `graphify-out/`, and `remote-app/assets/homelander.png`.
+**Last working on:** AgentRemote v1.4.7 embedded xterm image-paste fix for Codex-only tmux windows.
+**State at last pause (2026-05-18T18:02-0700):**
+- Pushed canonical `main` clean first, then committed the registry/avatar baseline that moved the fleet snapshot to Codex-only (`c3d54f1`).
+- Fixed embedded terminal paste handling in `remote-app/index.html`: host paste, Cmd/Ctrl+V, Ctrl+Shift+V, and raw xterm SYN `0x16` now route through the existing image/text paste helper instead of forwarding control garbage or silently dropping images.
+- Bumped AgentRemote to `v1.4.7` in `remote-app/package.json` and `remote-app/package-lock.json`.
+- Updated `remote-app/test/renderer-static.test.js` and `docs/operations/agentremote-recovery-list.md` to make the regression visible.
+- Verified: `npm run test:policy`, `npm test`, `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, and `bash test/launch-agent-runtime.test.sh` passed in the Codex worktree.
+**Next verifiable step:** After merge, relaunch canonical AgentRemote with `bash launch-remote.sh`, confirm the running Electron app path is `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`, then Richard should paste an image into an embedded terminal panel and confirm the target pane receives `[image: /tmp/... ]`.
+**If that step fails:** inspect `remote-app/out.log`, verify the renderer is actually v1.4.7, and capture whether the failure path is host `paste`, custom keydown, or xterm `onData` SYN.
+**Pending uncommitted diff:** AgentRemote v1.4.7 paste fix branch only; ready to commit and merge to `main`.
 ---
 
 Richard reported "can't attach anyone, everyone headless." Root causes:

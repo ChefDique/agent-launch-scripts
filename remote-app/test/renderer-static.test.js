@@ -268,12 +268,23 @@ test('chat input paste persists clipboard images as local file references', () =
 });
 
 test('embedded terminal intercepts paste and sends clipboard text or image references to the agent pane', () => {
+  const terminalPasteBlock = html.slice(
+    html.indexOf('let lastTerminalPasteAt = 0'),
+    html.indexOf('// Register pane-output IPC listener')
+  );
   assert.match(html, /function pasteClipboardIntoAgentPane/);
   assert.match(html, /host\.addEventListener\('paste', handleTerminalPaste, true\)/);
   assert.match(html, /clipboardData\.getData\('text\/plain'\)/);
-  assert.match(html, /term\.attachCustomKeyEventHandler/);
-  assert.match(html, /ev\.metaKey \|\| ev\.ctrlKey/);
-  assert.match(html, /data === '\\x16'/);
+  assert.match(terminalPasteBlock, /const dispatchTerminalPaste = \(ev = null\) =>/);
+  assert.match(terminalPasteBlock, /lastTerminalPasteAt < 250/);
+  assert.match(terminalPasteBlock, /const isTerminalPasteShortcut = \(ev\) =>/);
+  assert.match(terminalPasteBlock, /if \(ev\.altKey\) return false/);
+  assert.match(terminalPasteBlock, /const key = \(ev\.key \|\| ''\)\.toLowerCase/);
+  assert.match(terminalPasteBlock, /ev\.code === 'KeyV'/);
+  assert.doesNotMatch(terminalPasteBlock, /ev\.altKey \|\| ev\.shiftKey/);
+  assert.match(terminalPasteBlock, /0x16/);
+  assert.match(terminalPasteBlock, /term\.attachCustomKeyEventHandler/);
+  assert.match(terminalPasteBlock, /isTerminalPasteShortcut\(ev\)/);
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);
   assert.match(html, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);

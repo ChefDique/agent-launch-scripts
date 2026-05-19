@@ -9220,33 +9220,47 @@
 
       term.open(host);
       fitAddon.fit();
-      const handleTerminalPaste = (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+      let lastTerminalPasteAt = 0;
+      const dispatchTerminalPaste = (ev = null) => {
+        const now = Date.now();
+        if (now - lastTerminalPasteAt < 250) return;
+        lastTerminalPasteAt = now;
         pasteClipboardIntoAgentPane(agentId, ev).catch(err => {
           term.write(`\r\n[AgentRemote] paste failed: ${err && err.message ? err.message : String(err)}\r\n`);
         });
       };
+      const handleTerminalPaste = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        dispatchTerminalPaste(ev);
+      };
       host.addEventListener('paste', handleTerminalPaste, true);
+
+      const isTerminalPasteShortcut = (ev) => {
+        if (!ev || ev.type !== 'keydown') return false;
+        if (ev.altKey) return false;
+        if (!ev.ctrlKey && !ev.metaKey) return false;
+        const key = (ev.key || '').toLowerCase();
+        return key === 'v' || ev.code === 'KeyV';
+      };
 
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
-        // Ctrl+V can arrive from xterm as the literal SYN byte before Chromium
-        // emits a paste event. Treat paste as AgentRemote-owned so images become
-        // [image: ...] references instead of leaking 0x16 into the agent pane.
-        if (data === '\x16') return;
+        // Xterm may emit the SYN byte for Ctrl+V (0x16). We handle that as a
+        // paste shortcut so image refs remain stable and avoid raw control bytes
+        // reaching the tmux pane.
+        const isSynPaste = typeof data === 'string' && data.length === 1 && data.charCodeAt(0) === 0x16;
+        if (isSynPaste) {
+          dispatchTerminalPaste();
+          return;
+        }
         ipcRenderer.send('pane-input', { id: agentId, data });
       });
       term.attachCustomKeyEventHandler((ev) => {
-        const isPaste = ev.type === 'keydown'
-          && (ev.key === 'v' || ev.key === 'V')
-          && (ev.metaKey || ev.ctrlKey)
-          && !ev.altKey;
+        const isPaste = isTerminalPasteShortcut(ev);
         if (!isPaste) return true;
         ev.preventDefault();
-        pasteClipboardIntoAgentPane(agentId, ev).catch(err => {
-          term.write(`\r\n[AgentRemote] paste failed: ${err && err.message ? err.message : String(err)}\r\n`);
-        });
+        dispatchTerminalPaste(ev);
         return false;
       });
 
