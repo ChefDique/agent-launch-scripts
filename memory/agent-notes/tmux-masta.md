@@ -42,6 +42,12 @@ When AgentRemote shows legacy behavior as editable fields, keep those values dis
 **Why:** The v1.4.8 startup-lines review caught that synthesized `/color {{color}}`, `/rename {{rename_to}}`, and `{{startup_slash}}` lines could be saved unintentionally for legacy Claude entries.
 **How to apply:** For compatibility UI, expose an explicit `configured` bit from the registry and compare current inputs against the opened state before adding derived fields to save payloads.
 
+### 2026-05-19 — restart stale wrapped children before patching AgentRemote terminal code
+
+When one AgentRemote pane behaves correctly and sibling panes do not, first compare the live child process command and start time. If wrappers are still alive but their Codex child is stale, kill only that child and let the wrapper re-enter `launch-agent.sh`.
+**Why:** Mugatu worked because he had already relaunched through the current launcher path; Xavier, Dasha, and Lucius were still old `gpt-5.3-codex` child processes. Restarting those children fixed the terminal behavior without new code.
+**How to apply:** For terminal paste, Option-key editing, status-line, or model drift across panes, inspect `ps` output before changing scripts. Existing panes do not pick up launcher/config changes until the wrapped child restarts.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
