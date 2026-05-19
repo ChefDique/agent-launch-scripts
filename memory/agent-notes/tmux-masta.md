@@ -54,3 +54,9 @@ What I'm doing instead: <alternative>.
 
 Pairs with [[related-learning-slug]].
 -->
+
+### 2026-05-19 — do not validate AgentRemote terminal behavior from static code
+
+Tried to fix AgentRemote image paste and Option-key editing by patching renderer/tmux key handling and validating with static tests plus tmux key tables. That did not prove the live operator workflow and wasted multiple sessions.
+What I'm doing instead: reproduce in an isolated `tmux -CC` iTerm control-mode session, capture actual bytes/protocol behavior, and only then patch the correct layer.
+**Why this matters:** Image paste is clipboard image -> iTerm2 OSC 1337 inline image/file protocol, not keyboard transport. Keyboard editing is a separate Option/Meta sequence problem. Mixing them produced false confidence and damaged operator trust.
