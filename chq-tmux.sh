@@ -363,8 +363,11 @@ cmd_start() {
   fi
   tmux select-pane -t "${SESSION}:chq.0"
 
-  # Navigation: mouse + Alt-number + Alt-arrow, no prefix chord required.
-  tmux set -g mouse on
+  # Input ergonomics: keep macOS-style word editing available inside agent TUIs.
+  # Alt/Option+Arrow used to select panes here, which stole the exact shortcut
+  # Codex and Claude use for word navigation. Translate those modified keys
+  # into readline-style bytes for the focused pane instead.
+  tmux set -g mouse off
   tmux set -g history-limit 50000
   # Let terminal chat UIs distinguish modified keys such as Shift+Enter
   # through tmux. iTerm must also emit modified-key sequences for this to work.
@@ -378,10 +381,16 @@ cmd_start() {
   tmux bind-key -n M-3 select-pane -t 2
   tmux bind-key -n M-4 select-pane -t 3
   tmux bind-key -n M-5 select-pane -t 4
-  tmux bind-key -n M-Left  select-pane -L
-  tmux bind-key -n M-Right select-pane -R
-  tmux bind-key -n M-Up    select-pane -U
-  tmux bind-key -n M-Down  select-pane -D
+  tmux bind-key -n M-Left   send-keys Escape b
+  tmux bind-key -n M-Right  send-keys Escape f
+  tmux bind-key -n M-Up     send-keys Escape Up
+  tmux bind-key -n M-Down   send-keys Escape Down
+  tmux bind-key -n M-BSpace send-keys Escape BSpace
+  tmux bind-key -n M-DC     send-keys Escape d
+  tmux bind-key -n M-b      send-keys Escape b
+  tmux bind-key -n M-f      send-keys Escape f
+  tmux bind-key -n M-d      send-keys Escape d
+  tmux bind-key -n M-v      run-shell "${SCRIPT_DIR}/scripts/paste-clipboard-image-to-pane.sh '#{pane_id}'"
 
   echo "CHQ session started with ${#selected_entries[@]} executive(s):"
   for entry in "${selected_entries[@]}"; do
