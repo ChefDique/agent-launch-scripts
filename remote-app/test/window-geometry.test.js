@@ -27,27 +27,29 @@ test('resize geometry clamps oversized overlays to the visible workarea', () => 
 });
 
 // --------------------------------------------------------------------------
-// Regression test (v1.4.1): when the add/edit-agent form is open, the panel
-// measurement must add the form's hidden-by-overflow height back so the window
-// grows to fit the FULL form even after .add-form's max-height clamp triggers.
-// Static check on the renderer source — verifies the syncWindowSize() loop
-// reads addForm.scrollHeight - addForm.clientHeight when body.adding is set.
+// Regression test: when the add/edit-agent form is open, the panel measurement
+// must add the form's hidden-by-overflow height back so the window grows to fit
+// the full form even after .add-form's max-height clamp triggers. Static check
+// on the renderer source verifies syncWindowSize uses the natural scroll height
+// and observes later form mutations instead of depending on the first open.
 // --------------------------------------------------------------------------
 
-test('syncWindowSize compensates for .add-form max-height clamp when body.adding is set', () => {
+test('syncWindowSize compensates for .add-form max-height clamp dynamically', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  // The fix lives in syncWindowSize: when body.adding is true, add the form's
-  // hidden overflow height (scrollHeight - clientHeight) to the requested
-  // window height. Without this, .add-form's max-height: calc(100vh - 48px)
-  // clamps the form's box before measurement and the window never grows past
-  // the current viewport height — so additional dock rows (3+) cause form
-  // rows to clip behind an internal scrollbar that Richard didn't ask for.
-  assert.match(html, /classList\.contains\('adding'\)/,
-    'syncWindowSize must check the body.adding class');
-  assert.match(html, /addForm\.scrollHeight\s*-\s*addForm\.clientHeight/,
-    'syncWindowSize must add the form overflow (scrollHeight - clientHeight) back to the requested height');
-  assert.match(html, /extraFormGrow/,
-    'extraFormGrow accumulator must participate in the panel height calc');
+  // The fix lives in syncWindowSize: add the form's hidden overflow height
+  // (scrollHeight - clientHeight) to the requested window height. Without this,
+  // .add-form's max-height: calc(100vh - 48px) can clamp the form's box before
+  // measurement and the window never grows past the current viewport height.
+  assert.match(html, /function elementOverflowGrow\(el\)/,
+    'renderer must have a reusable natural-height helper');
+  assert.match(html, /el\.scrollHeight\s*-\s*el\.clientHeight/,
+    'syncWindowSize must add hidden overflow (scrollHeight - clientHeight) back to the requested height');
+  assert.match(html, /dynamicPanelGrow/,
+    'dynamicPanelGrow accumulator must participate in the panel height calc');
+  assert.match(html, /ResizeObserver/,
+    'form/panel changes must schedule a follow-up resize');
+  assert.match(html, /MutationObserver/,
+    'form mutations must schedule a follow-up resize');
 });
 
 test('add-form keeps its max-height + dark scrollbar styling as the absolute fallback', () => {

@@ -4296,15 +4296,79 @@
     } catch { /* localStorage may be disabled in sandboxed contexts */ }
 
     // ---------------------------------------------------------------------
-    // Layout: measure DOM, ask main to setContentSize
+    // Layout: measure DOM, ask main to resize the BrowserWindow
     // ---------------------------------------------------------------------
+    let scheduledWindowSizeSync = null;
+    let lastResizeWindowKey = '';
+    let windowSizeResizeObserver = null;
+    let windowSizeMutationObserver = null;
+
+    function isResizeMeasurable(el) {
+      if (!el) return false;
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 || rect.height > 0;
+    }
+
+    function elementOverflowGrow(el) {
+      if (!isResizeMeasurable(el)) return 0;
+      return Math.max(0, el.scrollHeight - el.clientHeight);
+    }
+
+    function floatingResizeExtent(selector) {
+      const el = document.querySelector(selector);
+      if (!isResizeMeasurable(el)) return null;
+      const rect = el.getBoundingClientRect();
+      const growY = Math.max(0, (el.scrollHeight || 0) - (el.clientHeight || 0));
+      const growX = Math.max(0, (el.scrollWidth || 0) - (el.clientWidth || 0));
+      return {
+        right: rect.right + growX,
+        bottom: rect.bottom + growY
+      };
+    }
+
+    function sendResizeWindow(width, height) {
+      const key = `${width}x${height}`;
+      if (key === lastResizeWindowKey) return;
+      lastResizeWindowKey = key;
+      ipcRenderer.send('resize-window', { width, height });
+    }
+
+    function scheduleWindowSizeSync() {
+      if (scheduledWindowSizeSync !== null) return;
+      scheduledWindowSizeSync = requestAnimationFrame(() => {
+        scheduledWindowSizeSync = null;
+        syncWindowSize();
+      });
+    }
+
+    function installWindowSizeObservers() {
+      const panel = document.getElementById('panel');
+      const addForm = document.getElementById('add-form');
+      if (typeof ResizeObserver === 'function') {
+        windowSizeResizeObserver = new ResizeObserver(() => scheduleWindowSizeSync());
+        if (panel) windowSizeResizeObserver.observe(panel);
+        if (addForm) windowSizeResizeObserver.observe(addForm);
+      }
+      if (typeof MutationObserver === 'function' && addForm) {
+        windowSizeMutationObserver = new MutationObserver(() => scheduleWindowSizeSync());
+        windowSizeMutationObserver.observe(addForm, {
+          attributes: true,
+          childList: true,
+          subtree: true,
+          attributeFilter: ['class', 'style', 'hidden', 'aria-hidden']
+        });
+      }
+    }
+
     function syncWindowSize() {
       // Skip while the radial menu is open. The menu sizes the window itself
       // (openRadialMenu computes width/height that include the fanned items
       // hanging below the panel). If we ran here, we'd measure only the panel
       // and shrink the window back, clipping every item except the topmost.
       // The window 'resize' listener at the bottom of this script is the
-      // trigger that made this footgun fire — Electron's setContentSize emits
+      // trigger that made this footgun fire — Electron's window resize emits
       // a resize event in the renderer, which would re-enter this function.
       if (typeof radialOpenForId !== 'undefined' && radialOpenForId) return;
       // Same skip for the team-chat overlay — it grows the window to fit its
@@ -4322,33 +4386,30 @@
         const padBottom = parseFloat(bodyStyle.paddingBottom) || 0;
         const padLeft = parseFloat(bodyStyle.paddingLeft) || 0;
         const padRight = parseFloat(bodyStyle.paddingRight) || 0;
-        // BUG FIX (v1.4.1): when the add/edit-agent form is open AND the dock
-        // has wrapped to >1 row, panel.getBoundingClientRect().height reports
-        // the POST-CLAMP height — .add-form's `max-height: calc(100vh - 48px)`
-        // trims the form's laid-out box before we measure. The window then
-        // never grows past the current viewport, so the form rows that got
-        // clamped become an internal scroll instead of being shown to the
-        // operator. Add the form's natural overflow (scrollHeight - clientHeight)
-        // back to the measured panel height so we ask main to grow enough to
-        // fit the FULL form. main's computeWindowBounds clamps to
-        // display.workArea, and the .add-form max-height + dark scrollbar
-        // styling still acts as the absolute fallback when content genuinely
-        // exceeds the workarea height. Mirrors the same scrollHeight trick
-        // used in renderSettingsPanel (layer.scrollHeight measurement there).
-        let extraFormGrow = 0;
-        if (document.body.classList.contains('adding')) {
-          const addForm = document.getElementById('add-form');
-          if (addForm) {
-            // scrollHeight is the unconstrained content height even when the
-            // element's box was clamped by max-height; clientHeight is the
-            // actual rendered box. The delta is exactly what's hidden behind
-            // the internal scroll.
-            extraFormGrow = Math.max(0, addForm.scrollHeight - addForm.clientHeight);
-          }
-        }
-        const w = Math.ceil(rect.width + padLeft + padRight);
-        const h = Math.ceil(rect.height + padTop + padBottom + extraFormGrow);
-        ipcRenderer.send('resize-window', { width: w, height: h });
+        // Dynamic surfaces can be clipped by their own viewport-relative CSS
+        // before panel.getBoundingClientRect() sees their natural size. The
+        // add/edit form is the common case: .add-form's max-height may convert
+        // new rows into an internal scroll, while the rows below the form still
+        // need to be pushed down once the BrowserWindow grows. Add the hidden
+        // natural height back at the panel level, then let main clamp to the
+        // current display workarea. The dark internal scrollbar stays as the
+        // fallback when the screen genuinely cannot fit the whole form.
+        let dynamicPanelGrow = 0;
+        const addForm = document.getElementById('add-form');
+        if (addForm) dynamicPanelGrow = Math.max(dynamicPanelGrow, elementOverflowGrow(addForm));
+
+        let right = rect.width + padLeft;
+        let bottom = rect.bottom + dynamicPanelGrow;
+        ['.hidden-panel'].forEach(selector => {
+          const extent = floatingResizeExtent(selector);
+          if (!extent) return;
+          right = Math.max(right, extent.right);
+          bottom = Math.max(bottom, extent.bottom);
+        });
+
+        const w = Math.ceil(Math.max(rect.width + padLeft + padRight, right + padRight));
+        const h = Math.ceil(Math.max(rect.height + padTop + padBottom + dynamicPanelGrow, bottom + padBottom));
+        sendResizeWindow(w, h);
       };
       measure();
       requestAnimationFrame(measure);
@@ -4501,6 +4562,7 @@
       if (profileRow) profileRow.style.display  = useProfile ? ''     : 'none';
       if (idRow)      idRow.style.display        = useProfile ? 'none' : '';
       if (!useProfile) populateAddFormModelOptions(addFormRuntime);
+      scheduleWindowSizeSync();
     }
 
     // Populate the add-agent form's model dropdown for the current harness.
@@ -4524,11 +4586,13 @@
       if (!opts.length) {
         select.innerHTML = '<option value="">(no models registered for this harness)</option>';
         select.disabled = true;
+        scheduleWindowSizeSync();
         return;
       }
       select.innerHTML = opts.join('');
       select.value = currentModel || defaultModel || '';
       select.disabled = false;
+      scheduleWindowSizeSync();
     }
 
     function closeIconSvg() {
@@ -4619,6 +4683,7 @@
         select.appendChild(option);
       });
       select.value = selected && codexPetsById.has(String(selected).toLowerCase()) ? selected : '';
+      scheduleWindowSizeSync();
     }
 
     function normalizePetToken(value) {
@@ -7552,13 +7617,14 @@
     // both route through openDeployPreview → confirmDeploy).
     wireDeployPreview();
     loadBuildBadge();
+    installWindowSizeObservers();
 
     loadCodexPetRoster()
       .catch(() => {})
       .then(() => loadAndRender())
       .then(startStatusPolling);
     window.addEventListener('resize', () => {
-      syncWindowSize();
+      scheduleWindowSizeSync();
       positionAgentPets();
     });
 
