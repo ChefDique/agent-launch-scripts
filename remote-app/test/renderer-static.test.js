@@ -327,6 +327,51 @@ test('embedded terminal intercepts paste and sends clipboard text or image refer
   assert.match(html, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
 });
 
+test('embedded terminal keeps text selection usable (drag-safe and selection options enabled)', () => {
+  const xtermConfigBlock = html.slice(
+    html.indexOf('const term = new Terminal({'),
+    html.indexOf('const fitAddon = new FitAddon();')
+  );
+  assert.match(xtermConfigBlock, /macOptionClickForcesSelection:\s*true/);
+  assert.match(xtermConfigBlock, /rightClickSelectsWord:\s*true/);
+
+  const xtermHostRules = html.slice(
+    html.indexOf('#xterm-host .xterm { height: 100%; }'),
+    html.indexOf('/* ── AtlasEvent Debugger Panel (ARB-003) ── */')
+  );
+  assert.match(xtermHostRules, /#xterm-host \.xterm,\s*#xterm-host \.xterm \.xterm-screen/);
+  assert.match(xtermHostRules, /-webkit-app-region:\s*no-drag/);
+  assert.match(xtermHostRules, /-webkit-user-select:\s*text/);
+  assert.match(xtermHostRules, /user-select:\s*text/);
+});
+
+test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', () => {
+  const terminalShortcutBlock = html.slice(
+    html.indexOf('const isTerminalWordShortcut = (ev) =>'),
+    html.indexOf('const isTerminalPasteShortcut = (ev) =>')
+  );
+
+  assert.match(terminalShortcutBlock, /const isTerminalWordShortcut = \(ev\) =>/);
+  assert.match(terminalShortcutBlock, /if \(!ev\.altKey \|\| ev\.ctrlKey \|\| ev\.metaKey\) return null/);
+  assert.match(terminalShortcutBlock, /const key = \(ev\.key \|\| ''\)\.toLowerCase\(\);/);
+  assert.match(terminalShortcutBlock, /const code = ev\.code \|\| '';/);
+  assert.match(terminalShortcutBlock, /if \(code === 'ArrowLeft' \|\| key === 'arrowleft'\) return '\\x1bb';/);
+  assert.match(terminalShortcutBlock, /if \(code === 'ArrowRight' \|\| key === 'arrowright'\) return '\\x1bf';/);
+  assert.match(terminalShortcutBlock, /if \(key === 'backspace'\) return '\\x1b\\x7f';/);
+  assert.match(terminalShortcutBlock, /if \(key === 'delete'\) return '\\x1bd';/);
+  assert.match(terminalShortcutBlock, /if \(code === 'KeyB' \|\| key === 'b'\) return '\\x1bb';/);
+  assert.match(terminalShortcutBlock, /if \(code === 'KeyF' \|\| key === 'f'\) return '\\x1bf';/);
+  assert.match(terminalShortcutBlock, /if \(code === 'KeyD' \|\| key === 'd'\) return '\\x1bd';/);
+
+  const terminalAttachBlock = html.slice(
+    html.indexOf('term.attachCustomKeyEventHandler((ev) => {'),
+    html.indexOf('// Register pane-output IPC listener')
+  );
+  assert.match(terminalAttachBlock, /const terminalWordShortcut = isTerminalWordShortcut\(ev\);/);
+  assert.match(terminalAttachBlock, /if \(terminalWordShortcut\) \{/);
+  assert.match(terminalAttachBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: terminalWordShortcut \}\);?/);
+});
+
 test('floating pet chat uses clean team chat stream and supports pasted images', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const petWindow = fs.readFileSync(path.join(__dirname, '..', 'pet-window.html'), 'utf8');

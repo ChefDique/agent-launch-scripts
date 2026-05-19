@@ -2,24 +2,25 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** None — AgentRemote v1.4.8 startup-lines work is closed and shipped.
+**Last working on:** AgentRemote v1.4.9 embedded terminal keyboard and selection ergonomics.
 
-**State at last pause (2026-05-18T20:16:48-0700):**
-- `main` is pushed at `7935e5b` with AgentRemote v1.4.8 and the canonical HUD relaunched from `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`.
-- Code/tests cover image paste in AgentRemote chat, pet chat, and embedded terminal paths. Richard still needs to perform live screenshot-paste verification in the UI.
-- Three editable `startup_lines` fields are available beside `startup_slash`; configured lines support the documented placeholders and are sent literally for Claude tmux startup.
-- The generated legacy fallback display is guarded: old Claude entries are not rewritten unless the startup-line inputs actually change; explicit `startup_lines: []` disables fallback.
-- `/done` closeout wrote session receipt `memory/sessions/2026-05-18_2016_agentremote-startup-lines-closeout.md` and learning `LRN-20260518-001`.
+**State at last pause (2026-05-18T20:32:41-0700):**
+- Branch `codex/agentremote-terminal-keybindings` adds embedded xterm Option/Alt word navigation and word delete: Alt+Left/Right, Alt+B/F, Alt+Backspace, Alt+Delete, and Alt+D.
+- Embedded xterm now opts its internal layers out of Electron drag regions and enables selection options so mouse selection/right-click word selection can work without dragging the HUD.
+- Existing terminal image/text paste paths were preserved: paste shortcut still rejects Alt, keeps Ctrl/Cmd+V and Ctrl+Shift+V, and keeps the raw `0x16` fallback.
+- Spark workers implemented keyboard and selection lanes; Spark analysis confirmed the copied-image-link clue comes from clipboard sources that expose both text and native image data.
+- Verification passed so far: `node --test test/renderer-static.test.js`, `npm run test:policy`, `npm test`, `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh`, `jq . agents.json`, `git diff --check`, Swarmy `test_agentremote_runtime.py`, and isolated tmux byte checks for ESC-based shortcuts.
 
-**Next verifiable step:** Wait for Richard. If he wants validation, live-test screenshot paste in AgentRemote main chat and embedded terminal, then edit an agent's startup line fields and confirm `agents.json` reflects the intended `startup_lines`.
+**Next verifiable step:** Commit, merge to local `main`, run AgentRemote cleanup/relaunch from the canonical checkout, then Richard should live-test word navigation/delete and mouse selection in an embedded terminal.
 
-**If that step fails:** For paste failures, inspect the Electron clipboard image path and `send-chat-message` payload first. For startup-line failures, compare renderer `startupLines`, main-process `startup_lines`, and `launch-agent.sh` `STARTUP_LINES`.
+**If that step fails:** Inspect the xterm `attachCustomKeyEventHandler`, `pane-input` literal tmux send path, and Electron drag/no-drag CSS for `#xterm-host` internals before changing launcher/tmux runtime code.
 
-**Pending uncommitted diff:** none after `/done` closeout commit.
+**Pending uncommitted diff:** v1.4.9 embedded terminal keyboard/selection patch plus recovery-list and handoff updates.
 
 ## Open priorities (<=5)
 
 - [WAIT] **Live image-paste verification** — Richard needs to paste a screenshot into AgentRemote main chat and embedded terminal after relaunch; code and tests are complete.
+- [REVIEW] **Embedded terminal keyboard/mouse ergonomics** — v1.4.9 code/tests are complete; needs canonical relaunch and Richard live verification for Option word shortcuts plus mouse selection.
 - [WAIT] **AgentRemote Deploy permanent fix** — clear tmux `@hidden` and `@buried_indexes` before iTerm control-mode attach/deploy; not part of this startup-injection task.
 
 ## Cross-session comms
