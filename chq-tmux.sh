@@ -365,8 +365,8 @@ cmd_start() {
 
   # Input ergonomics: keep macOS-style word editing available inside agent TUIs.
   # Alt/Option+Arrow used to select panes here, which stole the exact shortcut
-  # Codex and Claude use for word navigation. Translate those modified keys
-  # into readline-style bytes for the focused pane instead.
+  # Codex and Claude use for word navigation. Leave those keys unbound so the
+  # focused terminal app receives the real modified-key sequence.
   tmux set -g mouse off
   tmux set -g history-limit 50000
   # Let terminal chat UIs distinguish modified keys such as Shift+Enter
@@ -381,15 +381,10 @@ cmd_start() {
   tmux bind-key -n M-3 select-pane -t 2
   tmux bind-key -n M-4 select-pane -t 3
   tmux bind-key -n M-5 select-pane -t 4
-  tmux bind-key -n M-Left   send-keys Escape b
-  tmux bind-key -n M-Right  send-keys Escape f
-  tmux bind-key -n M-Up     send-keys Escape Up
-  tmux bind-key -n M-Down   send-keys Escape Down
-  tmux bind-key -n M-BSpace send-keys Escape BSpace
-  tmux bind-key -n M-DC     send-keys Escape d
-  tmux bind-key -n M-b      send-keys Escape b
-  tmux bind-key -n M-f      send-keys Escape f
-  tmux bind-key -n M-d      send-keys Escape d
+  for key in M-Left M-Right M-Up M-Down M-BSpace M-DC M-b M-f M-d; do
+    tmux unbind-key -n "$key" 2>/dev/null || true
+  done
+  tmux bind-key -n C-v      run-shell "${SCRIPT_DIR}/scripts/paste-clipboard-image-to-pane.sh '#{pane_id}'"
   tmux bind-key -n M-v      run-shell "${SCRIPT_DIR}/scripts/paste-clipboard-image-to-pane.sh '#{pane_id}'"
 
   echo "CHQ session started with ${#selected_entries[@]} executive(s):"

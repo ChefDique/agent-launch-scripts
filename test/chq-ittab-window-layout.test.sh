@@ -73,20 +73,20 @@ if awk -F: '$3 != 1 { bad=1 } END { exit bad ? 0 : 1 }' <<< "$windows"; then
 fi
 
 key_bindings="$(tmux list-keys -T root)"
-if ! grep -Fq 'bind-key -T root M-Left' <<< "$key_bindings" || ! grep -Fq 'send-keys Escape b' <<< "$key_bindings"; then
-  echo "expected Option+Left to pass readline word-left bytes, not switch panes" >&2
+if grep -Fq 'bind-key -T root M-Left' <<< "$key_bindings"; then
+  echo "Option+Left must not be intercepted by tmux; Codex needs the real key sequence" >&2
   exit 1
 fi
-if grep -Fq 'bind-key -T root M-Left                    select-pane -L' <<< "$key_bindings"; then
-  echo "Option+Left must not be bound to tmux pane navigation" >&2
-  exit 1
-fi
-if ! grep -Fq 'bind-key -T root M-BSpace' <<< "$key_bindings" || ! grep -Fq 'send-keys Escape BSpace' <<< "$key_bindings"; then
-  echo "expected Option+Backspace to pass readline word-delete bytes" >&2
+if grep -Fq 'bind-key -T root M-BSpace' <<< "$key_bindings"; then
+  echo "Option+Backspace must not be intercepted by tmux; Codex needs the real key sequence" >&2
   exit 1
 fi
 if ! grep -Fq 'paste-clipboard-image-to-pane.sh' <<< "$key_bindings"; then
-  echo "expected Option+V tmux image/text paste helper binding" >&2
+  echo "expected terminal image/text paste helper binding" >&2
+  exit 1
+fi
+if ! grep -Fq 'bind-key -T root C-v' <<< "$key_bindings"; then
+  echo "expected Ctrl+V tmux image/text paste helper binding" >&2
   exit 1
 fi
 
