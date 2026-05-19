@@ -48,6 +48,12 @@ When one AgentRemote pane behaves correctly and sibling panes do not, first comp
 **Why:** Mugatu worked because he had already relaunched through the current launcher path; Xavier, Dasha, and Lucius were still old `gpt-5.3-codex` child processes. Restarting those children fixed the terminal behavior without new code.
 **How to apply:** For terminal paste, Option-key editing, status-line, or model drift across panes, inspect `ps` output before changing scripts. Existing panes do not pick up launcher/config changes until the wrapped child restarts.
 
+### 2026-05-19 — prove AgentRemote layout fixes with renderer bounds, not static resize intent
+
+For popup/window sizing defects, static tests that prove a resize request exists are not enough. Launch a fresh Electron renderer, open the exact Add/Edit surface, and record the live bounds for the form, action buttons, panel, and viewport before calling the UI fixed.
+**Why:** The previous form-sizing fix only proved `syncWindowSize()` asked the BrowserWindow to grow; Richard still saw Save/Cancel clipped because the form's fallback height did not reserve room for the dock and lower panel rows.
+**How to apply:** For AgentRemote clipping regressions, require a screenshot plus booleans like `actionsVisible`, `formBottomVisible`, and `panelBottomVisible` from the running renderer. If the visible operator window differs from the test process, inspect that live process/window before editing again.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
