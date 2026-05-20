@@ -107,6 +107,13 @@ codex_default_model() {
   printf '%s\n' "$value"
 }
 
+codex_catalog_models() {
+  local cache="${CODEX_MODELS_CACHE:-$HOME/.codex/models_cache.json}"
+  if [[ -f "$cache" ]] && command -v jq >/dev/null 2>&1; then
+    jq -r '.models[]? | .slug // empty | select(test("^gpt-[0-9].*"))' "$cache" 2>/dev/null || true
+  fi
+}
+
 codex_supported_models() {
   local raw="${AGENTREMOTE_CODEX_MODELS:-${SWARMY_CODEX_MODELS:-}}"
   local default_model
@@ -116,6 +123,14 @@ codex_supported_models() {
     csv_items "$raw"
   else
     printf '%s\n' "$default_model"
+    codex_catalog_models
+    printf '%s\n' \
+      "gpt-5.5" \
+      "gpt-5.4" \
+      "gpt-5.4-mini" \
+      "gpt-5.3-codex" \
+      "gpt-5.3-codex-spark" \
+      "gpt-5.2"
   fi | awk 'NF && !seen[$0]++'
 }
 

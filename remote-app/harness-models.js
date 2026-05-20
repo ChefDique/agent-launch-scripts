@@ -7,6 +7,10 @@ function codexConfigPath() {
   return process.env.CODEX_CONFIG || path.join(os.homedir(), '.codex', 'config.toml');
 }
 
+function codexModelsCachePath() {
+  return process.env.CODEX_MODELS_CACHE || path.join(os.homedir(), '.codex', 'models_cache.json');
+}
+
 // Read fresh on every call. The JSON is ~700 bytes and is only read when the
 // add/edit-agent form opens, so the cache was never worth the staleness cost
 // — editing config/harness-models.json while AgentRemote is running used to
@@ -57,6 +61,22 @@ function codexConfigModel() {
   return match ? match[1].trim() : null;
 }
 
+function codexCatalogModels() {
+  let data = null;
+  try {
+    data = JSON.parse(fs.readFileSync(codexModelsCachePath(), 'utf8'));
+  } catch {
+    return [];
+  }
+  const models = Array.isArray(data && data.models) ? data.models : [];
+  return dedupeModels(models
+    .map(model => ({
+      id: model && model.slug,
+      label: (model && model.display_name) || (model && model.slug)
+    }))
+    .filter(model => /^gpt-[0-9]/.test(String(model.id || ''))));
+}
+
 function normalizeCodexEntry(entry) {
   const dynamicDefault = (
     process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL
@@ -66,15 +86,18 @@ function normalizeCodexEntry(entry) {
     || ''
   ).trim();
   const envModels = csvEnv('AGENTREMOTE_CODEX_MODELS', 'SWARMY_CODEX_MODELS');
-  const modelSource = envModels.length > 0
+  const baseModels = dedupeModels(envModels.length > 0
     ? envModels
-    : dynamicDefault
-      ? [dynamicDefault]
-      : entry.models || [];
-  const models = dedupeModels([
-    dynamicDefault ? { id: dynamicDefault, label: `${dynamicDefault} (current default)` } : null,
-    ...modelSource
-  ].filter(Boolean));
+    : [...codexCatalogModels(), ...(entry.models || [])]);
+  const defaultModel = dynamicDefault
+    ? baseModels.find(model => model.id === dynamicDefault)
+    : null;
+  const models = defaultModel
+    ? [defaultModel, ...baseModels.filter(model => model.id !== dynamicDefault)]
+    : dedupeModels([
+      dynamicDefault ? { id: dynamicDefault, label: `${dynamicDefault} (current default)` } : null,
+      ...baseModels
+    ].filter(Boolean));
 
   return {
     ...entry,

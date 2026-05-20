@@ -46,11 +46,13 @@ gateway-only.
   `allow_claude_runtime: true`; if the UI says Codex, it must persist
   `runtime: "codex"` and remove Claude-only opt-in fields. Do not silently reuse
   a stale runtime under the same display name.
-- Codex model selection comes from the local Codex config/env capability source,
-  not a stale UI list. AgentRemote reads `AGENTREMOTE_CODEX_DEFAULT_MODEL`,
-  `SWARMY_CODEX_DEFAULT_MODEL`, `CODEX_CONFIG`/`~/.codex/config.toml`, and the
+- Codex model selection comes from the local Codex config/catalog/env capability
+  source, not a stale one-model UI list. AgentRemote reads
+  `AGENTREMOTE_CODEX_DEFAULT_MODEL`, `SWARMY_CODEX_DEFAULT_MODEL`,
+  `CODEX_CONFIG`/`~/.codex/config.toml`, `~/.codex/models_cache.json`, and the
   optional `AGENTREMOTE_CODEX_MODELS` / `SWARMY_CODEX_MODELS` allowlist. The
-  launcher rejects a Codex model outside that allowlist before `codex` is execed.
+  launcher rejects a Codex model outside the same supported set before `codex`
+  is execed.
 - The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
 - Per-agent scripts launch the configured runtime and clean stale Claude delayed
   injection jobs for Claude tmux launches. Boot-time injection is opt-in through

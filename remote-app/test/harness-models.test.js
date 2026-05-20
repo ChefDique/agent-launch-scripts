@@ -16,18 +16,23 @@ test('claude harness has Opus 4.7 + Sonnet 4.6 as available models', () => {
   assert.ok(models.some(m => m.id === 'claude-sonnet-4-6'), 'expected Sonnet 4.6');
 });
 
-test('codex harness follows the live local config model instead of stale baked defaults', () => {
+test('codex harness exposes the current local GPT catalog with gpt-5.5 as default', () => {
   const models = getModelsForHarness('codex');
   const ids = models.map(m => m.id);
-  assert.deepStrictEqual(ids, ['gpt-5.5']);
-  assert.strictEqual(getDefaultModelForHarness('codex'), 'gpt-5.5');
-  for (const stale of [
+  assert.strictEqual(ids[0], 'gpt-5.5');
+  for (const expected of [
+    'gpt-5.5',
     'gpt-5.4',
     'gpt-5.4-mini',
-    'gpt-5.2',
-    'gpt-5',
     'gpt-5.3-codex',
     'gpt-5.3-codex-spark',
+    'gpt-5.2'
+  ]) {
+    assert.ok(ids.includes(expected), `expected Codex model ${expected}`);
+  }
+  assert.strictEqual(getDefaultModelForHarness('codex'), 'gpt-5.5');
+  for (const stale of [
+    'gpt-5',
     'gpt-5-codex',
     'gpt-5.1',
     'gpt-5.1-codex',
@@ -64,6 +69,7 @@ test('all supported harnesses expose reasoning or thinking levels', () => {
   }
   assert.strictEqual(getReasoningLabelForHarness('openclaw'), 'thinking');
   assert.ok(getReasoningLevelsForHarness('claude').some(level => level.id === 'xhigh'), 'Claude effort should include xhigh from CLI help');
+  assert.ok(getReasoningLevelsForHarness('codex').some(level => level.id === 'xhigh'), 'Codex reasoning should include xhigh');
   assert.ok(getReasoningLevelsForHarness('openclaw').some(level => level.id === 'max'), 'OpenClaw thinking should include max');
 });
 
@@ -120,6 +126,7 @@ test('codex model list follows CODEX_CONFIG when no env override is set', () => 
   const os = require('node:os');
   const path = require('node:path');
   const oldConfig = process.env.CODEX_CONFIG;
+  const oldCache = process.env.CODEX_MODELS_CACHE;
   const oldDefault = process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
   const oldModels = process.env.AGENTREMOTE_CODEX_MODELS;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-models-'));
@@ -128,12 +135,57 @@ test('codex model list follows CODEX_CONFIG when no env override is set', () => 
     delete process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
     delete process.env.AGENTREMOTE_CODEX_MODELS;
     process.env.CODEX_CONFIG = configPath;
+    process.env.CODEX_MODELS_CACHE = path.join(dir, 'missing-model-cache.json');
     fs.writeFileSync(configPath, 'model = "gpt-config-default"\n');
-    assert.deepStrictEqual(getModelsForHarness('codex').map(m => m.id), ['gpt-config-default']);
+    assert.deepStrictEqual(getModelsForHarness('codex').map(m => m.id), [
+      'gpt-config-default',
+      'gpt-5.5',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.3-codex',
+      'gpt-5.3-codex-spark',
+      'gpt-5.2'
+    ]);
     assert.strictEqual(getDefaultModelForHarness('codex'), 'gpt-config-default');
   } finally {
     if (oldConfig === undefined) delete process.env.CODEX_CONFIG;
     else process.env.CODEX_CONFIG = oldConfig;
+    if (oldCache === undefined) delete process.env.CODEX_MODELS_CACHE;
+    else process.env.CODEX_MODELS_CACHE = oldCache;
+    if (oldDefault === undefined) delete process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
+    else process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL = oldDefault;
+    if (oldModels === undefined) delete process.env.AGENTREMOTE_CODEX_MODELS;
+    else process.env.AGENTREMOTE_CODEX_MODELS = oldModels;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('codex model list refreshes from the local Codex model cache when present', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const oldCache = process.env.CODEX_MODELS_CACHE;
+  const oldDefault = process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
+  const oldModels = process.env.AGENTREMOTE_CODEX_MODELS;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-model-cache-'));
+  const cachePath = path.join(dir, 'models_cache.json');
+  try {
+    delete process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
+    delete process.env.AGENTREMOTE_CODEX_MODELS;
+    process.env.CODEX_MODELS_CACHE = cachePath;
+    fs.writeFileSync(cachePath, JSON.stringify({
+      models: [
+        { slug: 'gpt-6.0', display_name: 'GPT-6.0' },
+        { slug: 'codex-auto-review', display_name: 'Codex Auto Review' }
+      ]
+    }));
+    const ids = getModelsForHarness('codex').map(m => m.id);
+    assert.ok(ids.includes('gpt-6.0'), 'expected cache-discovered GPT model');
+    assert.ok(!ids.includes('codex-auto-review'), 'review-only Codex model should not appear in runtime picker');
+    assert.ok(ids.includes('gpt-5.5'), 'configured fallback models should remain available');
+  } finally {
+    if (oldCache === undefined) delete process.env.CODEX_MODELS_CACHE;
+    else process.env.CODEX_MODELS_CACHE = oldCache;
     if (oldDefault === undefined) delete process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL;
     else process.env.AGENTREMOTE_CODEX_DEFAULT_MODEL = oldDefault;
     if (oldModels === undefined) delete process.env.AGENTREMOTE_CODEX_MODELS;

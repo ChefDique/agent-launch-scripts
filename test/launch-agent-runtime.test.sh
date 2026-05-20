@@ -251,6 +251,14 @@ run_agent() {
     bash "$REPO_ROOT/launch-agent.sh" "$1"
 }
 
+run_agent_with_catalog() {
+  PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    CODEX_CONFIG="$TMP_DIR/codex-config.toml" \
+    CODEX_MODELS_CACHE="$TMP_DIR/missing-model-cache.json" \
+    bash "$REPO_ROOT/launch-agent.sh" "$1"
+}
+
 codex_output="$(run_agent codex)"
 grep -qx 'COMMAND:codex' <<< "$codex_output"
 grep -qx 'ARG:--model' <<< "$codex_output"
@@ -283,6 +291,10 @@ grep -qx 'ENV:SWARMY_LOCAL_ATTACH=iterm_control_mode' <<< "$preset_output"
 override_output="$(run_agent preset-override)"
 grep -qx 'ARG:gpt-5.5' <<< "$override_output"
 grep -qx 'ARG:model_reasoning_effort="high"' <<< "$override_output"
+
+catalog_model_output="$(SWARMY_MODEL_OVERRIDE='gpt-5.4' run_agent_with_catalog codex)"
+grep -qx 'COMMAND:codex' <<< "$catalog_model_output"
+grep -qx 'ARG:gpt-5.4' <<< "$catalog_model_output"
 grep -qx 'ARG:danger-full-access' <<< "$override_output"
 grep -qx 'ARG:never' <<< "$override_output"
 
