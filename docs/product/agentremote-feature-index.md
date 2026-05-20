@@ -245,20 +245,38 @@ explicit approval before running.
   approved pane and verify output streaming, input submission, paste handling,
   and cleanup after closing the overlay.
 
-### 14. Option-Key Terminal Shortcuts
+### 14. Tmux Wrapper Input Shortcuts
 
-- Purpose: Make the embedded terminal feel like a usable macOS terminal for word
-  navigation and deletion.
+- Purpose: Preserve normal Codex/iTerm typing behavior inside the tmux wrapper:
+  paste images/text into Codex chat, move by word, and delete words without
+  raw control/CSI-u bytes appearing in the prompt.
+- Expected behavior: The wrapper sets tmux `extended-keys=on` rather than
+  `always`, keeps `xterm-keys=on`, binds Option-left/right/backspace/delete and
+  Ctrl-left/right/backspace/delete to the readline-compatible keys Codex expects,
+  and binds Ctrl/Option-V to the clipboard image/text paste helper.
+- Source files: `chq-tmux.sh`, `scripts/paste-clipboard-image-to-pane.sh`,
+  `test/chq-ittab-window-layout.test.sh`.
+- Tests: `test/chq-ittab-window-layout.test.sh`, `bash -n chq-tmux.sh`.
+- Manual/live verification requirement: Restart the affected tmux/iTerm/Codex
+  session so terminal key negotiation refreshes, then verify image/text paste,
+  Option-backspace, Ctrl-backspace, Option-delete, Ctrl-delete, and word-arrow
+  navigation in a real Codex chat prompt. Applying bindings to an already-open
+  tmux server is not enough proof because existing iTerm/tmux clients can keep
+  stale modified-key negotiation.
+
+### 14b. Embedded AgentRemote Terminal Shortcuts
+
+- Purpose: Make the AgentRemote embedded xterm surface feel like a usable macOS
+  terminal for word navigation and deletion.
 - Expected behavior: Option/Alt-left and Option/Alt-right map to word movement,
   Option/Alt-backspace/delete and Option-b/f/d map to expected readline escape
   sequences or tmux key names, while normal text and paste continue unchanged.
-- Source files: `remote-app/terminal-input.js`, `remote-app/index.html`,
-  `test/chq-ittab-window-layout.test.sh`.
+- Source files: `remote-app/terminal-input.js`, `remote-app/index.html`.
 - Tests: `remote-app/test/terminal-input.test.js`,
-  `test/chq-ittab-window-layout.test.sh`.
+  `remote-app/test/renderer-static.test.js`.
 - Manual/live verification requirement: With approval, focus an approved
-  terminal pane and verify Option-key shortcuts move/delete words without
-  inserting control garbage.
+  embedded terminal pane and verify Option-key shortcuts move/delete words
+  without inserting control garbage.
 
 ### 15. Voice and Local STT
 

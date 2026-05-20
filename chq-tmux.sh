@@ -371,7 +371,7 @@ cmd_start() {
   tmux set -g history-limit 50000
   # Let terminal chat UIs distinguish modified keys such as Shift+Enter
   # through tmux. iTerm must also emit modified-key sequences for this to work.
-  tmux set -g extended-keys always
+  tmux set -g extended-keys on
   tmux set -g extended-keys-format csi-u
   if ! tmux show -gqv terminal-features | tr ',' '\n' | grep -Eq '^xterm\*:(.*:)?extkeys(:|$)'; then
     tmux set -as terminal-features ',xterm*:extkeys'
@@ -391,6 +391,11 @@ cmd_start() {
   tmux bind-key -n M-BSpace  send-keys Escape BSpace
   tmux bind-key -n M-DC      send-keys Escape d
   tmux bind-key -n M-d       send-keys Escape d
+  tmux bind-key -n C-Left    send-keys Escape b
+  tmux bind-key -n C-Right   send-keys Escape f
+  tmux bind-key -n C-BSpace  send-keys C-w
+  tmux bind-key -n C-H       send-keys C-w
+  tmux bind-key -n C-DC      send-keys Escape d
   tmux bind-key -n C-v      run-shell "${SCRIPT_DIR}/scripts/paste-clipboard-image-to-pane.sh '#{pane_id}'"
   tmux bind-key -n M-v      run-shell "${SCRIPT_DIR}/scripts/paste-clipboard-image-to-pane.sh '#{pane_id}'"
 

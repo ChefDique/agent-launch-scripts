@@ -73,12 +73,24 @@ if awk -F: '$3 != 1 { bad=1 } END { exit bad ? 0 : 1 }' <<< "$windows"; then
 fi
 
 key_bindings="$(tmux list-keys -T root)"
+if [[ "$(tmux show -gqv extended-keys)" != "on" ]]; then
+  echo "expected tmux extended-keys=on so modified keys are available without forcing raw CSI-u into apps" >&2
+  exit 1
+fi
 if ! grep -Fq 'bind-key -T root M-Left' <<< "$key_bindings"; then
   echo "expected Option+Left to be normalized to Codex word-left bytes" >&2
   exit 1
 fi
 if ! grep -Fq 'bind-key -T root M-BSpace' <<< "$key_bindings"; then
   echo "expected Option+Backspace to be normalized to Codex word-delete bytes" >&2
+  exit 1
+fi
+if ! grep -Fq 'bind-key -T root C-BSpace' <<< "$key_bindings"; then
+  echo "expected Ctrl+Backspace to be normalized to Codex word-delete bytes" >&2
+  exit 1
+fi
+if ! grep -Fq 'bind-key -T root C-DC' <<< "$key_bindings"; then
+  echo "expected Ctrl+Delete to be normalized to Codex forward-word-delete bytes" >&2
   exit 1
 fi
 if ! grep -Fq 'paste-clipboard-image-to-pane.sh' <<< "$key_bindings"; then
