@@ -295,6 +295,10 @@ grep -qx 'ARG:model_reasoning_effort="high"' <<< "$override_output"
 catalog_model_output="$(SWARMY_MODEL_OVERRIDE='gpt-5.4' run_agent_with_catalog codex)"
 grep -qx 'COMMAND:codex' <<< "$catalog_model_output"
 grep -qx 'ARG:gpt-5.4' <<< "$catalog_model_output"
+
+xhigh_reasoning_output="$(SWARMY_REASONING_EFFORT_OVERRIDE='xhigh' run_agent codex)"
+grep -qx 'COMMAND:codex' <<< "$xhigh_reasoning_output"
+grep -qx 'ARG:model_reasoning_effort="xhigh"' <<< "$xhigh_reasoning_output"
 grep -qx 'ARG:danger-full-access' <<< "$override_output"
 grep -qx 'ARG:never' <<< "$override_output"
 

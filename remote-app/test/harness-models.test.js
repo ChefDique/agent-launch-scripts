@@ -51,6 +51,11 @@ test('codex default is the coding model', () => {
   assert.strictEqual(getDefaultModelForHarness('codex'), 'gpt-5.5');
 });
 
+test('codex exposes thinking-level wording and xhigh effort', () => {
+  assert.strictEqual(getReasoningLabelForHarness('codex'), 'thinking level');
+  assert.ok(getReasoningLevelsForHarness('codex').some(level => level.id === 'xhigh'));
+});
+
 test('all supported harnesses expose configurable model lists', () => {
   for (const harness of ['claude', 'codex', 'hermes', 'openclaw']) {
     const models = getModelsForHarness(harness);
