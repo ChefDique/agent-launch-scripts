@@ -338,8 +338,8 @@ test('embedded terminal intercepts paste and sends clipboard text or submitted i
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);
   assert.match(pasteHelperBlock, /const imageReference = saved\.join\(' '\)/);
-  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: imageReference \}\)/);
-  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: imageReference, submit: true \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker, submit: true \}\)/);
   assert.doesNotMatch(pasteHelperBlock, /data: `\$\{imageReference\}\\r`/);
   assert.doesNotMatch(pasteHelperBlock, /data: `\$\{marker\}\\r`/);
   assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: eventText \}\)/);
@@ -412,8 +412,10 @@ test('embedded terminal only sends Enter for explicit terminal key data', () => 
 
   assert.match(terminalOnDataBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data, allowEnter: true \}\)/);
   assert.match(paneInputBlock, /const allowEnter = payload\.allowEnter === true/);
+  assert.match(paneInputBlock, /const submit = payload\.submit === true/);
   assert.match(paneInputBlock, /if \(!allowEnter && \/\[\\r\\n\]\/\.test\(data\)\) \{/);
   assert.match(paneInputBlock, /replace\(\/\[\\r\\n\]\+\$\/g, ''\)/);
+  assert.match(paneInputBlock, /if \(submit\) sendPaneKeys\(entry\.paneId, \['Enter'\]\)/);
   assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, \['Enter'\]\)/);
 });
 

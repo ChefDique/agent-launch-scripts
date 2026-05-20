@@ -3503,7 +3503,7 @@ function sendPaneKeys(paneId, keys) {
 // Text is forwarded literally. Known word-edit escape sequences are forwarded
 // as real keys so tmux does not flatten them into inert literal bytes. Enter is
 // only converted to a real keypress for explicit terminal key data; paste/image
-// paths must not auto-submit by smuggling a trailing CR/LF.
+// paths submit only through an explicit flag, not by smuggling a trailing CR/LF.
 ipcMain.on('pane-input', (_event, payload = {}) => {
   const { id, data } = payload;
   const safeId = String(id || '').trim().toLowerCase();
@@ -3512,6 +3512,7 @@ ipcMain.on('pane-input', (_event, payload = {}) => {
   if (!entry || !entry.paneId) return;
   if (typeof data !== 'string' || data.length === 0) return;
   const allowEnter = payload.allowEnter === true;
+  const submit = payload.submit === true;
 
   const wordKeys = tmuxKeysForTerminalInput(data);
   if (wordKeys) {
@@ -3523,6 +3524,7 @@ ipcMain.on('pane-input', (_event, payload = {}) => {
     const pasteText = data.replace(/\r\n/g, '\n').replace(/[\r\n]+$/g, '');
     if (pasteText.length > 0) {
       sendPaneLiteral(entry.paneId, pasteText);
+      if (submit) sendPaneKeys(entry.paneId, ['Enter']);
     }
     return;
   }
@@ -3545,6 +3547,9 @@ ipcMain.on('pane-input', (_event, payload = {}) => {
   }
   if (pending.length > 0) {
     sendPaneLiteral(entry.paneId, pending);
+  }
+  if (submit) {
+    sendPaneKeys(entry.paneId, ['Enter']);
   }
 });
 

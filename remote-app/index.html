@@ -6548,7 +6548,7 @@
           saved.push(`[image: ${result.path}]`);
         }
         const imageReference = saved.join(' ');
-        ipcRenderer.send('pane-input', { id: agentId, data: imageReference });
+        ipcRenderer.send('pane-input', { id: agentId, data: imageReference, submit: true });
         return true;
       }
 
@@ -6560,7 +6560,7 @@
 
       const marker = await saveNativeClipboardImageReference();
       if (marker) {
-        ipcRenderer.send('pane-input', { id: agentId, data: marker });
+        ipcRenderer.send('pane-input', { id: agentId, data: marker, submit: true });
         return true;
       }
 
