@@ -54,6 +54,12 @@ For popup/window sizing defects, static tests that prove a resize request exists
 **Why:** The previous form-sizing fix only proved `syncWindowSize()` asked the BrowserWindow to grow; Richard still saw Save/Cancel clipped because the form's fallback height did not reserve room for the dock and lower panel rows.
 **How to apply:** For AgentRemote clipping regressions, require a screenshot plus booleans like `actionsVisible`, `formBottomVisible`, and `panelBottomVisible` from the running renderer. If the visible operator window differs from the test process, inspect that live process/window before editing again.
 
+### 2026-05-19 — hooks remind; the lead still performs chores
+
+Codex lifecycle hooks in this repo emit context or block unsafe tool use; they do not run `/chores` or rewrite handoff files by themselves. When a hook or user asks for chores, stop feature work long enough to update the handoff, session fold, and agent notes before continuing.
+**Why:** Richard caught Neo continuing implementation and explanations while the hook/discipline expectation was to do the actual cleanup.
+**How to apply:** If a session creates a broad checkpoint or the user asks about ignored hooks, immediately run the `/chores` procedure: inspect memory scaffold, overwrite `memory/handoff.md`, append only real learnings, run safe verification, then commit if the checkpoint is green.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):

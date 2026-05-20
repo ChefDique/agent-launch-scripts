@@ -3892,6 +3892,10 @@
         <label>model</label>
         <select id="f-model" autocomplete="off"></select>
       </div>
+      <div class="form-row" id="f-reasoning-row">
+        <label id="f-reasoning-label">reasoning</label>
+        <select id="f-reasoning" autocomplete="off"></select>
+      </div>
       <!-- Profile-name row — shown instead of model picker when runtime=hermes
            or runtime=openclaw. The value becomes the registry id with a runtime
            suffix appended (see buildProfileId in JS). Hidden for claude/codex. -->
@@ -4177,6 +4181,9 @@
       harnessOptionFor,
       normalizeRuntime
     } = require('./harness-options');
+    const {
+      terminalWordShortcutBytes
+    } = require('./terminal-input');
 
     // ── AtlasEvent Bus (ARB-003) ─────────────────────────────────────
     // Renderer-side event bus companion. Routes UI actions → main process
@@ -4565,9 +4572,8 @@
       });
     }
 
-    // True when the runtime uses a profile-name field instead of a model picker.
-    // Hermes and OpenClaw agents register as headless profiles via the Telegram
-    // bridge; the model concept doesn't apply.
+    // True when the runtime also needs a profile-name field for registry id
+    // derivation. Model/reasoning still come from the harness catalog.
     function isProfileRuntime(runtime) {
       return runtime === 'hermes' || runtime === 'openclaw';
     }
@@ -4596,16 +4602,16 @@
         addFormRuntime,
         setAddHarnessRuntime
       );
-      // Swap model picker ↔ profile-name field based on runtime.
+      // Toggle profile-name field based on runtime. Model/reasoning stay visible
+      // for every harness so the catalog is the single source of picker choices.
       // id row is hidden for profile runtimes: the id IS derived from profile+suffix.
       const useProfile = isProfileRuntime(addFormRuntime);
-      const modelRow   = document.getElementById('f-model-row');
       const profileRow = document.getElementById('f-profile-row');
       const idRow      = document.getElementById('f-id-row');
-      if (modelRow)   modelRow.style.display   = useProfile ? 'none' : '';
       if (profileRow) profileRow.style.display  = useProfile ? ''     : 'none';
       if (idRow)      idRow.style.display        = useProfile ? 'none' : '';
-      if (!useProfile) populateAddFormModelOptions(addFormRuntime);
+      populateAddFormModelOptions(addFormRuntime);
+      populateAddFormReasoningOptions(addFormRuntime);
       scheduleWindowSizeSync();
     }
 
@@ -4635,6 +4641,37 @@
       }
       select.innerHTML = opts.join('');
       select.value = currentModel || defaultModel || '';
+      select.disabled = false;
+      scheduleWindowSizeSync();
+    }
+
+    async function populateAddFormReasoningOptions(runtime, currentReasoning) {
+      const select = document.getElementById('f-reasoning');
+      const label = document.getElementById('f-reasoning-label');
+      if (!select) return;
+      const {
+        reasoningLevels = [],
+        defaultReasoning = '',
+        reasoningLabel = 'reasoning'
+      } = (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
+      if (label) label.textContent = reasoningLabel;
+      const opts = [];
+      let foundCurrent = false;
+      for (const level of reasoningLevels) {
+        foundCurrent = foundCurrent || level.id === currentReasoning;
+        opts.push(`<option value="${escapeHtml(level.id)}">${escapeHtml(level.label || level.id)}</option>`);
+      }
+      if (currentReasoning && !foundCurrent) {
+        opts.unshift(`<option value="${escapeHtml(currentReasoning)}">${escapeHtml(currentReasoning)} (custom)</option>`);
+      }
+      if (!opts.length) {
+        select.innerHTML = '<option value="">(no reasoning levels registered)</option>';
+        select.disabled = true;
+        scheduleWindowSizeSync();
+        return;
+      }
+      select.innerHTML = opts.join('');
+      select.value = currentReasoning || defaultReasoning || '';
       select.disabled = false;
       scheduleWindowSizeSync();
     }
@@ -5918,11 +5955,15 @@
                  value="${escapeHtml(_settingsProfileSlug)}"
                  placeholder="e.g. aria"
                  autocomplete="off" spellcheck="false" />
-        </div>` : `
+        </div>` : ''}
         <div class="settings-row" id="set-model-row">
           <label for="set-model">Model</label>
           <select id="set-model" autocomplete="off"></select>
-        </div>`}
+        </div>
+        <div class="settings-row" id="set-reasoning-row">
+          <label for="set-reasoning" id="set-reasoning-label">Reasoning</label>
+          <select id="set-reasoning" autocomplete="off"></select>
+        </div>
         <div class="toggle-row">
           <div class="toggle-meta">
             <div class="verb">Auto-restart</div>
@@ -6022,15 +6063,16 @@
       });
 
       const harnessPicker = layer.querySelector('#set-harness-picker');
-      const modelSelect   = layer.querySelector('#set-model');   // null for profile runtimes
+      const modelSelect   = layer.querySelector('#set-model');
+      const reasoningSelect = layer.querySelector('#set-reasoning');
+      const reasoningLabel = layer.querySelector('#set-reasoning-label');
       const profileInput  = layer.querySelector('#set-profile'); // null for claude/codex
 
       // Populate the per-harness model dropdown from main's harness-models loader.
       // If the saved value isn't in the harness's list (legacy / custom model),
       // prepend a `(custom)` option so nothing gets silently rewritten.
-      // No-op when the popover is showing a profile field instead of a model select.
       async function populateModelOptions(runtime, currentModel) {
-        if (!modelSelect) return; // profile-runtime popover: no model select rendered
+        if (!modelSelect) return;
         const { models = [], default: defaultModel = '' } =
           (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
         const opts = [];
@@ -6054,6 +6096,35 @@
         relayoutSettingsPanel(false);
       }
 
+      async function populateReasoningOptions(runtime, currentReasoning) {
+        if (!reasoningSelect) return;
+        const {
+          reasoningLevels = [],
+          defaultReasoning = '',
+          reasoningLabel: label = 'reasoning'
+        } = (await ipcRenderer.invoke('get-harness-models', runtime)) || {};
+        if (reasoningLabel) reasoningLabel.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+        const opts = [];
+        let foundCurrent = false;
+        for (const level of reasoningLevels) {
+          foundCurrent = foundCurrent || level.id === currentReasoning;
+          opts.push(`<option value="${escapeHtml(level.id)}">${escapeHtml(level.label || level.id)}</option>`);
+        }
+        if (currentReasoning && !foundCurrent) {
+          opts.unshift(`<option value="${escapeHtml(currentReasoning)}">${escapeHtml(currentReasoning)} (custom)</option>`);
+        }
+        if (!opts.length) {
+          reasoningSelect.innerHTML = '<option value="">(no reasoning levels registered)</option>';
+          reasoningSelect.disabled = true;
+          relayoutSettingsPanel(false);
+          return;
+        }
+        reasoningSelect.innerHTML = opts.join('');
+        reasoningSelect.value = currentReasoning || defaultReasoning || '';
+        reasoningSelect.disabled = false;
+        relayoutSettingsPanel(false);
+      }
+
       // When the harness changes in the settings popover, re-render the whole
       // popover so the model/profile swap happens cleanly.
       const saveRuntime = async (runtime) => {
@@ -6074,9 +6145,8 @@
         }
       };
       renderHarnessPicker(harnessPicker, agent.runtime || 'codex', saveRuntime, { compact: true });
-      if (!isProfileRuntime(agent.runtime || 'codex')) {
-        populateModelOptions(agent.runtime || 'codex', agent.model || '');
-      }
+      populateModelOptions(agent.runtime || 'codex', agent.model || '');
+      populateReasoningOptions(agent.runtime || 'codex', agent.reasoningEffort || '');
 
       const setAvatarPickBtn = layer.querySelector('#set-avatar-pick');
       if (setAvatarPickBtn) {
@@ -6127,6 +6197,22 @@
         });
       }
 
+      if (reasoningSelect) {
+        reasoningSelect.addEventListener('change', async () => {
+          const next = reasoningSelect.value;
+          const prev = agent.reasoningEffort;
+          agent.reasoningEffort = next;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { reasoning_effort: next } });
+          if (res.ok) {
+            if (res.entry && res.entry.reasoning_effort !== undefined) agent.reasoningEffort = res.entry.reasoning_effort;
+          } else {
+            agent.reasoningEffort = prev;
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+            await populateReasoningOptions(agent.runtime || 'codex', agent.reasoningEffort || '');
+          }
+        });
+      }
+
       // Profile-name input (hermes / openclaw only).
       // Saving rewrites the agent's registry id to profile + runtime suffix.
       if (profileInput) {
@@ -6136,7 +6222,18 @@
           if (v === profileInput.dataset.savedValue) return;
           const newId = buildProfileId(agent.runtime, v);
           if (!newId) return;
-          const res = await ipcRenderer.invoke('update-agent', { id, patch: { id: newId } });
+          const res = await ipcRenderer.invoke('update-agent-form', {
+            originalId: id,
+            id: newId,
+            displayName: agent.displayName || id,
+            cwd: agent.cwd || '',
+            runtime: agent.runtime || 'codex',
+            model: agent.model || '',
+            reasoningEffort: agent.reasoningEffort || '',
+            startupSlash: agent.startupSlash || '',
+            startupLines: registryStartupLinesForAgent(agent),
+            autoRestart: agent.autoRestart !== false
+          });
           if (res.ok) {
             profileInput.dataset.savedValue = v;
             // The agent's registry id changed — reload so references are consistent.
@@ -6450,7 +6547,8 @@
           }
           saved.push(`[image: ${result.path}]`);
         }
-        ipcRenderer.send('pane-input', { id: agentId, data: saved.join(' ') });
+        const imageReference = saved.join(' ');
+        ipcRenderer.send('pane-input', { id: agentId, data: `${imageReference}\r` });
         return true;
       }
 
@@ -6462,7 +6560,7 @@
 
       const marker = await saveNativeClipboardImageReference();
       if (marker) {
-        ipcRenderer.send('pane-input', { id: agentId, data: marker });
+        ipcRenderer.send('pane-input', { id: agentId, data: `${marker}\r` });
         return true;
       }
 
@@ -7135,12 +7233,12 @@
           : (agent.id || id);
         const profileEl = document.getElementById('f-profile');
         if (profileEl) profileEl.value = profileSlug;
-      } else {
-        // setAddHarnessRuntime resets the model dropdown to the harness default;
-        // re-populate with the agent's actual saved model so the existing value
-        // pre-selects (or shows up as `(custom)` if it isn't in the list).
-        populateAddFormModelOptions(agent.runtime || 'codex', agent.model || '');
       }
+      // setAddHarnessRuntime resets catalog-backed dropdowns to harness
+      // defaults; re-populate with the agent's saved values so custom or legacy
+      // choices are preserved visibly.
+      populateAddFormModelOptions(agent.runtime || 'codex', agent.model || '');
+      populateAddFormReasoningOptions(agent.runtime || 'codex', agent.reasoningEffort || '');
       syncPetSelect(id);
       document.body.classList.add('adding');
       const _af1 = document.getElementById('add-form');
@@ -7338,6 +7436,7 @@
       errEl.textContent = '';
       const themeColor = document.getElementById('f-color').value;  // hex from <input type="color">
       const modelEl = document.getElementById('f-model');
+      const reasoningEl = document.getElementById('f-reasoning');
       const useProfile = isProfileRuntime(addFormRuntime);
       // For hermes/openclaw, derive the registry id from the profile field +
       // runtime suffix. The explicit id field is hidden in that flow.
@@ -7355,7 +7454,8 @@
         themeColor,              // hex string persisted to agents.json theme_color
         startupSlash: document.getElementById('f-slash').value.trim(),
         avatarSrc: pickedAvatarPath,
-        model: useProfile ? '' : (modelEl ? modelEl.value : ''),
+        model: modelEl ? modelEl.value : '',
+        reasoningEffort: reasoningEl ? reasoningEl.value : '',
         autoRestart: document.getElementById('f-autorestart').checked
       };
       if (
@@ -9515,24 +9615,6 @@
       };
       host.addEventListener('paste', handleTerminalPaste, true);
 
-      const isTerminalWordShortcut = (ev) => {
-        if (!ev || ev.type !== 'keydown') return null;
-        if (!ev.altKey || ev.ctrlKey || ev.metaKey) return null;
-
-        const key = (ev.key || '').toLowerCase();
-        const code = ev.code || '';
-
-        if (code === 'ArrowLeft' || key === 'arrowleft') return '\x1bb';
-        if (code === 'ArrowRight' || key === 'arrowright') return '\x1bf';
-        if (key === 'backspace') return '\x1b\x7f';
-        if (key === 'delete') return '\x1bd';
-        if (code === 'KeyB' || key === 'b') return '\x1bb';
-        if (code === 'KeyF' || key === 'f') return '\x1bf';
-        if (code === 'KeyD' || key === 'd') return '\x1bd';
-
-        return null;
-      };
-
       const isTerminalPasteShortcut = (ev) => {
         if (!ev || ev.type !== 'keydown') return false;
         if (ev.altKey) return false;
@@ -9554,7 +9636,7 @@
         ipcRenderer.send('pane-input', { id: agentId, data });
       });
       term.attachCustomKeyEventHandler((ev) => {
-        const terminalWordShortcut = isTerminalWordShortcut(ev);
+        const terminalWordShortcut = terminalWordShortcutBytes(ev);
         if (terminalWordShortcut) {
           ev.preventDefault();
           ipcRenderer.send('pane-input', { id: agentId, data: terminalWordShortcut });

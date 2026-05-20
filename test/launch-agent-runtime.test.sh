@@ -6,6 +6,9 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 unset \
+  MESSAGE_AGENT_IDENTITY \
+  MESSAGE_AGENT_FROM \
+  SWARMY_WORKER_NAME \
   SWARMY_RUNTIME_OVERRIDE \
   SWARMY_MODEL_OVERRIDE \
   SWARMY_REASONING_EFFORT_OVERRIDE \
@@ -19,6 +22,9 @@ unset \
   SWARMY_LOCAL_ATTACH
 
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
+cat > "$TMP_DIR/codex-config.toml" <<'TOML'
+model = "gpt-5.5"
+TOML
 
 cat > "$TMP_DIR/bin/codex" <<'SH'
 #!/usr/bin/env bash
@@ -72,7 +78,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
     {
       "profile_id": "runtime-presets",
       "runtime": "codex",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5.5",
       "reasoning_effort": "low",
       "workspace": {
         "cwd_mode": "worktree",
@@ -100,7 +106,11 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "reasoning_effort": "high",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
-      "startup_slash": "/lead-gogo"
+      "startup_slash": "/lead-gogo",
+      "startup_injection": {
+        "include": ["dangerous_permission_enter", "startup_lines"],
+        "exclude": []
+      }
     },
     {
       "id": "legacy",
@@ -144,8 +154,13 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "color": "purple",
       "rename_to": "INTENTIONAL",
       "startup_slash": "/lead-gogo",
+      "startup_injection": {
+        "include": ["dangerous_permission_enter", "startup_lines"],
+        "exclude": []
+      },
       "startup_lines": [
         "/color {{color}}",
+        "-literal-starts-with-dash",
         "/rename {{rename_to}}",
         "{{startup_slash}}"
       ]
@@ -157,6 +172,32 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "runtime": "claude",
       "allow_claude_runtime": true,
       "startup_slash": "/lead-gogo"
+    },
+    {
+      "id": "exclude-enter-runtime",
+      "display_name": "Exclude Enter Runtime",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "claude",
+      "allow_claude_runtime": true,
+      "rename_to": "EXCLUDE-ENTER",
+      "startup_slash": "/lead-gogo",
+      "startup_injection": {
+        "include": ["dangerous_permission_enter", "startup_lines"],
+        "exclude": ["dangerous_permission_enter"]
+      },
+      "startup_lines": [
+        "/rename {{rename_to}}"
+      ]
+    },
+    {
+      "id": "invalid-startup-policy",
+      "display_name": "Invalid Startup Policy",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "claude",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": "dangerous_permission_enter"
+      }
     },
     {
       "id": "blocked-claude-runtime",
@@ -205,6 +246,8 @@ JSON
 run_agent() {
   PATH="$TMP_DIR/bin:$PATH" \
     AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    CODEX_CONFIG="$TMP_DIR/codex-config.toml" \
+    AGENTREMOTE_CODEX_MODELS="gpt-5.5,gpt-5.5-fast" \
     bash "$REPO_ROOT/launch-agent.sh" "$1"
 }
 
@@ -225,7 +268,7 @@ grep -qx 'ARG:/lead-gogo' <<< "$codex_output"
 preset_output="$(run_agent preset-codex)"
 grep -qx 'COMMAND:codex' <<< "$preset_output"
 grep -qx 'ARG:--model' <<< "$preset_output"
-grep -qx 'ARG:gpt-4o-mini' <<< "$preset_output"
+grep -qx 'ARG:gpt-5.5' <<< "$preset_output"
 grep -qx 'ARG:model_reasoning_effort="low"' <<< "$preset_output"
 grep -qx 'ARG:--ask-for-approval' <<< "$preset_output"
 grep -qx 'ARG:on-request' <<< "$preset_output"
@@ -267,9 +310,64 @@ tmux_claude_output="$(
 grep -qx 'COMMAND:claude' <<< "$tmux_claude_output"
 sleep 1
 grep -Fxq 'send-keys -t %testpane Enter' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane -l /color purple' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane -l /rename INTENTIONAL' "$TMUX_CALLS"
-grep -Fxq 'send-keys -t %testpane -l /lead-gogo' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l -- /color purple' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l -- -literal-starts-with-dash' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %testpane -l -- /rename INTENTIONAL' "$TMUX_CALLS"
+
+TMUX_CALLS="$TMP_DIR/codex-policy-tmux-calls.log"
+rm -f "$TMUX_CALLS"
+codex_policy_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%codexpolicy" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" codex
+)"
+grep -qx 'COMMAND:codex' <<< "$codex_policy_output"
+sleep 1
+if grep -q '^send-keys' "$TMUX_CALLS"; then
+  echo "Codex runtime must ignore startup_injection policy and avoid tmux send-keys" >&2
+  cat "$TMUX_CALLS" >&2
+  exit 1
+fi
+
+TMUX_CALLS="$TMP_DIR/xavier-no-policy-tmux-calls.log"
+rm -f "$TMUX_CALLS" /tmp/xavier-bg-_nopolicy.pids
+xavier_no_policy_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%nopolicy" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_RENAME_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" xavier
+)"
+grep -qx 'COMMAND:claude' <<< "$xavier_no_policy_output"
+sleep 1
+if grep -q '^send-keys' "$TMUX_CALLS"; then
+  echo "Claude runtime without startup_injection policy must not auto-inject blank Enter or startup lines" >&2
+  cat "$TMUX_CALLS" >&2
+  exit 1
+fi
+
+TMUX_CALLS="$TMP_DIR/exclude-enter-tmux-calls.log"
+rm -f "$TMUX_CALLS" /tmp/exclude-enter-runtime-bg-_exclude.pids
+exclude_enter_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%exclude" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" exclude-enter-runtime
+)"
+grep -qx 'COMMAND:claude' <<< "$exclude_enter_output"
+sleep 1
+first_exclude_send_key="$(awk '/^send-keys/ { print; exit }' "$TMUX_CALLS")"
+[[ "$first_exclude_send_key" == 'send-keys -t %exclude -l -- /rename EXCLUDE-ENTER' ]]
 
 launch_override_claude_output="$(SWARMY_RUNTIME_OVERRIDE=claude run_agent codex 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$launch_override_claude_output"
@@ -311,6 +409,12 @@ grep -qx 'COMMAND:codex' <<< "$contaminated_codex_override_output"
 grep -qx 'ARG:gpt-5.5' <<< "$contaminated_codex_override_output"
 grep -qx 'ARG:model_reasoning_effort="high"' <<< "$contaminated_codex_override_output"
 grep -q "ignoring Claude model 'claude-opus-4-7\\[1m\\]' for Codex runtime agent 'codex'" <<< "$contaminated_codex_override_output"
+
+if unsupported_codex_model_output="$(SWARMY_MODEL_OVERRIDE='gpt-5.1' run_agent codex 2>&1)"; then
+  echo "expected unsupported Codex model to fail before exec" >&2
+  exit 1
+fi
+grep -q "unsupported Codex model 'gpt-5.1'" <<< "$unsupported_codex_model_output"
 
 contaminated_claude_output="$(run_agent contaminated-claude-runtime 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$contaminated_claude_output"
@@ -356,7 +460,14 @@ if preset_unknown_output="$(run_agent preset-unknown 2>&1)"; then
 fi
 grep -q "unknown profile_preset" <<< "$preset_unknown_output"
 
-grep -q 'tmux send-keys -t "$TMUX_PANE" Enter' "$REPO_ROOT/launch-agent.sh"
+if invalid_policy_output="$(run_agent invalid-startup-policy 2>&1)"; then
+  echo "expected malformed startup_injection policy to fail" >&2
+  exit 1
+fi
+grep -q "startup_injection.include" <<< "$invalid_policy_output"
+
+grep -q 'startup_injection_allows "dangerous_permission_enter"' "$REPO_ROOT/launch-agent.sh"
+grep -q 'startup_injection_allows "startup_lines"' "$REPO_ROOT/launch-agent.sh"
 grep -q 'read_startup_lines()' "$REPO_ROOT/launch-agent.sh"
 ! grep -q 'submit_tmux_text' "$REPO_ROOT/launch-agent.sh"
 

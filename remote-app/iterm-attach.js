@@ -21,6 +21,7 @@ function buildITermAttachScript(command) {
   activate
   set markerName to ${quotedMarker}
   set targetWindow to missing value
+  set targetSession to missing value
   repeat with candidateWindow in windows
     repeat with candidateTab in tabs of candidateWindow
       repeat with candidateSession in sessions of candidateTab
@@ -38,8 +39,15 @@ function buildITermAttachScript(command) {
   if targetWindow is missing value then
     create window with default profile
     set targetWindow to current window
+    set targetSession to current session of targetWindow
+  else
+    tell targetWindow
+      create tab with default profile
+      set targetSession to current session
+    end tell
   end if
-  tell current session of targetWindow
+  set miniaturized of targetWindow to false
+  tell targetSession
     set name to markerName
     write text ${quotedCommand}
   end tell

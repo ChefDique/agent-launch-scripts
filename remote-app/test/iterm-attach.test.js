@@ -15,18 +15,22 @@ test('iTerm attach script creates or reuses only the marked AgentRemote viewer w
   assert.equal(AGENTREMOTE_ITERM_VIEWER_MARKER, 'AgentRemote CHQ Viewer');
   assert.match(script, /set markerName to "AgentRemote CHQ Viewer"/);
   assert.match(script, /repeat with candidateWindow in windows/);
+  assert.match(script, /set targetSession to missing value/);
   assert.match(script, /if \(name of candidateSession as text\) contains markerName then/);
   assert.match(script, /create window with default profile/);
   assert.match(script, /set targetWindow to current window/);
-  assert.match(script, /tell current session of targetWindow/);
+  assert.match(script, /set targetSession to current session of targetWindow/);
+  assert.match(script, /else\n    tell targetWindow\n      create tab with default profile\n      set targetSession to current session\n    end tell/);
+  assert.match(script, /set miniaturized of targetWindow to false/);
+  assert.match(script, /tell targetSession/);
   assert.match(script, /set name to markerName/);
   assert.match(script, /write text "python3 \/Users\/richardadair\/ai_projects\/swarmy\/scripts\/agentremote_runtime\.py attach"/);
   assert.doesNotMatch(script, /tell application "Terminal"/);
   assert.doesNotMatch(script, /Terminal\.app/);
-  assert.doesNotMatch(script, /create tab with default profile/);
   assert.doesNotMatch(script, /delete window|close window|kill\s+iterm|killall|destroy window/i);
   assert.doesNotMatch(script, /with default profile command/);
   assert.doesNotMatch(script, /current session of newWindow/);
+  assert.doesNotMatch(script, /tell current session of targetWindow/);
   assert.doesNotMatch(script, /tell first window\\n    create tab/);
 });
 

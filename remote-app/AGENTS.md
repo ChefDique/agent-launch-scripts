@@ -27,7 +27,12 @@ bash ../launch-remote.sh
 - Keep renderer changes aligned with `../DESIGN.md` tokens and component primitives.
 - Keep the HUD lightweight: local spawn, attach, broadcast, status, voice, and nearby operator controls.
 - Preserve local Whisper hold-to-talk and immediate send feedback when touching keybindings or broadcast flow.
-- Model dropdowns are local config, not live API lookups: update `config/harness-models.json`, `harness-models.js` tests, and both add/settings picker expectations together.
+- Model dropdowns are local config/env, not live API lookups: update
+  `config/harness-models.json`, `harness-models.js` tests, and both
+  add/settings picker expectations together. Codex defaults must follow
+  `AGENTREMOTE_CODEX_DEFAULT_MODEL`, `SWARMY_CODEX_DEFAULT_MODEL`, or
+  `CODEX_CONFIG`/`~/.codex/config.toml`; unsupported Codex ids should not be
+  persisted as custom carryover values.
 - No runtime or agent identity branching in UI/IPC paths: `index.html`,
   `pet-window.html`, and `main.js` IPC handlers must not contain agent-id,
   model-name, or runtime-name special cases except through validated registry

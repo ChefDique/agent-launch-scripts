@@ -1,0 +1,112 @@
+{
+  "_schema_version": "1.0",
+  "_project": "agent-launch-scripts",
+  "_owner": "neo",
+  "_purpose": "Root app-quality task board for AgentRemote. This is the first stop for future sessions before changing code.",
+  "_updated_at": "2026-05-19T22:18:00-0700",
+  "_status_order": ["inbox", "assigned", "in_progress", "review", "done", "blocked"],
+  "rules": [
+    "Stay inside /Users/richardadair/ai_projects/agent-launch-scripts unless Richard explicitly authorizes another repo.",
+    "Do not mutate Richard's live iTerm/tmux/AgentRemote desktop unless he explicitly asks for that exact live action in the current turn.",
+    "Use subagents for app-wide inventory/review so one local edit does not hide broader feature impact.",
+    "Every feature must have an owner doc, expected behavior, regression tests or an explicit manual verification path.",
+    "Do not mark this board done while known broken or half-working app surfaces remain untracked."
+  ],
+  "tasks": [
+    {
+      "id": "ALS-QUALITY-001",
+      "title": "Create complete AgentRemote feature inventory",
+      "status": "done",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "artifacts": ["docs/product/agentremote-feature-index.md"],
+      "acceptance": [
+        "Every visible AgentRemote feature and launcher/runtime feature has a named entry.",
+        "Each entry includes source files, expected behavior, tests, and live-safe verification notes.",
+        "Inventory covers spawn, attach, stop/restart, layout, model/runtime picker, startup injection, paste, keyboard shortcuts, pet chat, voice, registry, sidecar, hooks, and cleanup."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-002",
+      "title": "Create AgentRemote PRD and app contract index",
+      "status": "done",
+      "priority": "critical",
+      "owner": "prd-worker",
+      "artifacts": ["docs/product/agentremote-prd.md", "docs/README.md"],
+      "acceptance": [
+        "PRD explains the purpose of the app in plain English.",
+        "PRD links to the operator contract, design system, launch docs, feature index, and quality gates.",
+        "Future sessions can read the PRD and know what must not regress."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-003",
+      "title": "Build regression and blast-radius matrix",
+      "status": "done",
+      "priority": "critical",
+      "owner": "qa-worker",
+      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "acceptance": [
+        "Every high-risk surface lists likely blast radius and required tests.",
+        "Matrix distinguishes static tests, isolated tmux tests, and live-desktop checks that require Richard's approval.",
+        "Known regressions from this session are included: image paste, Option key word navigation, Claude Enter injection, model picker, invisible viewer attach, pane/window naming."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-004",
+      "title": "Track and verify current fixes from this session",
+      "status": "review",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "artifacts": ["tasks.json"],
+      "acceptance": [
+        "PreToolUse hook is installed and audit passes with warnings=0.",
+        "Model/thinking picker tests pass.",
+        "Claude-only startup injection tests pass.",
+        "Image paste and Option-key terminal tests pass.",
+        "No live-desktop PASS is claimed without explicit live verification."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-005",
+      "title": "Swarmy unsupported Codex model escalation",
+      "status": "blocked",
+      "priority": "critical",
+      "owner": "swarmy",
+      "blocked_by": "Outside this repo",
+      "artifacts": ["message-agent thread overlord-swarmy-codex"],
+      "acceptance": [
+        "Swarmy stops selecting unsupported gpt-5.1 for Codex workers on this machine/account.",
+        "Swarmy proves worker completion, not just run-folder creation.",
+        "Neo does not patch Swarmy directly from this repo."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-006",
+      "title": "Review all uncommitted changes before ship",
+      "status": "review",
+      "priority": "critical",
+      "owner": "review-worker",
+      "artifacts": ["docs/generated/"],
+      "acceptance": [
+        "Dirty files are classified by task.",
+        "No unrelated or unsafe changes are included silently.",
+        "Full safe test suite passes after integration."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-007",
+      "title": "Approval-gated live verification of AgentRemote",
+      "status": "blocked",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "blocked_by": "Richard approval for live AgentRemote/iTerm/tmux mutation",
+      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "acceptance": [
+        "Canonical AgentRemote launches from this checkout.",
+        "Image paste, Option-key navigation, model/thinking selection, Claude startup injection, attach/viewer, and pane naming are verified against approved live targets.",
+        "No live PASS is claimed from static tests alone."
+      ]
+    }
+  ]
+}

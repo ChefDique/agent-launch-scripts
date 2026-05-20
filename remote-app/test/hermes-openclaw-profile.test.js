@@ -68,16 +68,25 @@ test('add-agent form: profile row and model row are both present (toggled by run
   assert.match(html, /id="f-model"/,         'model select must exist in add-agent form');
 });
 
-test('add-agent form: setAddHarnessRuntime hides model row and shows profile row for profile runtimes', () => {
+test('add-agent form: setAddHarnessRuntime keeps model row and shows profile row for profile runtimes', () => {
   const html = readRepoFile('index.html');
-  // The function must read isProfileRuntime and toggle f-model-row / f-profile-row / f-id-row.
-  assert.match(html, /useProfile.*isProfileRuntime/s,
+  const block = html.slice(
+    html.indexOf('function setAddHarnessRuntime'),
+    html.indexOf('// Populate the add-agent form')
+  );
+  // The function must read isProfileRuntime and toggle only the profile/id
+  // fields. Model/reasoning selectors remain catalog-backed for every runtime.
+  assert.match(block, /useProfile.*isProfileRuntime/s,
     'setAddHarnessRuntime must use isProfileRuntime to determine field swap');
-  assert.match(html, /f-model-row.*display.*none/s,
-    'model row must be hidden when useProfile is true');
-  assert.match(html, /f-profile-row.*display/s,
+  assert.doesNotMatch(block, /f-model-row.*display.*none/s,
+    'model row must remain visible when useProfile is true');
+  assert.match(block, /populateAddFormModelOptions\(addFormRuntime\)/,
+    'model row must be repopulated from the harness catalog for every runtime');
+  assert.match(block, /populateAddFormReasoningOptions\(addFormRuntime\)/,
+    'reasoning row must be repopulated from the harness catalog for every runtime');
+  assert.match(block, /f-profile-row.*display/s,
     'profile row display must be toggled');
-  assert.match(html, /f-id-row.*display.*none/s,
+  assert.match(block, /f-id-row.*display.*none/s,
     'id row must be hidden for profile runtimes');
 });
 
@@ -87,19 +96,30 @@ test('submitAdd derives registry id from buildProfileId for hermes/openclaw', ()
     'submitAdd must call buildProfileId to compute the agent id for profile runtimes');
 });
 
-test('settings popover: profile row rendered for hermes/openclaw, model select rendered otherwise', () => {
+test('settings popover: profile row is additive for hermes/openclaw, model/reasoning always render', () => {
   const html = readRepoFile('index.html');
   assert.match(html, /set-profile-row/,  'settings popover must have set-profile-row');
   assert.match(html, /set-model-row/,    'settings popover must have set-model-row');
-  // The conditional must branch on isProfileRuntime.
+  assert.match(html, /set-reasoning-row/, 'settings popover must have set-reasoning-row');
+  assert.match(html, /populateModelOptions\(agent\.runtime \|\| 'codex', agent\.model \|\| ''\)/,
+    'settings popover must populate model options for every runtime');
+  assert.match(html, /populateReasoningOptions\(agent\.runtime \|\| 'codex', agent\.reasoningEffort \|\| ''\)/,
+    'settings popover must populate reasoning options for every runtime');
+  // The conditional only controls the additional profile row.
   assert.match(html, /_settingsUseProfile.*isProfileRuntime/s,
-    'settings popover must use isProfileRuntime for model/profile swap');
+    'settings popover must use isProfileRuntime for profile row visibility');
 });
 
 test('settings popover: profile save wiring uses buildProfileId', () => {
   const html = readRepoFile('index.html');
   assert.match(html, /buildProfileId\(agent\.runtime, v\)/,
     'profile save in settings popover must derive new id via buildProfileId');
+  assert.match(html, /ipcRenderer\.invoke\('update-agent-form'/,
+    'profile save must use update-agent-form because update-agent does not rename ids');
+  assert.match(html, /originalId: id/,
+    'profile save must preserve the original id for the rename path');
+  assert.doesNotMatch(html, /patch: \{ id: newId \}/,
+    'profile save must not send id through update-agent patch');
 });
 
 test('no hardcoded agent id string comparisons for runtime/chat/input paths (registry-first rule)', () => {

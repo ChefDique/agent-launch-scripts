@@ -15,7 +15,11 @@ historical docs depend on that id.
 - Missing `runtime` values default to Codex, not Claude.
 - `runtime: "codex"` must launch `codex`, not `claude`. Claude-only boot behavior such as `/color` and `/rename` auto-injects must stay gated to `runtime: "claude"`.
 - A `runtime: "claude"` registry entry must set `allow_claude_runtime: true`; the launcher test fails accidental Claude runtime entries.
-- For Codex entries, the default operator posture is `gpt-5.5`, `model_reasoning_effort=high`, `sandbox=danger-full-access`, and `approval_policy=never`, unless the registry says otherwise.
+- For Codex entries, the default operator posture is the live local Codex
+  config/env model, `model_reasoning_effort=high`,
+  `sandbox=danger-full-access`, and `approval_policy=never`, unless the
+  registry says otherwise. Unsupported Codex model ids must be rejected before
+  launch instead of patched by hooks after startup.
 - Preserve Hermes and OpenClaw cases even when Codex is the immediate path. Do not collapse the registry back to Claude-only assumptions.
 - Hidden Claude spend counts as a runtime violation. During Codex-constrained periods, startup hooks, launchd jobs, scheduled readers, and skills must not invoke `claude` or `claude -p` unless Richard explicitly authorizes that path.
 

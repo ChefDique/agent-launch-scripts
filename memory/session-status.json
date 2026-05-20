@@ -1,0 +1,14 @@
+{
+  "repo_root": "/Users/richardadair/ai_projects/agent-launch-scripts",
+  "lane": "global-codex-hook-system",
+  "active_goal": "Build a global Codex lifecycle hook system that enforces startup alignment, lifecycle closeout, process cleanup proof, and artifact-backed status discipline.",
+  "status": "completed",
+  "next_action": "Watch the next fresh Codex startup/compaction/stop cycle and confirm it reads memory/session-status.json as the reporting source.",
+  "updated_at": "2026-05-20T05:34:41Z",
+  "handoff": {
+    "path": "memory/handoff.md",
+    "sha256": "87cd89d0465948f90c6b6617d16e1bd1015b9dcea7ad65f1e17c028c98395135",
+    "read_at": "2026-05-20T05:34:41Z"
+  },
+  "keep_running_processes": []
+}

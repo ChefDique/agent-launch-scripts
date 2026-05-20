@@ -17,14 +17,18 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 ## Startup Read Order
 
 1. `.claude/memory/handoff.md` — current active thread and next verifiable step.
-2. `context.md` — current model/runtime and ACRM operating contract.
-3. `docs/README.md` — durable docs map.
-4. `docs/product/agentremote.md` — product boundary and money-path focus.
-5. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
-6. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-7. `DESIGN.md` — AgentRemote visual system and migration target.
-8. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
-9. `remote-app/AGENTS.md` — required before UI or IPC edits.
+2. `tasks.json` — root app-quality board; do not guess feature scope before reading it.
+3. `context.md` — current model/runtime and ACRM operating contract.
+4. `docs/README.md` — durable docs map.
+5. `docs/product/agentremote-prd.md` — plain-English product contract and source-of-truth map.
+6. `docs/product/agentremote-feature-index.md` — feature inventory and verification map.
+7. `docs/product/agentremote.md` — product boundary and money-path focus.
+8. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
+9. `docs/operations/agentremote-quality-gates.md` — regression and blast-radius matrix.
+10. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+11. `DESIGN.md` — AgentRemote visual system and migration target.
+12. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
+13. `remote-app/AGENTS.md` — required before UI or IPC edits.
 
 ## Index of scoped AGENTS.md
 

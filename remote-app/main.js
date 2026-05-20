@@ -11,14 +11,29 @@ const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, reso
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
+const { tmuxSendSubmittedTextArgs } = require('./tmux-send-path');
 const { transcriptMessagesForAgent } = require('./agent-transcript-source');
-const { getModelsForHarness, getDefaultModelForHarness } = require('./harness-models');
+const { tmuxKeysForTerminalInput } = require('./terminal-input');
+const {
+  getModelsForHarness,
+  getDefaultModelForHarness,
+  getReasoningLevelsForHarness,
+  getDefaultReasoningForHarness,
+  getReasoningLabelForHarness,
+  isModelSupportedForHarness
+} = require('./harness-models');
 const {
   hasRequiredTmuxClient,
   parseTmuxClientLines,
   parseTmuxSessionGroupLines,
   viewerSafetyError
 } = require('./deploy-viewer');
+const {
+  ITERM_CONTROL_MODE_RESIDUE_OPTIONS,
+  tmuxListWindowIdsArgs,
+  tmuxUnsetSessionOptionArgs,
+  tmuxUnsetWindowOptionArgs
+} = require('./tmux-iterm-residue');
 const APP_PACKAGE = require('./package.json');
 const { bus: atlasBus } = require('./atlas-event-bus');
 
@@ -662,6 +677,8 @@ function loadAgents() {
         cwd: a.cwd || '',           // exposed so the right-click menu can show the current value
         runtime,
         model: a.model || null,
+        reasoningEffort: a.reasoning_effort || null,
+        startupInjection: a.startup_injection || null,
         color: a.color || null,
         themeColor: a.theme_color || null,  // hex string for AgentRemote CSS var generation
         // Auto-restart defaults to true when the field is omitted (matches the
@@ -691,6 +708,32 @@ function normalizeStartupLines(value, maxLines = 3) {
     .map(v => String(v || '').trim())
     .filter(Boolean)
     .slice(0, maxLines);
+}
+
+function normalizeStartupInjectionPolicy(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const policy = {};
+  for (const key of ['include', 'exclude']) {
+    if (value[key] === undefined || value[key] === null) continue;
+    if (!Array.isArray(value[key])) throw new Error(`startup_injection.${key} must be an array`);
+    policy[key] = value[key].map(v => String(v || '').trim()).filter(Boolean);
+  }
+  return Object.keys(policy).length ? policy : null;
+}
+
+function defaultClaudeStartupInjectionPolicy() {
+  return { include: ['dangerous_permission_enter', 'startup_lines'] };
+}
+
+function syncStartupInjectionPolicy(entry) {
+  const runtime = normalizeRuntime(entry.runtime || 'codex');
+  if (runtime !== 'claude') {
+    delete entry.startup_injection;
+    return;
+  }
+  if (!Array.isArray(entry.startup_lines)) return;
+  entry.startup_injection = normalizeStartupInjectionPolicy(entry.startup_injection)
+    || defaultClaudeStartupInjectionPolicy();
 }
 
 function parseEnvFile(filePath) {
@@ -1180,7 +1223,10 @@ function showAtCursorDisplay() {
 ipcMain.handle('get-agents', () => loadAgents());
 ipcMain.handle('get-harness-models', (_event, runtime) => ({
   models: getModelsForHarness(runtime),
-  default: getDefaultModelForHarness(runtime)
+  default: getDefaultModelForHarness(runtime),
+  reasoningLevels: getReasoningLevelsForHarness(runtime),
+  defaultReasoning: getDefaultReasoningForHarness(runtime),
+  reasoningLabel: getReasoningLabelForHarness(runtime)
 }));
 ipcMain.handle('app-build-info', () => appBuildInfo());
 
@@ -1517,26 +1563,10 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
-  // First type the literal message, then press Return as separate keystrokes.
-  // The stagger matters for full-screen agent TUIs: tmux can accept the literal
-  // text before the app has processed it, causing one submit key to land early
-  // and leave the text sitting in the input box. A second Return is harmless
-  // after a successful submit, but recovers the common "typed but not sent"
-  // state Richard sees in AgentRemote.
   return new Promise((resolve, reject) => {
-    execFile('tmux', ['send-keys', '-t', coord, '-l', message], (err, _o, ser) => {
+    execFile('tmux', tmuxSendSubmittedTextArgs(coord, message), (err, _o, ser) => {
       if (err) return reject(new Error(ser || err.message));
-      setTimeout(() => {
-        execFile('tmux', ['send-keys', '-t', coord, 'C-m'], (err2, _o2, ser2) => {
-          if (err2) return reject(new Error(ser2 || err2.message));
-          setTimeout(() => {
-            execFile('tmux', ['send-keys', '-t', coord, 'Enter'], (err3, _o3, ser3) => {
-              if (err3) return reject(new Error(ser3 || err3.message));
-              resolve(coord);
-            });
-          }, 140);
-        });
-      }, 180);
+      resolve(coord);
     });
   });
 }
@@ -1837,6 +1867,43 @@ async function viewerSafetyState(layout, sessionName = RUNTIME_SESSION) {
   return { error, clients, sessions };
 }
 
+async function clearITermControlModeResidue(sessionName = RUNTIME_SESSION) {
+  let windowIds = [];
+  try {
+    const { stdout } = await execFileP('tmux', tmuxListWindowIdsArgs(sessionName));
+    windowIds = stdout.split('\n').map(line => line.trim()).filter(Boolean);
+  } catch (err) {
+    const msg = err.stderr || err.message || 'tmux list-windows failed';
+    throw new Error(`could not inspect ${sessionName} tmux windows before viewer attach: ${String(msg).trim()}`);
+  }
+
+  const failures = [];
+  for (const option of ITERM_CONTROL_MODE_RESIDUE_OPTIONS) {
+    try {
+      await execFileP('tmux', tmuxUnsetSessionOptionArgs(sessionName, option));
+    } catch (err) {
+      failures.push(`${sessionName} ${option}: ${String(err.stderr || err.message || err).trim()}`);
+    }
+  }
+  for (const windowId of windowIds) {
+    for (const option of ITERM_CONTROL_MODE_RESIDUE_OPTIONS) {
+      try {
+        await execFileP('tmux', tmuxUnsetWindowOptionArgs(windowId, option));
+      } catch (err) {
+        failures.push(`${windowId} ${option}: ${String(err.stderr || err.message || err).trim()}`);
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`could not clear iTerm control-mode residue before viewer attach: ${failures.join('; ')}`);
+  }
+  if (windowIds.length > 0) {
+    logToOutLog(`[viewer] cleared iTerm control-mode residue on ${sessionName} windows: ${windowIds.join(', ')}`);
+  }
+  return { sessionName, windowIds, options: ITERM_CONTROL_MODE_RESIDUE_OPTIONS.slice() };
+}
+
 async function waitForDeployViewer(layout, attempts = 10) {
   for (let i = 0; i < attempts; i += 1) {
     const clients = await listTmuxClients(RUNTIME_SESSION);
@@ -1901,6 +1968,14 @@ async function spawnAgents(payload) {
   }
   console.log(`[spawn] ${stdout.trim()}`);
 
+  try {
+    await clearITermControlModeResidue(RUNTIME_SESSION);
+  } catch (err) {
+    const msg = err.message || 'could not clear iTerm control-mode residue';
+    logToOutLog(`[spawn] ${msg}`);
+    return { ok: false, error: msg, agents: safeAgents, layout, stdout };
+  }
+
   // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
   // every batch into a fresh iTerm tab. We now reuse an existing viewer only
   // when tmux proves it is attached in the right mode. For teams/ittab, plain
@@ -1928,7 +2003,12 @@ async function spawnAgents(payload) {
     return { ok: false, error: msg.trim(), agents: safeAgents, layout, stdout };
   }
 
-  clients = await waitForDeployViewer(layout);
+  await waitForDeployViewer(layout);
+  ({ error: viewerError, clients, sessions } = await viewerSafetyState(layout, RUNTIME_SESSION));
+  if (viewerError) {
+    logToOutLog(`[spawn] ${viewerError}`);
+    return { ok: false, error: viewerError, agents: safeAgents, layout, clients, sessions, needsViewerCleanup: true, stdout };
+  }
   if (!hasRequiredTmuxClient(layout, clients)) {
     const error = ['teams', 'ittab'].includes(layout)
       ? 'deploy created chq panes but no iTerm control-mode client attached'
@@ -1985,6 +2065,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
       throw new Error('runtime must be codex, claude, hermes, or openclaw');
     }
     const explicitModel = payload.model ? String(payload.model).trim() : '';
+    const explicitReasoning = payload.reasoningEffort ? String(payload.reasoningEffort).trim() : '';
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
 
     // Guard against id collisions.
@@ -2012,11 +2093,16 @@ ipcMain.handle('add-agent', async (event, payload) => {
         startup_slash: startupSlash
       };
       if (startupLines.length) entry.startup_lines = startupLines;
+      if (runtime === 'claude' && startupLines.length) {
+        entry.startup_injection = defaultClaudeStartupInjectionPolicy();
+      }
       // Explicit model from the form (now that the add-agent UI exposes a
       // per-harness dropdown) takes precedence over applyRuntimePolicy's
       // defaults; the policy only patches missing/wrong-runtime values.
       if (explicitModel) entry.model = explicitModel;
+      if (explicitReasoning) entry.reasoning_effort = explicitReasoning;
       applyRuntimePolicy(entry, runtime);
+      syncStartupInjectionPolicy(entry);
       if (themeColor) entry.theme_color = themeColor;
       if (!autoRestart) entry.auto_restart = false;
       if (avatarFilename) entry.avatar = avatarFilename;
@@ -2175,7 +2261,8 @@ const UPDATABLE_FIELDS = {
   approval_policy: v => String(v || '').trim(),
   rename_to:     v => String(v || '').trim(),
   startup_slash: v => String(v || '').trim(),
-  startup_lines: v => normalizeStartupLines(v)
+  startup_lines: v => normalizeStartupLines(v),
+  startup_injection: v => normalizeStartupInjectionPolicy(v)
 };
 
 function applyRuntimePolicy(entry, runtime) {
@@ -2187,18 +2274,45 @@ function applyRuntimePolicy(entry, runtime) {
     if (!entry.model || entry.model.startsWith('gpt-') || entry.model.includes('codex')) {
       entry.model = getDefaultModelForHarness('claude') || 'claude-opus-4-7[1m]';
     }
-    if (!entry.reasoning_effort || entry.reasoning_effort === 'high' || entry.reasoning_effort === 'medium' || entry.reasoning_effort === 'low') {
-      entry.reasoning_effort = 'max';
+    if (!entry.reasoning_effort || entry.reasoning_effort === 'policy-only') {
+      entry.reasoning_effort = getDefaultReasoningForHarness('claude') || 'max';
     }
     return;
   }
 
   delete entry.allow_claude_runtime;
+  delete entry.startup_injection;
   if (runtime === 'codex') {
-    if (!entry.model) entry.model = getDefaultModelForHarness('codex') || 'gpt-5.5';
-    if (!entry.reasoning_effort) entry.reasoning_effort = 'high';
+    if (!entry.model || !isModelSupportedForHarness('codex', entry.model)) {
+      entry.model = getDefaultModelForHarness('codex') || 'gpt-5.5';
+    }
+    if (!entry.reasoning_effort || ['max', 'xhigh', 'policy-only'].includes(entry.reasoning_effort)) {
+      entry.reasoning_effort = getDefaultReasoningForHarness('codex') || 'high';
+    }
     if (!entry.sandbox) entry.sandbox = 'danger-full-access';
     if (!entry.approval_policy) entry.approval_policy = 'never';
+    return;
+  }
+
+  if (runtime === 'hermes') {
+    delete entry.sandbox;
+    delete entry.approval_policy;
+    if (!entry.model || !String(entry.model).includes('/')) {
+      entry.model = getDefaultModelForHarness('hermes') || 'default';
+    }
+    entry.reasoning_effort = getDefaultReasoningForHarness('hermes') || 'policy-only';
+    return;
+  }
+
+  if (runtime === 'openclaw') {
+    delete entry.sandbox;
+    delete entry.approval_policy;
+    if (!entry.model || entry.model.startsWith('gpt-') || entry.model.startsWith('claude-') || String(entry.model).includes('/')) {
+      entry.model = getDefaultModelForHarness('openclaw') || 'local';
+    }
+    if (!entry.reasoning_effort || entry.reasoning_effort === 'policy-only') {
+      entry.reasoning_effort = getDefaultReasoningForHarness('openclaw') || 'high';
+    }
   }
 }
 
@@ -2231,6 +2345,7 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
     const startupLines = hasStartupLines ? normalizeStartupLines(payload.startupLines) : [];
     const autoRestart = payload.autoRestart === false ? false : true;
     const explicitModel = payload.model ? String(payload.model).trim() : '';
+    const explicitReasoning = payload.reasoningEffort ? String(payload.reasoningEffort).trim() : '';
     const avatarSrc = payload.avatarSrc ? String(payload.avatarSrc) : null;
     let avatarFilename = null;
     if (avatarSrc && fs.existsSync(avatarSrc)) {
@@ -2263,6 +2378,7 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       entry.cwd = cwd;
       // Set explicit model BEFORE applyRuntimePolicy so the policy preserves it.
       if (explicitModel) entry.model = explicitModel;
+      if (explicitReasoning) entry.reasoning_effort = explicitReasoning;
       if (hasExplicitRuntime && runtime) {
         entry.runtime = runtime;
         applyRuntimePolicy(entry, runtime);
@@ -2275,6 +2391,7 @@ ipcMain.handle('update-agent-form', async (event, payload = {}) => {
       } else if (hasStartupLines) {
         delete entry.startup_lines;
       }
+      syncStartupInjectionPolicy(entry);
       if (themeColor) entry.theme_color = themeColor;
       else delete entry.theme_color;
       if (autoRestart) delete entry.auto_restart;
@@ -2311,6 +2428,7 @@ ipcMain.handle('update-agent', async (event, { id, patch } = {}) => {
       if (!entry) throw new Error(`agent "${safeId}" not in registry`);
       Object.assign(entry, cleanPatch);
       if (cleanPatch.runtime) applyRuntimePolicy(entry, cleanPatch.runtime);
+      syncStartupInjectionPolicy(entry);
       updatedEntry = entry;
     });
     return { ok: true, entry: updatedEntry };
@@ -2610,6 +2728,8 @@ ipcMain.handle('attach-pane', async (event, id) => {
         resolve();
       });
     });
+
+    await clearITermControlModeResidue(sessionName);
 
     let { error: viewerError, clients, sessions } = await viewerSafetyState('ittab', sessionName);
     if (viewerError) {
@@ -3379,13 +3499,6 @@ function sendPaneKeys(paneId, keys) {
   execFile('tmux', ['send-keys', '-t', paneId, ...keys], () => {});
 }
 
-const TERMINAL_WORD_KEY_SEQUENCES = new Map([
-  ['\x1bb', ['Escape', 'b']],
-  ['\x1bf', ['Escape', 'f']],
-  ['\x1b\x7f', ['Escape', 'BSpace']],
-  ['\x1bd', ['Escape', 'd']],
-]);
-
 // pane-input — renderer sends keystrokes typed into the xterm.
 // Text is forwarded literally. Known word-edit escape sequences are forwarded
 // as real keys so tmux does not flatten them into inert literal bytes.
@@ -3396,7 +3509,7 @@ ipcMain.on('pane-input', (_event, { id, data }) => {
   if (!entry || !entry.paneId) return;
   if (typeof data !== 'string' || data.length === 0) return;
 
-  const wordKeys = TERMINAL_WORD_KEY_SEQUENCES.get(data);
+  const wordKeys = tmuxKeysForTerminalInput(data);
   if (wordKeys) {
     sendPaneKeys(entry.paneId, wordKeys);
     return;

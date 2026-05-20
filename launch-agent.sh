@@ -13,8 +13,8 @@
 #   1. Look up <id> in agents.json. cwd into the agent's project root.
 #   2. Run the optional pre_launch hook (typically telegram-cleanup --pre-launch).
 #   3. Export any per-agent env vars from the registry's "env" map.
-#   4. For Claude runtimes only, schedule the boot-time tmux auto-injects:
-#      warning ack at 4s, then runtime-safe startup lines.
+#   4. For Claude runtimes only, schedule explicitly allowed boot-time tmux
+#      auto-injects: warning ack, then runtime-safe startup lines.
 #      Stale subshell PID cleanup runs first.
 #   5. exec the configured runtime command (claude, codex, hermes, openclaw).
 #
@@ -24,6 +24,10 @@
 #   SWARMY_RUNTIME_OVERRIDE / SWARMY_MODEL_OVERRIDE /
 #   SWARMY_REASONING_EFFORT_OVERRIDE — launch-time overrides from AgentRemote.
 # Registry field:
+#   startup_injection — optional policy object for tmux boot injection:
+#                    { "include": ["dangerous_permission_enter", "startup_lines"],
+#                      "exclude": [] }
+#                    exclude wins. Ignored unless runtime is Claude.
 #   startup_lines  — JSON array of up to three startup text lines sent to Claude
 #                    via tmux after boot. Supports {{color}}, {{rename_to}},
 #                    {{startup_slash}}, {{display_name}}, {{agent_id}}, {{cwd}}.
@@ -66,6 +70,68 @@ preset_field() {
 
 preset_nested_field() {
   jq -r "($1 // empty)" <<< "$PRESET"
+}
+
+csv_items() {
+  local raw="$1"
+  local item
+  IFS=',' read -ra items <<< "$raw"
+  for item in "${items[@]}"; do
+    item="$(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<< "$item")"
+    [[ -n "$item" ]] && printf '%s\n' "$item"
+  done
+}
+
+codex_config_model() {
+  local config="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
+  [[ -f "$config" ]] || return 0
+  awk -F= '
+    /^\[/ { in_table=1 }
+    !in_table && /^[[:space:]]*model[[:space:]]*=/ {
+      value=$2
+      sub(/^[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      gsub(/^["'\''"]|["'\''"]$/, "", value)
+      print value
+      exit
+    }
+  ' "$config" 2>/dev/null || true
+}
+
+codex_default_model() {
+  local value="${AGENTREMOTE_CODEX_DEFAULT_MODEL:-${SWARMY_CODEX_DEFAULT_MODEL:-}}"
+  if [[ -z "$value" ]]; then
+    value="$(codex_config_model)"
+  fi
+  [[ -n "$value" ]] || value="gpt-5.5"
+  printf '%s\n' "$value"
+}
+
+codex_supported_models() {
+  local raw="${AGENTREMOTE_CODEX_MODELS:-${SWARMY_CODEX_MODELS:-}}"
+  local default_model
+  default_model="$(codex_default_model)"
+  if [[ -n "$raw" ]]; then
+    printf '%s\n' "$default_model"
+    csv_items "$raw"
+  else
+    printf '%s\n' "$default_model"
+  fi | awk 'NF && !seen[$0]++'
+}
+
+codex_model_is_supported() {
+  local model="$1"
+  [[ -n "$model" ]] || return 1
+  codex_supported_models | grep -Fxq "$model"
+}
+
+validate_codex_model() {
+  local model="$1"
+  if codex_model_is_supported "$model"; then
+    return 0
+  fi
+  echo "launch-agent: unsupported Codex model '$model' for agent '$AGENT_ID'; supported models: $(codex_supported_models | paste -sd, -)" >&2
+  exit 2
 }
 
 canonical_agent_slug() {
@@ -154,6 +220,8 @@ elif [[ "$RUNTIME" == "codex" ]]; then
     echo "launch-agent: ignoring Claude effort '$REASONING_EFFORT' for Codex runtime agent '$AGENT_ID'" >&2
     REASONING_EFFORT=""
   fi
+  [[ -n "$MODEL" ]] || MODEL="$(codex_default_model)"
+  validate_codex_model "$MODEL"
 fi
 
 WORKSPACE_MODE="$(field workspace_mode)"
@@ -229,9 +297,66 @@ read_startup_lines() {
 
 send_tmux_literal_line() {
   local line="$1"
-  tmux send-keys -t "$TMUX_PANE" -l "$line"
+  [[ -n "$line" ]] || return 0
+  tmux send-keys -t "$TMUX_PANE" -l -- "$line"
   tmux send-keys -t "$TMUX_PANE" Enter
 }
+
+validate_startup_injection_policy() {
+  if ! jq -e '.startup_injection != null' <<< "$ENTRY" >/dev/null; then
+    return
+  fi
+  if ! jq -e '.startup_injection | type == "object"' <<< "$ENTRY" >/dev/null; then
+    echo "launch-agent: startup_injection for agent '$AGENT_ID' must be a JSON object" >&2
+    exit 2
+  fi
+  for policy_key in include exclude; do
+    if ! jq -e --arg k "$policy_key" '
+      if .startup_injection[$k] == null then
+        true
+      else
+        (.startup_injection[$k] | type == "array") and all(.startup_injection[$k][]; type == "string")
+      end
+    ' <<< "$ENTRY" >/dev/null; then
+      echo "launch-agent: startup_injection.$policy_key for agent '$AGENT_ID' must be an array of strings" >&2
+      exit 2
+    fi
+  done
+}
+
+startup_injection_includes() {
+  local token="$1"
+  jq -e --arg token "$token" '((.startup_injection.include // []) | index($token)) != null' <<< "$ENTRY" >/dev/null
+}
+
+startup_injection_excludes() {
+  local token="$1"
+  jq -e --arg token "$token" '((.startup_injection.exclude // []) | index($token)) != null' <<< "$ENTRY" >/dev/null
+}
+
+startup_injection_allows() {
+  local token="$1"
+  [[ "$RUNTIME" == "claude" ]] || return 1
+  jq -e '.startup_injection != null' <<< "$ENTRY" >/dev/null || return 1
+  startup_injection_includes "$token" || return 1
+  if startup_injection_excludes "$token"; then
+    return 1
+  fi
+  return 0
+}
+
+schedule_tmux_enter() {
+  local delay="$1"
+  ( sleep "$delay"; tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
+}
+
+schedule_tmux_literal_lines() {
+  local delay="$1"
+  shift
+  ( sleep "$delay"; for line in "$@"; do send_tmux_literal_line "$line"; sleep 0.5; done ) & echo $! >> "$PIDFILE"
+}
+
+validate_startup_injection_policy
 
 cd "$CWD"
 
@@ -307,7 +432,7 @@ build_runtime_command() {
       )
       ;;
     codex)
-      local codex_model="${MODEL:-gpt-5.5}"
+      local codex_model="${MODEL:-$(codex_default_model)}"
       local codex_effort="${REASONING_EFFORT:-high}"
       local codex_sandbox="${SANDBOX:-danger-full-access}"
       local codex_approval="${APPROVAL_POLICY:-never}"
@@ -377,24 +502,30 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
   CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-12}"
 
   # Stage 1: dismiss the --dangerously-load-development-channels warning.
-  ( sleep "$CLAUDE_WARNING_ACK_DELAY"; tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
+  # This is intentionally policy-gated so a stale Claude-only Enter cannot be
+  # inherited by Codex or another runtime.
+  if startup_injection_allows "dangerous_permission_enter"; then
+    schedule_tmux_enter "$CLAUDE_WARNING_ACK_DELAY"
+  fi
 
-  read_startup_lines
-  if (( ${#STARTUP_LINES[@]} > 0 )); then
-    if [[ "$HAS_STARTUP_LINES" == true ]]; then
-      # When registry-supplied, send all lines together at startup delay.
-      ( sleep "$CLAUDE_STARTUP_DELAY"; for line in "${STARTUP_LINES[@]}"; do send_tmux_literal_line "$line"; sleep 0.5; done ) & echo $! >> "$PIDFILE"
-    elif [[ -n "$COLOR" ]]; then
-      # Legacy path keeps historical spacing: color + rename, then startup.
-      ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/color $COLOR" Enter; sleep 0.5; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-      if [[ -n "$STARTUP" ]]; then
-        ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
-      fi
-    else
-      # Legacy path for entries that only specified rename/startup_slash.
-      ( sleep "$CLAUDE_RENAME_DELAY"; tmux send-keys -t "$TMUX_PANE" "/rename $RENAME_TO" Enter ) & echo $! >> "$PIDFILE"
-      if [[ -n "$STARTUP" ]]; then
-        ( sleep "$CLAUDE_STARTUP_DELAY"; tmux send-keys -t "$TMUX_PANE" "$STARTUP" Enter ) & echo $! >> "$PIDFILE"
+  if startup_injection_allows "startup_lines"; then
+    read_startup_lines
+    if (( ${#STARTUP_LINES[@]} > 0 )); then
+      if [[ "$HAS_STARTUP_LINES" == true ]]; then
+        # When registry-supplied, send all lines together at startup delay.
+        schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "${STARTUP_LINES[@]}"
+      elif [[ -n "$COLOR" ]]; then
+        # Legacy path keeps historical spacing: color + rename, then startup.
+        schedule_tmux_literal_lines "$CLAUDE_RENAME_DELAY" "/color $COLOR" "/rename $RENAME_TO"
+        if [[ -n "$STARTUP" ]]; then
+          schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "$STARTUP"
+        fi
+      else
+        # Legacy path for entries that only specified rename/startup_slash.
+        schedule_tmux_literal_lines "$CLAUDE_RENAME_DELAY" "/rename $RENAME_TO"
+        if [[ -n "$STARTUP" ]]; then
+          schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "$STARTUP"
+        fi
       fi
     fi
   fi

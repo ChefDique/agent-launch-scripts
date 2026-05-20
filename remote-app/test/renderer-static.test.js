@@ -137,9 +137,13 @@ test('submit payload includes startup_lines array and settings patch supports ar
   assert.match(html, /setStartupLinesIntoInputs\(SETTINGS_STARTUP_LINE_IDS, returned\)/);
   assert.match(main, /startupLines: normalizeStartupLines\(a\.startup_lines\)/);
   assert.match(main, /startupLinesConfigured: Array\.isArray\(a\.startup_lines\)/);
+  assert.match(main, /startupInjection: a\.startup_injection \|\| null/);
   assert.match(main, /const hasStartupLines = Object\.prototype\.hasOwnProperty\.call\(payload, 'startupLines'\)/);
   assert.match(main, /const startupLines = normalizeStartupLines\(payload\.startupLines\)/);
   assert.match(main, /startup_lines: v => normalizeStartupLines\(v\)/);
+  assert.match(main, /startup_injection: v => normalizeStartupInjectionPolicy\(v\)/);
+  assert.match(main, /function defaultClaudeStartupInjectionPolicy\(\)/);
+  assert.match(main, /syncStartupInjectionPolicy\(entry\)/);
   assert.doesNotMatch(main, /delete entry\.startup_lines;\s*\n\s*if \(cleanPatch\.runtime\)/);
 });
 
@@ -209,7 +213,7 @@ test('floating pet window has draggable sprite, mini log, close, and reply contr
   assert.doesNotMatch(petWindow, /class="bubble-head"/);
 });
 
-test('main process pet windows are resizable and broadcasts delay submit after literal text', () => {
+test('main process pet windows are resizable and broadcasts submit chat in one tmux argv call', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(main, /resizable: true/);
   assert.match(main, /const PET_WINDOW_GEOMETRY = \{/);
@@ -228,11 +232,9 @@ test('main process pet windows are resizable and broadcasts delay submit after l
   assert.match(main, /mode: 'control-mode-focus'/);
   assert.doesNotMatch(main, /mode: 'focused-existing'/);
   assert.doesNotMatch(main, /split vertically with default profile command/);
-  assert.match(main, /send-keys', '-t', coord, '-l', message/);
-  assert.match(main, /setTimeout\(\(\) => \{/);
-  assert.match(main, /send-keys', '-t', coord, 'C-m'/);
-  assert.match(main, /send-keys', '-t', coord, 'Enter'/);
-  assert.match(main, /typed but not sent/);
+  assert.match(main, /tmuxSendSubmittedTextArgs\(coord, message\)/);
+  assert.doesNotMatch(main, /send-keys', '-t', coord, '-l', message/);
+  assert.doesNotMatch(main, /send-keys', '-t', coord, 'C-m'/);
 });
 
 test('message-agent pane sync helper uses argv-style python3 invocation', () => {
@@ -294,6 +296,8 @@ test('chat input paste persists clipboard images as local file references', () =
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.match(html, /addEventListener\('paste', handleChatImagePaste\)/);
   assert.match(html, /function handleChatImagePaste/);
+  assert.match(html, /function saveClipboardImage/);
+  assert.match(html, /function saveNativeClipboardImageReference/);
   assert.match(html, /item\.kind === 'file' && \/\^image\\\//);
   assert.match(html, /ipcRenderer\.invoke\('save-pasted-image'/);
   assert.match(html, /ipcRenderer\.invoke\('save-native-clipboard-image'/);
@@ -301,13 +305,21 @@ test('chat input paste persists clipboard images as local file references', () =
   assert.match(main, /ipcMain\.handle\('save-pasted-image'/);
   assert.match(main, /ipcMain\.handle\('save-native-clipboard-image'/);
   assert.match(main, /clipboard\.readImage\(\)/);
+  assert.match(main, /ipcMain\.handle\('read-clipboard-text'/);
+  assert.match(main, /clipboard\.readText\(\)/);
+  assert.match(main, /function savePastedImageBuffer/);
+  assert.match(main, /PASTED_IMAGE_EXTENSIONS/);
   assert.match(main, /agentremote-pasted-images/);
 });
 
-test('embedded terminal intercepts paste and sends clipboard text or image references to the agent pane', () => {
+test('embedded terminal intercepts paste and sends clipboard text or submitted image references to the agent pane', () => {
   const terminalPasteBlock = html.slice(
     html.indexOf('let lastTerminalPasteAt = 0'),
     html.indexOf('// Register pane-output IPC listener')
+  );
+  const pasteHelperBlock = html.slice(
+    html.indexOf('async function pasteClipboardIntoAgentPane'),
+    html.indexOf('async function handleChatImagePaste')
   );
   assert.match(html, /function pasteClipboardIntoAgentPane/);
   assert.match(html, /host\.addEventListener\('paste', handleTerminalPaste, true\)/);
@@ -324,7 +336,11 @@ test('embedded terminal intercepts paste and sends clipboard text or image refer
   assert.match(terminalPasteBlock, /isTerminalPasteShortcut\(ev\)/);
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);
-  assert.match(html, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
+  assert.match(pasteHelperBlock, /const imageReference = saved\.join\(' '\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: `\$\{imageReference\}\\r` \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: `\$\{marker\}\\r` \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: eventText \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: text \}\)/);
 });
 
 test('embedded terminal keeps text selection usable (drag-safe and selection options enabled)', () => {
@@ -347,28 +363,13 @@ test('embedded terminal keeps text selection usable (drag-safe and selection opt
 });
 
 test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', () => {
-  const terminalShortcutBlock = html.slice(
-    html.indexOf('const isTerminalWordShortcut = (ev) =>'),
-    html.indexOf('const isTerminalPasteShortcut = (ev) =>')
-  );
-
-  assert.match(terminalShortcutBlock, /const isTerminalWordShortcut = \(ev\) =>/);
-  assert.match(terminalShortcutBlock, /if \(!ev\.altKey \|\| ev\.ctrlKey \|\| ev\.metaKey\) return null/);
-  assert.match(terminalShortcutBlock, /const key = \(ev\.key \|\| ''\)\.toLowerCase\(\);/);
-  assert.match(terminalShortcutBlock, /const code = ev\.code \|\| '';/);
-  assert.match(terminalShortcutBlock, /if \(code === 'ArrowLeft' \|\| key === 'arrowleft'\) return '\\x1bb';/);
-  assert.match(terminalShortcutBlock, /if \(code === 'ArrowRight' \|\| key === 'arrowright'\) return '\\x1bf';/);
-  assert.match(terminalShortcutBlock, /if \(key === 'backspace'\) return '\\x1b\\x7f';/);
-  assert.match(terminalShortcutBlock, /if \(key === 'delete'\) return '\\x1bd';/);
-  assert.match(terminalShortcutBlock, /if \(code === 'KeyB' \|\| key === 'b'\) return '\\x1bb';/);
-  assert.match(terminalShortcutBlock, /if \(code === 'KeyF' \|\| key === 'f'\) return '\\x1bf';/);
-  assert.match(terminalShortcutBlock, /if \(code === 'KeyD' \|\| key === 'd'\) return '\\x1bd';/);
+  assert.match(html, /terminalWordShortcutBytes\s*\} = require\('\.\/terminal-input'\)/);
 
   const terminalAttachBlock = html.slice(
     html.indexOf('term.attachCustomKeyEventHandler((ev) => {'),
     html.indexOf('// Register pane-output IPC listener')
   );
-  assert.match(terminalAttachBlock, /const terminalWordShortcut = isTerminalWordShortcut\(ev\);/);
+  assert.match(terminalAttachBlock, /const terminalWordShortcut = terminalWordShortcutBytes\(ev\);/);
   assert.match(terminalAttachBlock, /if \(terminalWordShortcut\) \{/);
   assert.match(terminalAttachBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: terminalWordShortcut \}\);?/);
 });
@@ -376,14 +377,12 @@ test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', 
 test('embedded terminal sends word-edit escape sequences as tmux keys', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const paneInputBlock = main.slice(
-    main.indexOf('const TERMINAL_WORD_KEY_SEQUENCES = new Map'),
+    main.indexOf('// pane-input — renderer sends keystrokes typed into the xterm.'),
     main.indexOf('// Tear down pipe for one agent')
   );
 
-  assert.match(paneInputBlock, /'\\x1bb', \['Escape', 'b'\]/);
-  assert.match(paneInputBlock, /'\\x1bf', \['Escape', 'f'\]/);
-  assert.match(paneInputBlock, /'\\x1b\\x7f', \['Escape', 'BSpace'\]/);
-  assert.match(paneInputBlock, /'\\x1bd', \['Escape', 'd'\]/);
+  assert.match(main, /tmuxKeysForTerminalInput\s*\} = require\('\.\/terminal-input'\)/);
+  assert.match(paneInputBlock, /tmuxKeysForTerminalInput\(data\)/);
   assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, wordKeys\)/);
 });
 
@@ -622,4 +621,17 @@ test('runtime updates are explicit in add/save flows and persist through launch-
   assert.match(html, /ipcRenderer\.invoke\('update-agent', \{ id, patch: \{ runtime: next \} \}\);/);
   assert.match(main, /const hasExplicitRuntime = Object\.prototype\.hasOwnProperty\.call\(payload, 'runtime'\);/);
   assert.match(main, /if \(hasExplicitRuntime && runtime\) \{\s*entry\.runtime = runtime;/);
+});
+
+test('model and reasoning selectors are catalog-backed for all harnesses', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(main, /reasoningLevels: getReasoningLevelsForHarness\(runtime\)/);
+  assert.match(main, /defaultReasoning: getDefaultReasoningForHarness\(runtime\)/);
+  assert.match(main, /reasoningLabel: getReasoningLabelForHarness\(runtime\)/);
+  assert.match(html, /id="f-reasoning"/);
+  assert.match(html, /id="set-reasoning"/);
+  assert.match(html, /reasoningEffort: reasoningEl \? reasoningEl\.value : ''/);
+  assert.match(html, /patch: \{ reasoning_effort: next \}/);
+  assert.doesNotMatch(html, /model: useProfile \? '' :/);
 });
