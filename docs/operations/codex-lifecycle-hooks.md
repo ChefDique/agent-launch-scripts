@@ -34,7 +34,9 @@ It blocks or nudges on conservative signals:
 - `PreToolUse`: refuses mutating file tools in the guarded repo until
   `memory/session-status.json` exists and proves startup alignment: repo/lane,
   active goal, status, next action, and either handoff path + sha256 + read time
-  or an explicit absent-handoff reason.
+  or an explicit absent-handoff reason. If a lane taskboard exists under
+  `memory/tasks/tasks.json`, the artifact must also record taskboard path,
+  sha256, and read time.
 - `PostToolUse`: all `plan` or `todos` entries are `completed`.
 - `PostToolUse`: repeated shell/tool failures in one cwd. Default threshold is
   `CODEX_LIFECYCLE_FAILURE_THRESHOLD=2`.
@@ -92,6 +94,11 @@ Fallbacks are `.claude/memory/session-status.json` and
     "sha256": "<sha256 of current handoff>",
     "read_at": "2026-05-20T00:00:00Z"
   },
+  "taskboard": {
+    "path": "memory/tasks/tasks.json",
+    "sha256": "<sha256 of current taskboard>",
+    "read_at": "2026-05-20T00:00:00Z"
+  },
   "keep_running_processes": [
     {
       "pid": 12345,
@@ -116,6 +123,10 @@ If a repo really has no handoff file, use:
 Status reports should be generated from this artifact whenever possible. Hooks
 cannot enforce exact chat wording, but they can block mutation, compaction, and
 stop continuation when the artifact is missing or stale.
+
+Taskboard proof is required only when a lane taskboard file exists. It prevents
+an agent from reading the handoff while skipping the task row that explains why
+work is still blocked or review-pending.
 
 ## Process Cleanup Contract
 

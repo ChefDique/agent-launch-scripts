@@ -10,5 +10,10 @@
     "sha256": "a12be367624450bdd59e1ca0da376252051ca22d923b28135661baa233c799b3",
     "read_at": "2026-05-20T05:38:44Z"
   },
+  "taskboard": {
+    "path": "memory/tasks/tasks.json",
+    "sha256": "c3f0356f89435e8ca5def5da08e46bf41fbb554053ce92d138270870c01e1c90",
+    "read_at": "2026-05-20T05:38:44Z"
+  },
   "keep_running_processes": []
 }

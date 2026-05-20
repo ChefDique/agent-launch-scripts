@@ -213,14 +213,61 @@ if [[ -z "$GUARD_REPO_ROOT" ]]; then
 fi
 [[ -n "$GUARD_REPO_ROOT" ]] || GUARD_REPO_ROOT="$CANONICAL_REPO_ROOT"
 
+lane_root_for_repo() {
+  local repo_root="$1"
+  [[ -n "$repo_root" ]] || return 0
+
+  local root
+  local dir
+  root="$(normalize_path "$repo_root" "$PWD")"
+  dir="$(normalize_path "$CWD_VALUE" "$PWD")"
+  [[ -f "$dir" ]] && dir="$(dirname "$dir")"
+
+  if [[ "$dir" != "$root" && "$dir" != "$root/"* ]]; then
+    dir="$root"
+  fi
+
+  while [[ "$dir" == "$root" || "$dir" == "$root/"* ]]; do
+    if [[ -f "$dir/memory/handoff.md" || -f "$dir/.claude/memory/handoff.md" || -f "$dir/memory/tasks/tasks.json" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    [[ "$dir" == "$root" ]] && break
+    dir="$(dirname "$dir")"
+  done
+
+  printf '%s\n' "$root"
+}
+
 handoff_for_repo() {
   local repo_root="$1"
   [[ -n "$repo_root" ]] || return 0
 
-  if [[ -f "$repo_root/memory/handoff.md" ]]; then
+  local lane_root
+  lane_root="$(lane_root_for_repo "$repo_root")"
+
+  if [[ -f "$lane_root/memory/handoff.md" ]]; then
+    printf '%s\n' "$lane_root/memory/handoff.md"
+  elif [[ -f "$lane_root/.claude/memory/handoff.md" ]]; then
+    printf '%s\n' "$lane_root/.claude/memory/handoff.md"
+  elif [[ -f "$repo_root/memory/handoff.md" ]]; then
     printf '%s\n' "$repo_root/memory/handoff.md"
   elif [[ -f "$repo_root/.claude/memory/handoff.md" ]]; then
     printf '%s\n' "$repo_root/.claude/memory/handoff.md"
+  fi
+}
+
+taskboard_for_repo() {
+  local repo_root="$1"
+  [[ -n "$repo_root" ]] || return 0
+
+  local lane_root
+  lane_root="$(lane_root_for_repo "$repo_root")"
+
+  if [[ -f "$lane_root/memory/tasks/tasks.json" ]]; then
+    printf '%s\n' "$lane_root/memory/tasks/tasks.json"
+  elif [[ -f "$repo_root/memory/tasks/tasks.json" ]]; then
+    printf '%s\n' "$repo_root/memory/tasks/tasks.json"
   fi
 }
 
@@ -291,14 +338,18 @@ file_sha256() {
 status_artifact_for_repo() {
   local repo_root="$1"
   [[ -n "$repo_root" ]] || return 0
+  local lane_root
+  lane_root="$(lane_root_for_repo "$repo_root")"
 
   if [[ -n "${CODEX_LIFECYCLE_STATUS_ARTIFACT:-}" ]]; then
-    normalize_path "$CODEX_LIFECYCLE_STATUS_ARTIFACT" "$repo_root"
+    normalize_path "$CODEX_LIFECYCLE_STATUS_ARTIFACT" "$lane_root"
     return 0
   fi
 
   local candidate
   for candidate in \
+    "$lane_root/memory/session-status.json" \
+    "$lane_root/.claude/memory/session-status.json" \
     "$repo_root/memory/session-status.json" \
     "$repo_root/.claude/memory/session-status.json" \
     "$repo_root/.codex/session-status.json"; do
@@ -308,10 +359,12 @@ status_artifact_for_repo() {
     fi
   done
 
-  if [[ -d "$repo_root/memory" ]]; then
+  if [[ -d "$lane_root/memory" ]]; then
+    printf '%s\n' "$lane_root/memory/session-status.json"
+  elif [[ -d "$lane_root/.claude/memory" ]]; then
+    printf '%s\n' "$lane_root/.claude/memory/session-status.json"
+  elif [[ -d "$repo_root/memory" ]]; then
     printf '%s\n' "$repo_root/memory/session-status.json"
-  elif [[ -d "$repo_root/.claude/memory" ]]; then
-    printf '%s\n' "$repo_root/.claude/memory/session-status.json"
   else
     printf '%s\n' "$repo_root/.codex/session-status.json"
   fi
@@ -341,9 +394,14 @@ startup_status_problem() {
 
   local missing=()
   local artifact_repo
+  local artifact_lane
+  local expected_root
+  expected_root="$(lane_root_for_repo "$repo_root")"
   artifact_repo="$(json_field "$artifact" '.repo_root')"
-  if [[ -z "$artifact_repo" ]] || [[ "$(normalize_path "$artifact_repo" "$repo_root")" != "$(normalize_path "$repo_root" "$PWD")" ]]; then
-    missing+=("repo_root")
+  artifact_lane="$(json_field "$artifact" '.lane_root')"
+  if [[ "$(normalize_path "$artifact_repo" "$repo_root")" != "$(normalize_path "$expected_root" "$PWD")" ]] \
+    && [[ "$(normalize_path "$artifact_lane" "$repo_root")" != "$(normalize_path "$expected_root" "$PWD")" ]]; then
+    missing+=("repo_root_or_lane_root")
   fi
 
   local field
@@ -369,6 +427,24 @@ startup_status_problem() {
     [[ -n "$(json_field "$artifact" '.handoff.read_at')" ]] || missing+=("handoff.read_at")
   else
     [[ -n "$(json_field "$artifact" '.handoff.absent_reason')" ]] || missing+=("handoff.absent_reason")
+  fi
+
+  local taskboard_path
+  taskboard_path="$(taskboard_for_repo "$repo_root")"
+  if [[ -n "$taskboard_path" ]]; then
+    local recorded_taskboard
+    local recorded_taskboard_sha
+    local actual_taskboard_sha
+    recorded_taskboard="$(json_field "$artifact" '.taskboard.path')"
+    recorded_taskboard_sha="$(json_field "$artifact" '.taskboard.sha256')"
+    actual_taskboard_sha="$(file_sha256 "$taskboard_path")"
+    if [[ -z "$recorded_taskboard" ]] || [[ "$(normalize_path "$recorded_taskboard" "$expected_root")" != "$(normalize_path "$taskboard_path" "$expected_root")" ]]; then
+      missing+=("taskboard.path")
+    fi
+    if [[ -z "$recorded_taskboard_sha" ]] || [[ -n "$actual_taskboard_sha" && "$recorded_taskboard_sha" != "$actual_taskboard_sha" ]]; then
+      missing+=("taskboard.sha256")
+    fi
+    [[ -n "$(json_field "$artifact" '.taskboard.read_at')" ]] || missing+=("taskboard.read_at")
   fi
 
   if ((${#missing[@]} > 0)); then
@@ -616,8 +692,8 @@ lifecycle_precondition_reason() {
 
   local status_problem
   if status_problem="$(startup_status_problem "$GUARD_REPO_ROOT")"; then
-    printf 'Codex startup/lane precondition: refusing mutating work in %s because %s. Create or update %s with repo_root, lane, active_goal, status, next_action, and handoff proof before proceeding.' \
-      "$GUARD_REPO_ROOT" \
+    printf 'Codex startup/lane precondition: refusing mutating work in %s because %s. Create or update %s with lane root, active_goal/status/next_action, handoff proof, and taskboard proof before proceeding.' \
+      "$(lane_root_for_repo "$GUARD_REPO_ROOT")" \
       "$status_problem" \
       "$(relative_to_repo "$(status_artifact_for_repo "$GUARD_REPO_ROOT")" "$GUARD_REPO_ROOT")"
     return 0
@@ -705,7 +781,7 @@ STATE_FILE="$(state_file)"
 case "$EVENT" in
   SessionStart|session_start|session-start)
     if STATUS_PROBLEM="$(startup_status_problem "$GUARD_REPO_ROOT")"; then
-      emit_context "STARTUP/LANE CHECKPOINT: before mutating files or launching work from ${GUARD_REPO_ROOT}, create or refresh $(relative_to_repo "$(status_artifact_for_repo "$GUARD_REPO_ROOT")" "$GUARD_REPO_ROOT"). Required proof: repo/lane, handoff path plus sha256/read_at or explicit absent reason, active goal/status, and next action. Current problem: ${STATUS_PROBLEM}."
+      emit_context "STARTUP/LANE CHECKPOINT: before mutating files or launching work from $(lane_root_for_repo "$GUARD_REPO_ROOT"), create or refresh $(relative_to_repo "$(status_artifact_for_repo "$GUARD_REPO_ROOT")" "$GUARD_REPO_ROOT"). Required proof: lane root, handoff path plus sha256/read_at or explicit absent reason, taskboard path plus sha256/read_at when present, active goal/status, and next action. Current problem: ${STATUS_PROBLEM}."
     else
       emit_context "STARTUP/LANE CHECKPOINT: $(relative_to_repo "$(status_artifact_for_repo "$GUARD_REPO_ROOT")" "$GUARD_REPO_ROOT") is present. Report status from that artifact, not model memory. $(status_summary)"
     fi
