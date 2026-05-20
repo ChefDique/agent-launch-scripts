@@ -11,15 +11,16 @@ This directory is the durable knowledge base for `agent-launch-scripts`. Keep `A
 5. `product/agentremote.md` — compact product boundary and money-path focus.
 6. `product/agentremote-feature-index.md` — feature inventory, source files, expected behavior, and verification notes.
 7. `operations/agentremote-quality-gates.md` — regression matrix and required quality checks by surface.
-8. `operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
-9. `operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-10. `operations/codex-lifecycle-hooks.md` — Codex hook parity for `/chores` and `/done` checkpoint nudges.
-11. `operations/agentremote-recovery-list.md` — recurring AgentRemote/iTerm/tmux fixes Richard should not have to restate.
-12. `../DESIGN.md` — current AgentRemote visual system and migration target.
-13. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
-14. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
-15. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
-16. `references/2026-05-06-codex-skill-command-visibility-report.md` — Codex lifecycle skill visibility report for Lucius/R&D.
+8. `operations/agentremote-completion-audit.md` — prompt-to-artifact checklist for what is done, blocked, or still not live-verified.
+9. `operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
+10. `operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+11. `operations/codex-lifecycle-hooks.md` — Codex hook parity for `/chores` and `/done` checkpoint nudges.
+12. `operations/agentremote-recovery-list.md` — recurring AgentRemote/iTerm/tmux fixes Richard should not have to restate.
+13. `../DESIGN.md` — current AgentRemote visual system and migration target.
+14. `exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot work plan.
+15. `../tasks/ALS-002-infra-audit.md` and `../tasks/ALS-002-regression-audit.md` — audit evidence behind the active plan.
+16. `references/harness-engineering-rd-query.md` — R&D QMD/graphify retrieval report and repo-structure rationale.
+17. `references/2026-05-06-codex-skill-command-visibility-report.md` — Codex lifecycle skill visibility report for Lucius/R&D.
 
 `product/agentremote-feature-index.md` and
 `operations/agentremote-quality-gates.md` are quality-task artifacts. If either
@@ -47,6 +48,7 @@ the relevant contract instead of copying large sections into a new brief:
 | What is the app for? | `product/agentremote-prd.md` |
 | What features exist and where are they implemented? | `product/agentremote-feature-index.md` |
 | What checks are required before shipping? | `operations/agentremote-quality-gates.md` |
+| What is actually done versus blocked right now? | `operations/agentremote-completion-audit.md` |
 | What live runtime behavior must not be violated? | `operations/agentremote-operator-contract.md` |
 | How do launchers, tmux, and Swarmy fit together? | `operations/launch-scripts.md` |
 | What should it look and feel like? | `../DESIGN.md` |

@@ -2,30 +2,28 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote quality-control checkpoint: root task board, PRD/feature index/quality gates, and regression fixes.
+**Last working on:** AgentRemote quality-control completion audit and Codex lifecycle hook enforcement.
 
-**State at last pause (2026-05-19T22:29:42-0700):**
-- Created root `tasks.json` and docs artifacts: `docs/product/agentremote-prd.md`, `docs/product/agentremote-feature-index.md`, and `docs/operations/agentremote-quality-gates.md`.
-- Fixed current repo-side regressions with static/isolated tests only: catalog-backed model/reasoning picker, Claude-only `startup_injection`, no Codex blank Enter injection, image paste submit path, Option-key terminal word editing, literal tmux send path, safer marked iTerm viewer script, and docs integrity.
-- Global Neo `PreToolUse` guard is installed in `~/.codex/hooks.json`; `bash scripts/audit-codex-lifecycle-hooks.sh` passes with `warnings=0`.
-- Review found and fixes were applied for two late bugs: settings profile rename now uses `update-agent-form`, and Claude startup literal lines use `tmux send-keys -l --`.
-- No live AgentRemote/iTerm/tmux attach/deploy/stop/layout or AppleScript verification has been run in this checkpoint.
+**State at last pause (2026-05-20T05:38:44Z):**
+- Created `docs/operations/agentremote-completion-audit.md`, a prompt-to-artifact checklist that maps Richard's explicit asks to concrete evidence and names the remaining blocked surfaces.
+- Updated `tasks.json`: ALS-QUALITY-004 and ALS-QUALITY-006 are done after fresh verification; ALS-QUALITY-005 remains blocked in Swarmy; ALS-QUALITY-007 remains blocked until Richard approves live AgentRemote/iTerm/tmux mutation.
+- Fixed global hook wiring in `~/.codex/hooks.json` without removing existing self-improving hooks. Neo lifecycle hooks are now wired for `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, and `Stop`; `UserPromptSubmit` stays unwired.
+- Updated docs read order to include the completion audit so future sessions do not treat tests or a commit as proof of full goal completion.
+- Verification passed after the hook wiring fix: `npm --prefix remote-app test`; `bash scripts/audit-codex-lifecycle-hooks.sh` (`warnings=0`); shell syntax checks; launcher smoke tests; `jq` checks; `git diff --check`.
+- Repo was clean at commit `07b129d` before this audit follow-up; new audit/docs/task/handoff edits are pending commit.
 
-**Next verifiable step:** Run the full safe suite after chores edits, then commit the checkpoint if green.
+**Next verifiable step:** Commit the completion-audit follow-up after re-running `jq`, lifecycle audit, and `git diff --check`.
 
-**If that step fails:** Fix the failing test before committing. Do not run live AgentRemote/iTerm/tmux checks unless Richard explicitly approves that exact live mutation.
+**If that step fails:** Fix the failing artifact or hook wiring first. Do not mark the active goal complete while ALS-QUALITY-005 or ALS-QUALITY-007 remain blocked.
 
-**Pending uncommitted diff:** Large repo-local checkpoint across root docs/tasks, launcher, lifecycle hooks, AgentRemote app/tests, and package version `1.4.12`; no cross-repo edits. Global hook file changed outside repo: `~/.codex/hooks.json`.
+## Open priorities (<=5)
 
-## Open priorities
-
-- [REVIEW] **ALS-QUALITY-004 current fixes** — safe tests must remain green after chores edits, then commit checkpoint.
+- [DONE] **ALS-QUALITY-004 current fixes** — safe tests passed; completion audit records exact evidence.
+- [DONE] **ALS-QUALITY-006 dirty/change review** — repo-local scope classified; global hook wiring noted as outside Git.
+- [DONE] **Global Codex lifecycle hook system** — hook/audit/docs/status artifact implemented and live global hook audit passes with `warnings=0`.
+- [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy owns its model defaults and worker-completion proof.
 - [BLOCKED] **ALS-QUALITY-007 live AgentRemote verification** — requires Richard approval before mutating live AgentRemote/iTerm/tmux.
-- [BLOCKED-SWARMY] **Unsupported `gpt-5.1` worker launches** — Swarmy owns model selection/defaults and worker-completion proof.
-- [WAIT] **AgentRemote Deploy live proof** — repo has static/isolated viewer safety coverage, but live attach/layout/pane naming remains approval-gated.
 
 ## Cross-session comms
 
 - 2026-05-19 Neo -> Swarmy: reported unsupported `gpt-5.1` Codex worker launch and missing pane/window names; asked Swarmy to fix in its own repo and coordinate by PR/worktree, not by editing `agent-launch-scripts`.
-
-<!-- Mirror of the current repo-local handoff in memory/handoff.md. Do not move memory folders. -->

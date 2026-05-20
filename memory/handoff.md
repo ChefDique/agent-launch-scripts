@@ -2,29 +2,27 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Global Codex lifecycle hook system.
+**Last working on:** AgentRemote quality-control completion audit and Codex lifecycle hook enforcement.
 
-**State at last pause (2026-05-20T05:38:00Z):**
-- Extended `scripts/codex-lifecycle-hook.sh` into one repo-owned hook system: startup/status artifact validation, `SessionStart` checkpoint context, `PreToolUse` mutation gate, `PreCompact` stale-status/process blocks, `Stop` continuation for unfinished active work, and non-destructive process tracking.
-- Added `memory/session-status.json` as the artifact-backed status source for this lane. Reporting should come from that file where possible, not model memory.
-- Updated `scripts/audit-codex-lifecycle-hooks.sh` with dry-run coverage for startup/status proof, stale handoff checksum, Stop continuation, process cleanup block, cross-repo/live-surface guards, and source model rejection.
-- Updated `docs/operations/codex-lifecycle-hooks.md` with hard-enforced vs not-enforced behavior, no `UserPromptSubmit`, process cleanup contract, and sources checked.
-- Wrote operator handoff: `memory/sessions/2026-05-20_0538_global-codex-hook-system.md`.
-- Verification passed: `bash -n scripts/codex-lifecycle-hook.sh scripts/audit-codex-lifecycle-hooks.sh`; `bash scripts/audit-codex-lifecycle-hooks.sh` (pass, warnings=0); `bash test/launch-agent-runtime.test.sh`; `npm --prefix remote-app run test:policy`; focused `git diff --check`.
+**State at last pause (2026-05-20T05:38:44Z):**
+- Created `docs/operations/agentremote-completion-audit.md`, a prompt-to-artifact checklist that maps Richard's explicit asks to concrete evidence and names the remaining blocked surfaces.
+- Updated `tasks.json`: ALS-QUALITY-004 and ALS-QUALITY-006 are done after fresh verification; ALS-QUALITY-005 remains blocked in Swarmy; ALS-QUALITY-007 remains blocked until Richard approves live AgentRemote/iTerm/tmux mutation.
+- Fixed global hook wiring in `~/.codex/hooks.json` without removing existing self-improving hooks. Neo lifecycle hooks are now wired for `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, and `Stop`; `UserPromptSubmit` stays unwired.
+- Updated docs read order to include the completion audit so future sessions do not treat tests or a commit as proof of full goal completion.
+- Verification passed after the hook wiring fix: `npm --prefix remote-app test`; `bash scripts/audit-codex-lifecycle-hooks.sh` (`warnings=0`); shell syntax checks; launcher smoke tests; `jq` checks; `git diff --check`.
+- Repo was clean at commit `07b129d` before this audit follow-up; new audit/docs/task/handoff edits are pending commit.
 
-**Next verifiable step:** Watch the next fresh Codex startup/compaction/stop cycle and confirm it reads `memory/session-status.json` as the reporting source.
+**Next verifiable step:** Commit the completion-audit follow-up after re-running `jq`, lifecycle audit, and `git diff --check`.
 
-**If that step fails:** Keep `UserPromptSubmit` unwired and rely on the artifact-backed `PreToolUse` gate; do not add prompt injection as a workaround.
-
-**Pending uncommitted diff:** Existing dirty AgentRemote/launcher checkpoint work remains in the checkout. This hook pass intentionally touched only lifecycle hook, audit, docs, and memory/status handoff files.
+**If that step fails:** Fix the failing artifact or hook wiring first. Do not mark the active goal complete while ALS-QUALITY-005 or ALS-QUALITY-007 remain blocked.
 
 ## Open priorities (<=5)
 
-- [DONE] **Global Codex lifecycle hook system** — hook/audit/docs/status artifact implemented and verified; live audit now passes with `warnings=0`.
-- [REVIEW] **ALS-QUALITY-004 current fixes** — safe tests must remain green after chores edits, then commit checkpoint.
+- [DONE] **ALS-QUALITY-004 current fixes** — safe tests passed; completion audit records exact evidence.
+- [DONE] **ALS-QUALITY-006 dirty/change review** — repo-local scope classified; global hook wiring noted as outside Git.
+- [DONE] **Global Codex lifecycle hook system** — hook/audit/docs/status artifact implemented and live global hook audit passes with `warnings=0`.
+- [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy owns its model defaults and worker-completion proof.
 - [BLOCKED] **ALS-QUALITY-007 live AgentRemote verification** — requires Richard approval before mutating live AgentRemote/iTerm/tmux.
-- [BLOCKED-SWARMY] **Unsupported `gpt-5.1` worker launches** — Swarmy owns model selection/defaults and worker-completion proof.
-- [WAIT] **AgentRemote Deploy live proof** — repo has static/isolated viewer safety coverage, but live attach/layout/pane naming remains approval-gated.
 
 ## Cross-session comms
 

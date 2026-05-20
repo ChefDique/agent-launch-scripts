@@ -3,7 +3,7 @@
   "_project": "agent-launch-scripts",
   "_owner": "neo",
   "_purpose": "Root app-quality task board for AgentRemote. This is the first stop for future sessions before changing code.",
-  "_updated_at": "2026-05-19T22:18:00-0700",
+  "_updated_at": "2026-05-19T22:38:44-0700",
   "_status_order": ["inbox", "assigned", "in_progress", "review", "done", "blocked"],
   "rules": [
     "Stay inside /Users/richardadair/ai_projects/agent-launch-scripts unless Richard explicitly authorizes another repo.",
@@ -55,10 +55,10 @@
     {
       "id": "ALS-QUALITY-004",
       "title": "Track and verify current fixes from this session",
-      "status": "review",
+      "status": "done",
       "priority": "critical",
       "owner": "neo-orchestrator",
-      "artifacts": ["tasks.json"],
+      "artifacts": ["tasks.json", "docs/operations/agentremote-completion-audit.md"],
       "acceptance": [
         "PreToolUse hook is installed and audit passes with warnings=0.",
         "Model/thinking picker tests pass.",
@@ -84,10 +84,10 @@
     {
       "id": "ALS-QUALITY-006",
       "title": "Review all uncommitted changes before ship",
-      "status": "review",
+      "status": "done",
       "priority": "critical",
       "owner": "review-worker",
-      "artifacts": ["docs/generated/"],
+      "artifacts": ["docs/operations/agentremote-completion-audit.md"],
       "acceptance": [
         "Dirty files are classified by task.",
         "No unrelated or unsafe changes are included silently.",

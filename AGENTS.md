@@ -23,12 +23,13 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 5. `docs/product/agentremote-prd.md` — plain-English product contract and source-of-truth map.
 6. `docs/product/agentremote-feature-index.md` — feature inventory and verification map.
 7. `docs/product/agentremote.md` — product boundary and money-path focus.
-8. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
-9. `docs/operations/agentremote-quality-gates.md` — regression and blast-radius matrix.
-10. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-11. `DESIGN.md` — AgentRemote visual system and migration target.
-12. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
-13. `remote-app/AGENTS.md` — required before UI or IPC edits.
+8. `docs/operations/agentremote-quality-gates.md` — regression and blast-radius matrix.
+9. `docs/operations/agentremote-completion-audit.md` — concrete done/blocked/not-live-verified checklist.
+10. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
+11. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+12. `DESIGN.md` — AgentRemote visual system and migration target.
+13. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
+14. `remote-app/AGENTS.md` — required before UI or IPC edits.
 
 ## Index of scoped AGENTS.md
 

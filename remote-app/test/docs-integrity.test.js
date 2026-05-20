@@ -16,6 +16,7 @@ test('AgentRemote startup docs point to existing control-plane artifacts', () =>
     'docs/product/agentremote-prd.md',
     'docs/product/agentremote-feature-index.md',
     'docs/operations/agentremote-quality-gates.md',
+    'docs/operations/agentremote-completion-audit.md',
     'docs/operations/agentremote-operator-contract.md',
     'docs/operations/launch-scripts.md',
     'remote-app/AGENTS.md'
