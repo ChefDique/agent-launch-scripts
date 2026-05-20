@@ -1,6 +1,6 @@
 # AgentRemote Completion Audit
 
-Updated: 2026-05-19T23:12:13-0700
+Updated: 2026-05-19T23:25:45-0700
 
 This audit prevents Neo from treating a green commit, a green test suite, or a
 hook recommendation as the end of Richard's goal. The goal stays active until
@@ -26,18 +26,27 @@ approval or another repo owner.
 | Actually do chores, not recommend them. | `memory/handoff.md`, `.claude/memory/handoff.md`, `memory/session-status.json`, `memory/sessions/2026-05-19_2229_agentremote-quality-control-checkpoint.md`, `memory/sessions/2026-05-20_0538_global-codex-hook-system.md`. | Done this checkpoint. |
 | Coordinate with Swarmy instead of editing Swarmy. | message-agent thread/deadletter; `tasks.json` ALS-QUALITY-005. | Blocked outside this repo. Neo attempted Swarmy delivery and did not patch Swarmy. Latest send to `overlordswarmy` failed with connection refused; message-agent wrote deadletter and alerted Mugatu. |
 | Do not mark the goal complete while live AgentRemote verification is missing. | `tasks.json` ALS-QUALITY-007; this audit. | Blocked. Live verification requires Richard approval for desktop mutation. |
-| Stop resetting/turning off the goal prematurely. | `memory/session-status.json`, `scripts/codex-lifecycle-hook.sh`, `scripts/audit-codex-lifecycle-hooks.sh`. | Enforced. The status artifact is `status=blocked`, the goal tool is active, and the hook audit includes a blocked-status `Stop` continuation case. |
+| Stop resetting/turning off the goal prematurely. | `memory/session-status.json`, `memory/handoff.md`, `scripts/codex-lifecycle-hook.sh`, `scripts/audit-codex-lifecycle-hooks.sh`, live `/goal` state. | Enforced and still not complete. The status artifact is `status=blocked`, handoff says not to mark complete while ALS-QUALITY-005/007 remain blocked, the live goal tool is `active`, and `Stop` dry-run emits `STOP LIFECYCLE CONTINUATION` for the blocked state. |
 
 ## Fresh Verification
 
-- `npm --prefix remote-app test` - pass, 134 tests plus shell subtests.
-- `bash scripts/audit-codex-lifecycle-hooks.sh` - pass, `warnings=0`.
+- `get_goal` - live goal status is `active`; not marked complete.
+- `shasum -a 256 memory/handoff.md memory/tasks/tasks.json` - matches `memory/session-status.json` handoff and taskboard hashes.
 - `printf '{"cwd":"...","stop_hook_active":false}' | scripts/codex-lifecycle-hook.sh --event Stop --dry-run` - emits `STOP LIFECYCLE CONTINUATION` with `status=blocked`.
+- `bash scripts/audit-codex-lifecycle-hooks.sh` - pass, `warnings=0`.
+- `npm --prefix remote-app test` - pass, 136 tests plus shell subtests.
 - `bash -n chq-tmux.sh launch-agent.sh launch-remote.sh scripts/cron-poke.sh scripts/session-end-cleanup.sh scripts/codex-lifecycle-hook.sh scripts/audit-codex-lifecycle-hooks.sh` - pass.
 - `bash test/launch-agent-runtime.test.sh` - pass.
 - `bash test/chq-codex-runtime-smoke.test.sh` - pass.
 - `jq . tasks.json`, `jq . agents.json`, `jq . ~/.codex/hooks.json`, `jq . memory/session-status.json` - pass.
 - `git diff --check` - pass.
+
+## Completion Decision
+
+Do not call `update_goal(status=complete)` yet. The premature-reset guard is
+working, but the guarded AgentRemote goal remains blocked by unresolved live
+verification and Swarmy-owned runtime proof. A blocked goal is not a completed
+goal.
 
 ## Not Complete / Still Blocked
 
