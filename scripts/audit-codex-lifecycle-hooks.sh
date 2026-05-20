@@ -236,6 +236,17 @@ if ! grep -Fq "STOP LIFECYCLE CONTINUATION" <<< "$stop_unfinished_output"; then
   fail "Stop dry-run did not continue unfinished active work from status artifact"
 fi
 
+jq '.status = "blocked" | .next_action = "wait for explicit owner unblock"' \
+  "$status_dir/memory/session-status.json" > "$status_dir/memory/session-status.tmp" \
+  && mv "$status_dir/memory/session-status.tmp" "$status_dir/memory/session-status.json"
+stop_blocked_output="$(
+  printf '{"cwd":"%s","stop_hook_active":false}' "$status_dir" \
+    | CODEX_LIFECYCLE_GUARD_REPO_ROOT="$status_dir" "$HOOK_SCRIPT" --event Stop --dry-run
+)"
+if ! grep -Fq "STOP LIFECYCLE CONTINUATION" <<< "$stop_blocked_output"; then
+  fail "Stop dry-run did not continue blocked active work from status artifact"
+fi
+
 stop_active_output="$(
   printf '{"cwd":"%s","stop_hook_active":true}' "$status_dir" \
     | CODEX_LIFECYCLE_GUARD_REPO_ROOT="$status_dir" "$HOOK_SCRIPT" --event Stop --dry-run

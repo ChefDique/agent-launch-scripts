@@ -61,9 +61,9 @@ It blocks or nudges on conservative signals:
   compact.
 
 `Stop` continues the agent when `memory/session-status.json` still records
-active unfinished work or when tracked cleanup-relevant processes are still live
-without keep-running proof. It avoids infinite loops by not repeating the
-continuation when Codex reports `stop_hook_active=true`. Set
+active unfinished or blocked work, or when tracked cleanup-relevant processes
+are still live without keep-running proof. It avoids infinite loops by not
+repeating the continuation when Codex reports `stop_hook_active=true`. Set
 `CODEX_LIFECYCLE_ALLOW_UNFINISHED_STOP=1` only for an explicit operator
 override.
 
@@ -150,7 +150,7 @@ Hard-enforced where Codex hook semantics support it:
 - `PreToolUse` deny for live AgentRemote/iTerm/tmux mutation unless explicitly
   overridden.
 - `PreCompact` deny for missing/stale status proof or unkept tracked processes.
-- `Stop` continuation for unfinished status or unkept tracked processes.
+- `Stop` continuation for unfinished/blocked status or unkept tracked processes.
 
 Not hard-enforced by hooks:
 
@@ -297,7 +297,8 @@ The audit checks:
 - `PreToolUse` is wired to the Neo/Codex scope guard, as a warning by default
   and a failure with `STRICT_CODEX_LIFECYCLE_HOOKS=1`,
 - `UserPromptSubmit` remains unwired,
-- completion, failure, startup/status artifact, stop-continuation,
+- completion, failure, startup/status artifact, unfinished and blocked
+  stop-continuation,
   pre-compact, post-compact, cross-repo edit, missing status proof, process
   cleanup, live-surface mutation, and explicit override dry-run samples behave
   as expected,
