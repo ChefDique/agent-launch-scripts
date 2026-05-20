@@ -65,6 +65,24 @@ if [[ -f "$CODEX_HOOKS_JSON" ]]; then
       failures=$((failures + 1))
     fi
   fi
+
+  for event_name in PostToolUse PreCompact PostCompact Stop; do
+    event_count="$(
+      jq --arg event_name "$event_name" --arg hook_script "$HOOK_SCRIPT" \
+        '[.hooks[$event_name][]?.hooks[]?.command? | select(contains($hook_script))] | length' \
+        "$CODEX_HOOKS_JSON" 2>/dev/null || echo 0
+    )"
+    if [[ ! "$event_count" =~ ^[0-9]+$ || "$event_count" -eq 0 ]]; then
+      fail "$CODEX_HOOKS_JSON does not wire $event_name to $HOOK_SCRIPT"
+    fi
+  done
+
+  user_prompt_count="$(
+    jq '[.hooks.UserPromptSubmit[]?] | length' "$CODEX_HOOKS_JSON" 2>/dev/null || echo 0
+  )"
+  if [[ ! "$user_prompt_count" =~ ^[0-9]+$ || "$user_prompt_count" -ne 0 ]]; then
+    fail "$CODEX_HOOKS_JSON must keep UserPromptSubmit unwired"
+  fi
 fi
 
 completion_output="$(
@@ -84,6 +102,22 @@ failure_output="$(
 )"
 if ! grep -Fq "consecutive shell/tool failures" <<< "$failure_output"; then
   fail "failure dry-run did not emit lifecycle checkpoint"
+fi
+
+precompact_output="$(
+  printf '{"cwd":"%s"}' "$REPO_ROOT" \
+    | "$HOOK_SCRIPT" --event PreCompact --dry-run
+)"
+if ! grep -Fq "PRE-COMPACT LIFECYCLE CHECKPOINT" <<< "$precompact_output"; then
+  fail "PreCompact dry-run did not emit lifecycle checkpoint"
+fi
+
+postcompact_output="$(
+  printf '{"cwd":"%s"}' "$REPO_ROOT" \
+    | "$HOOK_SCRIPT" --event PostCompact --dry-run
+)"
+if ! grep -Fq "POST-COMPACT RE-ANCHOR" <<< "$postcompact_output"; then
+  fail "PostCompact dry-run did not emit lifecycle re-anchor"
 fi
 
 if [[ "$failures" -ne 0 ]]; then

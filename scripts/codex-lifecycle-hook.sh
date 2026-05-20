@@ -3,14 +3,14 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/codex-lifecycle-hook.sh --event <PostToolUse|UserPromptSubmit|Stop> [--dry-run]
+Usage: scripts/codex-lifecycle-hook.sh --event <PostToolUse|PreCompact|PostCompact|Stop> [--dry-run]
 
 Conservative Codex lifecycle hook.
 
 It emits hook additionalContext when it sees:
   - all plan/todo items completed,
   - repeated shell/tool failures in the same cwd,
-  - user closeout language such as /done or closeout.
+  - compaction boundaries that need handoff discipline.
 
 It does not run /chores or /done itself. Hooks should nudge; the lead agent
 must perform the lifecycle skill so handoff/session files stay intentional.
@@ -151,6 +151,42 @@ emit_context() {
   fi
 }
 
+repo_root_for_cwd() {
+  local cwd="$1"
+  [[ -d "$cwd" ]] || return 0
+  git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true
+}
+
+handoff_for_repo() {
+  local repo_root="$1"
+  [[ -n "$repo_root" ]] || return 0
+
+  if [[ -f "$repo_root/memory/handoff.md" ]]; then
+    printf '%s\n' "$repo_root/memory/handoff.md"
+  elif [[ -f "$repo_root/.claude/memory/handoff.md" ]]; then
+    printf '%s\n' "$repo_root/.claude/memory/handoff.md"
+  fi
+}
+
+relative_to_repo() {
+  local path="$1"
+  local repo_root="$2"
+  if [[ -n "$repo_root" && "$path" == "$repo_root/"* ]]; then
+    printf '%s\n' "${path#"$repo_root/"}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+handoff_excerpt() {
+  local path="$1"
+  awk '
+    /^## Active thread/ { in_active=1 }
+    in_active { print }
+    in_active && /^---$/ { exit }
+  ' "$path" 2>/dev/null | sed -n '1,80p'
+}
+
 plan_total="$(
   jq '[.. | objects | .plan? | arrays | .[]?] | length' <<< "$INPUT_JSON" 2>/dev/null || echo 0
 )"
@@ -212,9 +248,32 @@ case "$EVENT" in
     fi
     ;;
 
-  UserPromptSubmit|user_prompt_submit|user-prompt-submit)
-    if grep -Eiq '(^|[^[:alnum:]_])(/done|done status|closeout|close out|end session|wrap up|major task is done|task is done|task complete|task failed|blocked path|failure state)([^[:alnum:]_]|$)' <<< "$lower_payload"; then
-      emit_context "LIFECYCLE CHECKPOINT: the prompt looks like a completion, failure, or closeout boundary. Use /chores for mid-session cleanup or /done for final closeout before moving on."
+  PreCompact|pre_compact|pre-compact)
+    REPO_ROOT="$(repo_root_for_cwd "$CWD_VALUE")"
+    HANDOFF_PATH="$(handoff_for_repo "$REPO_ROOT")"
+
+    if [[ -n "$HANDOFF_PATH" ]]; then
+      HANDOFF_REF="$(relative_to_repo "$HANDOFF_PATH" "$REPO_ROOT")"
+      emit_context "PRE-COMPACT LIFECYCLE CHECKPOINT: before allowing this context to compact, run /chores if current work changed state, update ${HANDOFF_REF}, preserve the running todo list, and record pending diffs/blockers. Do not drift from the repo handoff after compaction."
+    else
+      emit_context "PRE-COMPACT LIFECYCLE CHECKPOINT: before allowing this context to compact, run /chores if current work changed state and write a repo handoff if one exists for this lane. No memory/handoff.md was found from cwd=${CWD_VALUE}."
+    fi
+    ;;
+
+  PostCompact|post_compact|post-compact)
+    REPO_ROOT="$(repo_root_for_cwd "$CWD_VALUE")"
+    HANDOFF_PATH="$(handoff_for_repo "$REPO_ROOT")"
+
+    if [[ -n "$HANDOFF_PATH" ]]; then
+      HANDOFF_REF="$(relative_to_repo "$HANDOFF_PATH" "$REPO_ROOT")"
+      EXCERPT="$(handoff_excerpt "$HANDOFF_PATH")"
+      if [[ -n "$EXCERPT" ]]; then
+        emit_context "POST-COMPACT RE-ANCHOR: read ${HANDOFF_REF} before continuing and reconcile against it so you do not drift. Current active handoff excerpt:\n${EXCERPT}"
+      else
+        emit_context "POST-COMPACT RE-ANCHOR: read ${HANDOFF_REF} before continuing and reconcile against it so you do not drift. The file exists but the Active thread excerpt was empty."
+      fi
+    else
+      emit_context "POST-COMPACT RE-ANCHOR: look for repo-relative memory/handoff.md before continuing. No handoff was found from cwd=${CWD_VALUE}; avoid resuming from stale compacted memory alone."
     fi
     ;;
 

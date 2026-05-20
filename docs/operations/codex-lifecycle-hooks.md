@@ -25,12 +25,19 @@ It nudges on three conservative signals:
 - `PostToolUse`: all `plan` or `todos` entries are `completed`.
 - `PostToolUse`: repeated shell/tool failures in one cwd. Default threshold is
   `CODEX_LIFECYCLE_FAILURE_THRESHOLD=2`.
-- `UserPromptSubmit`: closeout or failure language such as `/done`, `closeout`,
-  `task complete`, or `task failed`.
+- `PreCompact`: tells the agent to run `/chores` when current work changed
+  state, update the repo handoff, preserve the running todo list, and record
+  blockers before compaction.
+- `PostCompact`: re-anchors the resumed agent on repo-relative
+  `memory/handoff.md` (or `.claude/memory/handoff.md` fallback) by injecting the
+  active handoff excerpt.
 
 `Stop` is quiet by default because Codex stop events do not prove the session is
 actually ending. Set `CODEX_LIFECYCLE_STOP_NUDGE=1` only when you explicitly
 want a final reminder if a prior completion/failure signal is pending.
+
+`UserPromptSubmit` intentionally stays unwired. Prompt-path hooks created too
+much duplicate lifecycle noise and made Richard's messages harder to read.
 
 ## Codex Wiring
 
@@ -73,12 +80,22 @@ like this to `~/.codex/hooks.json`:
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "PreCompact": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/richardadair/ai_projects/agent-launch-scripts/scripts/codex-lifecycle-hook.sh --event UserPromptSubmit"
+            "command": "bash /Users/richardadair/ai_projects/agent-launch-scripts/scripts/codex-lifecycle-hook.sh --event PreCompact"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/richardadair/ai_projects/agent-launch-scripts/scripts/codex-lifecycle-hook.sh --event PostCompact"
           }
         ]
       }
@@ -113,8 +130,11 @@ The audit checks:
 - `~/.codex/config.toml` enables Codex hooks,
 - `codex features list` reports `hooks=true`,
 - `~/.codex/hooks.json` parses,
-- the global hook registry references this repo-owned hook script,
-- completion and failure dry-run samples emit lifecycle checkpoints.
+- the global hook registry references this repo-owned hook script for
+  `PostToolUse`, `PreCompact`, `PostCompact`, and `Stop`,
+- `UserPromptSubmit` remains unwired,
+- completion, failure, pre-compact, and post-compact dry-run samples emit
+  lifecycle checkpoints.
 
 By default, a missing global reference is a warning because this repo should not
 mutate the operator's global Codex config without explicit intent. Use
