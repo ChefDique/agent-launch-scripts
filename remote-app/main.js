@@ -722,7 +722,7 @@ function normalizeStartupInjectionPolicy(value) {
 }
 
 function defaultClaudeStartupInjectionPolicy() {
-  return { include: ['dangerous_permission_enter', 'startup_lines'] };
+  return { include: ['startup_lines'], exclude: ['dangerous_permission_enter'] };
 }
 
 function syncStartupInjectionPolicy(entry) {
@@ -3499,19 +3499,31 @@ function sendPaneKeys(paneId, keys) {
   execFile('tmux', ['send-keys', '-t', paneId, ...keys], () => {});
 }
 
-// pane-input — renderer sends keystrokes typed into the xterm.
+// pane-input — renderer sends terminal keystrokes and paste payloads for the xterm.
 // Text is forwarded literally. Known word-edit escape sequences are forwarded
-// as real keys so tmux does not flatten them into inert literal bytes.
-ipcMain.on('pane-input', (_event, { id, data }) => {
+// as real keys so tmux does not flatten them into inert literal bytes. Enter is
+// only converted to a real keypress for explicit terminal key data; paste/image
+// paths must not auto-submit by smuggling a trailing CR/LF.
+ipcMain.on('pane-input', (_event, payload = {}) => {
+  const { id, data } = payload;
   const safeId = String(id || '').trim().toLowerCase();
   if (!/^[a-z0-9_-]+$/.test(safeId)) return;
   const entry = activePipeReaders[safeId];
   if (!entry || !entry.paneId) return;
   if (typeof data !== 'string' || data.length === 0) return;
+  const allowEnter = payload.allowEnter === true;
 
   const wordKeys = tmuxKeysForTerminalInput(data);
   if (wordKeys) {
     sendPaneKeys(entry.paneId, wordKeys);
+    return;
+  }
+
+  if (!allowEnter && /[\r\n]/.test(data)) {
+    const pasteText = data.replace(/\r\n/g, '\n').replace(/[\r\n]+$/g, '');
+    if (pasteText.length > 0) {
+      sendPaneLiteral(entry.paneId, pasteText);
+    }
     return;
   }
 

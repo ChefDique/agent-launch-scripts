@@ -6548,7 +6548,7 @@
           saved.push(`[image: ${result.path}]`);
         }
         const imageReference = saved.join(' ');
-        ipcRenderer.send('pane-input', { id: agentId, data: `${imageReference}\r` });
+        ipcRenderer.send('pane-input', { id: agentId, data: imageReference });
         return true;
       }
 
@@ -6560,7 +6560,7 @@
 
       const marker = await saveNativeClipboardImageReference();
       if (marker) {
-        ipcRenderer.send('pane-input', { id: agentId, data: `${marker}\r` });
+        ipcRenderer.send('pane-input', { id: agentId, data: marker });
         return true;
       }
 
@@ -9599,6 +9599,9 @@
 
       term.open(host);
       fitAddon.fit();
+      let terminalPaneHasFocus = false;
+      term.onFocus(() => { terminalPaneHasFocus = true; });
+      term.onBlur(() => { terminalPaneHasFocus = false; });
       let lastTerminalPasteAt = 0;
       const dispatchTerminalPaste = (ev = null) => {
         const now = Date.now();
@@ -9615,6 +9618,16 @@
       };
       host.addEventListener('paste', handleTerminalPaste, true);
 
+      const handleTerminalWordShortcut = (ev) => {
+        const terminalWordShortcut = terminalWordShortcutBytes(ev);
+        if (!terminalWordShortcut) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+        ipcRenderer.send('pane-input', { id: agentId, data: terminalWordShortcut });
+      };
+      host.addEventListener('keydown', handleTerminalWordShortcut, true);
+
       const isTerminalPasteShortcut = (ev) => {
         if (!ev || ev.type !== 'keydown') return false;
         if (ev.altKey) return false;
@@ -9625,6 +9638,10 @@
 
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
+        const isStandaloneEnter = data === '\r' || data === '\n';
+        if (isStandaloneEnter && !terminalPaneHasFocus && !host.contains(document.activeElement)) {
+          return;
+        }
         // Xterm may emit the SYN byte for Ctrl+V (0x16). We handle that as a
         // paste shortcut so image refs remain stable and avoid raw control bytes
         // reaching the tmux pane.
@@ -9633,7 +9650,7 @@
           dispatchTerminalPaste();
           return;
         }
-        ipcRenderer.send('pane-input', { id: agentId, data });
+        ipcRenderer.send('pane-input', { id: agentId, data, allowEnter: true });
       });
       term.attachCustomKeyEventHandler((ev) => {
         const terminalWordShortcut = terminalWordShortcutBytes(ev);
@@ -9663,7 +9680,7 @@
       };
       ipcRenderer.on(outputChannel, outputListener);
 
-      termState = { agentId, term, fitAddon, outputListener, outputChannel, handleTerminalPaste };
+      termState = { agentId, term, fitAddon, outputListener, outputChannel, handleTerminalPaste, handleTerminalWordShortcut };
 
       // Open the panel in the DOM.
       document.body.classList.add('term-open');
@@ -9700,6 +9717,9 @@
       if (host && handleTerminalPaste) {
         host.removeEventListener('paste', handleTerminalPaste, true);
       }
+      if (host && termState.handleTerminalWordShortcut) {
+        host.removeEventListener('keydown', termState.handleTerminalWordShortcut, true);
+      }
 
       // Dispose the terminal.
       if (term) {
@@ -9714,7 +9734,7 @@
       }
 
       // Reset state.
-      termState = { agentId: null, term: null, fitAddon: null, outputListener: null, handleTerminalPaste: null };
+      termState = { agentId: null, term: null, fitAddon: null, outputListener: null, handleTerminalPaste: null, handleTerminalWordShortcut: null };
 
       // Remove the panel from the DOM.
       if (host) host.innerHTML = '';

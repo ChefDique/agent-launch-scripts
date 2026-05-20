@@ -143,6 +143,7 @@ test('submit payload includes startup_lines array and settings patch supports ar
   assert.match(main, /startup_lines: v => normalizeStartupLines\(v\)/);
   assert.match(main, /startup_injection: v => normalizeStartupInjectionPolicy\(v\)/);
   assert.match(main, /function defaultClaudeStartupInjectionPolicy\(\)/);
+  assert.match(main, /include: \['startup_lines'\], exclude: \['dangerous_permission_enter'\]/);
   assert.match(main, /syncStartupInjectionPolicy\(entry\)/);
   assert.doesNotMatch(main, /delete entry\.startup_lines;\s*\n\s*if \(cleanPatch\.runtime\)/);
 });
@@ -337,8 +338,10 @@ test('embedded terminal intercepts paste and sends clipboard text or submitted i
   assert.match(html, /read-clipboard-text/);
   assert.match(html, /saveNativeClipboardImageReference/);
   assert.match(pasteHelperBlock, /const imageReference = saved\.join\(' '\)/);
-  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: `\$\{imageReference\}\\r` \}\)/);
-  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: `\$\{marker\}\\r` \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: imageReference \}\)/);
+  assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: marker \}\)/);
+  assert.doesNotMatch(pasteHelperBlock, /data: `\$\{imageReference\}\\r`/);
+  assert.doesNotMatch(pasteHelperBlock, /data: `\$\{marker\}\\r`/);
   assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: eventText \}\)/);
   assert.match(pasteHelperBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: text \}\)/);
 });
@@ -365,6 +368,16 @@ test('embedded terminal keeps text selection usable (drag-safe and selection opt
 test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', () => {
   assert.match(html, /terminalWordShortcutBytes\s*\} = require\('\.\/terminal-input'\)/);
 
+  const terminalHostShortcutBlock = html.slice(
+    html.indexOf('const handleTerminalWordShortcut = (ev) => {'),
+    html.indexOf('const isTerminalPasteShortcut = (ev) => {')
+  );
+  assert.match(terminalHostShortcutBlock, /const terminalWordShortcut = terminalWordShortcutBytes\(ev\);/);
+  assert.match(terminalHostShortcutBlock, /ev\.stopImmediatePropagation/);
+  assert.match(terminalHostShortcutBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data: terminalWordShortcut \}\);?/);
+  assert.match(html, /host\.addEventListener\('keydown', handleTerminalWordShortcut, true\)/);
+  assert.match(html, /host\.removeEventListener\('keydown', termState\.handleTerminalWordShortcut, true\)/);
+
   const terminalAttachBlock = html.slice(
     html.indexOf('term.attachCustomKeyEventHandler((ev) => {'),
     html.indexOf('// Register pane-output IPC listener')
@@ -377,13 +390,31 @@ test('embedded terminal maps Option/Alt shortcuts to readline word-edit bytes', 
 test('embedded terminal sends word-edit escape sequences as tmux keys', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const paneInputBlock = main.slice(
-    main.indexOf('// pane-input — renderer sends keystrokes typed into the xterm.'),
+    main.indexOf('// pane-input — renderer sends terminal keystrokes and paste payloads for the xterm.'),
     main.indexOf('// Tear down pipe for one agent')
   );
 
   assert.match(main, /tmuxKeysForTerminalInput\s*\} = require\('\.\/terminal-input'\)/);
   assert.match(paneInputBlock, /tmuxKeysForTerminalInput\(data\)/);
   assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, wordKeys\)/);
+});
+
+test('embedded terminal only sends Enter for explicit terminal key data', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const paneInputBlock = main.slice(
+    main.indexOf('// pane-input — renderer sends terminal keystrokes and paste payloads for the xterm.'),
+    main.indexOf('// Tear down pipe for one agent')
+  );
+  const terminalOnDataBlock = html.slice(
+    html.indexOf('term.onData((data) => {'),
+    html.indexOf('term.attachCustomKeyEventHandler((ev) => {')
+  );
+
+  assert.match(terminalOnDataBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data, allowEnter: true \}\)/);
+  assert.match(paneInputBlock, /const allowEnter = payload\.allowEnter === true/);
+  assert.match(paneInputBlock, /if \(!allowEnter && \/\[\\r\\n\]\/\.test\(data\)\) \{/);
+  assert.match(paneInputBlock, /replace\(\/\[\\r\\n\]\+\$\/g, ''\)/);
+  assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, \['Enter'\]\)/);
 });
 
 test('floating pet chat uses clean team chat stream and supports pasted images', () => {
@@ -634,4 +665,12 @@ test('model and reasoning selectors are catalog-backed for all harnesses', () =>
   assert.match(html, /reasoningEffort: reasoningEl \? reasoningEl\.value : ''/);
   assert.match(html, /patch: \{ reasoning_effort: next \}/);
   assert.doesNotMatch(html, /model: useProfile \? '' :/);
+});
+
+test('embedded terminal drops standalone Enter when the pane is not focused', () => {
+  assert.match(html, /let terminalPaneHasFocus = false/);
+  assert.match(html, /term\.onFocus\(\(\) => \{ terminalPaneHasFocus = true; \}\)/);
+  assert.match(html, /term\.onBlur\(\(\) => \{ terminalPaneHasFocus = false; \}\)/);
+  assert.match(html, /const isStandaloneEnter = data === '\\r' \|\| data === '\\n'/);
+  assert.match(html, /isStandaloneEnter && !terminalPaneHasFocus && !host\.contains\(document\.activeElement\)/);
 });
