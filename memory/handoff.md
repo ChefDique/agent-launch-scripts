@@ -13,6 +13,7 @@
 - Repo was clean at commit `2eb6535` after hook/taskboard proof follow-up.
 - Message-agent coordination attempt to `overlordswarmy` failed with connection refused; deadletter/thread id `neo-codex-to-overlordswarmy-1779255895` and Mugatu alert succeeded.
 - Added explicit hook-audit coverage that `status=blocked` is not terminal: `Stop` dry-run must emit `STOP LIFECYCLE CONTINUATION`, so the goal cannot be shut down merely because a blocker is recorded.
+- Fallback coordination pointer to `mugatu-codex` was accepted: thread `neo-codex-to-mugatu-codex-1779256168`.
 
 **Next verifiable step:** Either Richard approves live AgentRemote/iTerm/tmux verification for ALS-QUALITY-007, or Swarmy/overlordswarmy comes back online and resolves ALS-QUALITY-005 in Swarmy.
 
@@ -31,3 +32,4 @@
 
 - 2026-05-19 Neo -> Swarmy: reported unsupported `gpt-5.1` Codex worker launch and missing pane/window names; asked Swarmy to fix in its own repo and coordinate by PR/worktree, not by editing `agent-launch-scripts`.
 - 2026-05-20 Neo -> overlordswarmy: delivery failed (`[Errno 61] Connection refused`), correlation/thread `neo-codex-to-overlordswarmy-1779255895`; message-agent wrote deadletter and alerted Mugatu.
+- 2026-05-20 Neo -> mugatu-codex: accepted 202, thread `neo-codex-to-mugatu-codex-1779256168`, one-line pointer to completion audit and Swarmy deadletter.

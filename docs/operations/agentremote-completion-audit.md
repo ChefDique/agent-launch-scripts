@@ -46,6 +46,8 @@ approval or another repo owner.
 - **Swarmy unsupported Codex model/default issue:** blocked in Swarmy. Neo owns
   the local AgentRemote catalog/launcher guards only. Latest message-agent
   send to `overlordswarmy` failed transport with deadletter thread
-  `neo-codex-to-overlordswarmy-1779255895`.
+  `neo-codex-to-overlordswarmy-1779255895`. Fallback coordination pointer to
+  `mugatu-codex` was accepted with thread
+  `neo-codex-to-mugatu-codex-1779256168`.
 - **Global hooks file:** fixed in `~/.codex/hooks.json`, which is outside this
   repo and therefore not part of the Git commit.
