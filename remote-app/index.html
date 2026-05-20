@@ -9599,9 +9599,6 @@
 
       term.open(host);
       fitAddon.fit();
-      let terminalPaneHasFocus = false;
-      term.onFocus(() => { terminalPaneHasFocus = true; });
-      term.onBlur(() => { terminalPaneHasFocus = false; });
       let lastTerminalPasteAt = 0;
       const dispatchTerminalPaste = (ev = null) => {
         const now = Date.now();
@@ -9638,10 +9635,6 @@
 
       // Forward keypresses to the agent's tmux pane.
       term.onData((data) => {
-        const isStandaloneEnter = data === '\r' || data === '\n';
-        if (isStandaloneEnter && !terminalPaneHasFocus && !host.contains(document.activeElement)) {
-          return;
-        }
         // Xterm may emit the SYN byte for Ctrl+V (0x16). We handle that as a
         // paste shortcut so image refs remain stable and avoid raw control bytes
         // reaching the tmux pane.

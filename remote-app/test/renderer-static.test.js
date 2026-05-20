@@ -666,11 +666,3 @@ test('model and reasoning selectors are catalog-backed for all harnesses', () =>
   assert.match(html, /patch: \{ reasoning_effort: next \}/);
   assert.doesNotMatch(html, /model: useProfile \? '' :/);
 });
-
-test('embedded terminal drops standalone Enter when the pane is not focused', () => {
-  assert.match(html, /let terminalPaneHasFocus = false/);
-  assert.match(html, /term\.onFocus\(\(\) => \{ terminalPaneHasFocus = true; \}\)/);
-  assert.match(html, /term\.onBlur\(\(\) => \{ terminalPaneHasFocus = false; \}\)/);
-  assert.match(html, /const isStandaloneEnter = data === '\\r' \|\| data === '\\n'/);
-  assert.match(html, /isStandaloneEnter && !terminalPaneHasFocus && !host\.contains\(document\.activeElement\)/);
-});
