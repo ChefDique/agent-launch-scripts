@@ -3,12 +3,12 @@
   "lane": "neo-agentremote-quality",
   "active_goal": "Keep the AgentRemote goal active until prompt-to-artifact audit proves each requested surface is done or explicitly blocked.",
   "status": "blocked",
-  "next_action": "Do not mark complete until ALS-QUALITY-005 is resolved by Swarmy and ALS-QUALITY-007 receives approved live AgentRemote verification.",
-  "updated_at": "2026-05-20T05:38:44Z",
+  "next_action": "Do not mark complete until ALS-QUALITY-005 is resolved by Swarmy or Swarmy route is restored, and ALS-QUALITY-007 receives approved live AgentRemote verification.",
+  "updated_at": "2026-05-20T05:44:55Z",
   "handoff": {
     "path": "memory/handoff.md",
-    "sha256": "a12be367624450bdd59e1ca0da376252051ca22d923b28135661baa233c799b3",
-    "read_at": "2026-05-20T05:38:44Z"
+    "sha256": "ed50926fb53ed6b3076093397f79d91feadac633c7baa8bf135362dc8fa98d27",
+    "read_at": "2026-05-20T05:44:55Z"
   },
   "taskboard": {
     "path": "memory/tasks/tasks.json",

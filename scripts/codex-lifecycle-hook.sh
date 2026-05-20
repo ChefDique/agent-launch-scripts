@@ -418,7 +418,7 @@ startup_status_problem() {
     recorded_handoff="$(json_field "$artifact" '.handoff.path')"
     recorded_sha="$(json_field "$artifact" '.handoff.sha256')"
     actual_sha="$(file_sha256 "$handoff_path")"
-    if [[ -z "$recorded_handoff" ]] || [[ "$(normalize_path "$recorded_handoff" "$repo_root")" != "$(normalize_path "$handoff_path" "$repo_root")" ]]; then
+    if [[ -z "$recorded_handoff" ]] || [[ "$(normalize_path "$recorded_handoff" "$expected_root")" != "$(normalize_path "$handoff_path" "$expected_root")" ]]; then
       missing+=("handoff.path")
     fi
     if [[ -z "$recorded_sha" ]] || [[ -n "$actual_sha" && "$recorded_sha" != "$actual_sha" ]]; then

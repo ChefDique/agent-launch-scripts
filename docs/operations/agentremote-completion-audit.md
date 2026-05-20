@@ -24,7 +24,7 @@ approval or another repo owner.
 | Build PRD/features/index/docs so future sessions stop forgetting app requirements. | `docs/product/agentremote-prd.md`, `docs/product/agentremote-feature-index.md`, `docs/README.md`, `AGENTS.md`. | Done. Docs are linked from startup/read-order surfaces. |
 | Use hooks so chores/status discipline is not ignored. | `scripts/codex-lifecycle-hook.sh`, `scripts/audit-codex-lifecycle-hooks.sh`, `docs/operations/codex-lifecycle-hooks.md`, `~/.codex/hooks.json`. | Done. The global hook registry now wires SessionStart, PreToolUse, PostToolUse, PreCompact, PostCompact, and Stop. |
 | Actually do chores, not recommend them. | `memory/handoff.md`, `.claude/memory/handoff.md`, `memory/session-status.json`, `memory/sessions/2026-05-19_2229_agentremote-quality-control-checkpoint.md`, `memory/sessions/2026-05-20_0538_global-codex-hook-system.md`. | Done this checkpoint. |
-| Coordinate with Swarmy instead of editing Swarmy. | message-agent thread; `tasks.json` ALS-QUALITY-005. | Blocked outside this repo. Neo sent the issue to Swarmy and did not patch Swarmy. |
+| Coordinate with Swarmy instead of editing Swarmy. | message-agent thread/deadletter; `tasks.json` ALS-QUALITY-005. | Blocked outside this repo. Neo attempted Swarmy delivery and did not patch Swarmy. Latest send to `overlordswarmy` failed with connection refused; message-agent wrote deadletter and alerted Mugatu. |
 | Do not mark the goal complete while live AgentRemote verification is missing. | `tasks.json` ALS-QUALITY-007; this audit. | Blocked. Live verification requires Richard approval for desktop mutation. |
 
 ## Fresh Verification
@@ -42,6 +42,8 @@ approval or another repo owner.
 - **Live AgentRemote desktop proof:** blocked until Richard explicitly approves
   live AgentRemote/iTerm/tmux mutation in the current turn.
 - **Swarmy unsupported Codex model/default issue:** blocked in Swarmy. Neo owns
-  the local AgentRemote catalog/launcher guards only.
+  the local AgentRemote catalog/launcher guards only. Latest message-agent
+  send to `overlordswarmy` failed transport with deadletter thread
+  `neo-codex-to-overlordswarmy-1779255895`.
 - **Global hooks file:** fixed in `~/.codex/hooks.json`, which is outside this
   repo and therefore not part of the Git commit.
