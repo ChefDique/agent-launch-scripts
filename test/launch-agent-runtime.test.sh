@@ -19,7 +19,19 @@ unset \
   SWARMY_WORKSPACE_MODE \
   SWARMY_WORKTREE_STRATEGY \
   SWARMY_LOCAL_MODE \
-  SWARMY_LOCAL_ATTACH
+  SWARMY_LOCAL_ATTACH \
+  TMUX_PANE \
+  TMUX_CALLS
+
+# Now that startup injection is runtime-agnostic, a leaked ambient TMUX_PANE
+# would trigger injection in the no-pane tests. Unset it in the base env; the
+# pane-specific tests set TMUX_PANE explicitly inline.
+
+# Neutralize the production startup-injection delays so this isolated test stays
+# fast and deterministic. The two-phase submit timing itself is proven in the
+# remote-app tmux-send-path integration test; here we only assert the calls.
+export STARTUP_SUBMIT_ENTER_DELAY=0
+export STARTUP_WARNING_ACK_GAP=0
 
 mkdir -p "$TMP_DIR/bin" "$TMP_DIR/codex-cwd" "$TMP_DIR/legacy-runtime-cwd"
 cat > "$TMP_DIR/codex-config.toml" <<'TOML'
@@ -110,6 +122,19 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "startup_injection": {
         "include": ["dangerous_permission_enter", "startup_lines"],
         "exclude": []
+      }
+    },
+    {
+      "id": "warning-keys-codex",
+      "display_name": "Warning Keys Codex",
+      "cwd": "$TMP_DIR/codex-cwd",
+      "runtime": "codex",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "startup_slash": "/lead-gogo",
+      "startup_injection": {
+        "include": ["dangerous_permission_enter", "startup_lines"],
+        "warning_ack_keys": ["1", "Enter"]
       }
     },
     {
@@ -342,12 +367,38 @@ codex_policy_output="$(
     bash "$REPO_ROOT/launch-agent.sh" codex
 )"
 grep -qx 'COMMAND:codex' <<< "$codex_policy_output"
+# startup_injection is now runtime-agnostic (driven by the per-agent policy, the
+# toggle). A Codex agent that opts in gets the warning-ack Enter and the startup
+# command injected as keystrokes — and the startup command is delivered by
+# injection, NOT also as a launch argv (no duplicate /lead-gogo).
+! grep -qx 'ARG:/lead-gogo' <<< "$codex_policy_output"
 sleep 1
-if grep -q '^send-keys' "$TMUX_CALLS"; then
-  echo "Codex runtime must ignore startup_injection policy and avoid tmux send-keys" >&2
+grep -Fxq 'send-keys -t %codexpolicy Enter' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %codexpolicy -l -- /lead-gogo' "$TMUX_CALLS"
+# But Claude-only slash commands must never be typed into a Codex pane.
+if grep -qE 'send-keys -t %codexpolicy -l -- /(color|rename)' "$TMUX_CALLS"; then
+  echo "Codex must not receive Claude-only /color or /rename injection" >&2
   cat "$TMUX_CALLS" >&2
   exit 1
 fi
+
+# Configurable warning ack: an agent can specify startup_injection.warning_ack_keys
+# so a runtime whose dev-warning needs "1" (then Enter) is dismissed correctly.
+TMUX_CALLS="$TMP_DIR/warning-keys-tmux-calls.log"
+rm -f "$TMUX_CALLS"
+warning_keys_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%warnkeys" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" warning-keys-codex
+)"
+grep -qx 'COMMAND:codex' <<< "$warning_keys_output"
+sleep 1
+grep -Fxq 'send-keys -t %warnkeys 1' "$TMUX_CALLS"
+grep -Fxq 'send-keys -t %warnkeys Enter' "$TMUX_CALLS"
 
 TMUX_CALLS="$TMP_DIR/xavier-no-policy-tmux-calls.log"
 rm -f "$TMUX_CALLS" /tmp/xavier-bg-_nopolicy.pids

@@ -303,10 +303,15 @@ read_startup_lines() {
   #   * COLOR => /color COLOR
   #   * rename_to => /rename RENAME_TO
   #   * startup_slash => startup command
-  if [[ -n "$COLOR" ]]; then
-    STARTUP_LINES+=("/color $COLOR")
+  # /color and /rename are Claude-only slash commands. Never inject them into a
+  # non-Claude pane (they would land as literal text). Non-Claude runtimes fall
+  # back to just the startup command.
+  if [[ "$RUNTIME" == "claude" ]]; then
+    if [[ -n "$COLOR" ]]; then
+      STARTUP_LINES+=("/color $COLOR")
+    fi
+    STARTUP_LINES+=("/rename $RENAME_TO")
   fi
-  STARTUP_LINES+=("/rename $RENAME_TO")
   [[ -n "$STARTUP" ]] && STARTUP_LINES+=("$STARTUP")
 }
 
@@ -314,6 +319,11 @@ send_tmux_literal_line() {
   local line="$1"
   [[ -n "$line" ]] || return 0
   tmux send-keys -t "$TMUX_PANE" -l -- "$line"
+  # Two-phase submit: the literal text and Enter MUST land in separate reads, or
+  # a raw-mode TUI (Claude/Codex) treats text+CR as a paste and the line sits in
+  # the composer unsubmitted. Mirrors remote-app/tmux-send-path.js. The delay is
+  # load-bearing; tests set STARTUP_SUBMIT_ENTER_DELAY=0 to stay fast.
+  sleep "${STARTUP_SUBMIT_ENTER_DELAY:-0.15}"
   tmux send-keys -t "$TMUX_PANE" Enter
 }
 
@@ -351,7 +361,9 @@ startup_injection_excludes() {
 
 startup_injection_allows() {
   local token="$1"
-  [[ "$RUNTIME" == "claude" ]] || return 1
+  # Runtime-agnostic: the per-agent startup_injection policy is the toggle. Any
+  # runtime can opt in; an agent with no startup_injection object gets nothing
+  # (so a stray blank Enter is never inherited by a runtime that did not ask).
   jq -e '.startup_injection != null' <<< "$ENTRY" >/dev/null || return 1
   startup_injection_includes "$token" || return 1
   if startup_injection_excludes "$token"; then
@@ -360,9 +372,24 @@ startup_injection_allows() {
   return 0
 }
 
-schedule_tmux_enter() {
+schedule_warning_ack() {
   local delay="$1"
-  ( sleep "$delay"; tmux send-keys -t "$TMUX_PANE" Enter ) & echo $! >> "$PIDFILE"
+  # Keys that dismiss the runtime's startup warning intro. Configurable per agent
+  # via startup_injection.warning_ack_keys (tmux key names, e.g. ["1","Enter"]);
+  # default is a single Enter. Each key is sent as its own keypress with a gap so
+  # a select-then-confirm warning ("1" then Enter) registers correctly.
+  local -a keys=()
+  while IFS= read -r k; do
+    [[ -n "$k" ]] && keys+=("$k")
+  done < <(jq -r '(.startup_injection.warning_ack_keys // ["Enter"])[]' <<< "$ENTRY" 2>/dev/null)
+  (( ${#keys[@]} > 0 )) || keys=("Enter")
+  (
+    sleep "$delay"
+    for k in "${keys[@]}"; do
+      tmux send-keys -t "$TMUX_PANE" "$k"
+      sleep "${STARTUP_WARNING_ACK_GAP:-0.2}"
+    done
+  ) & echo $! >> "$PIDFILE"
 }
 
 schedule_tmux_literal_lines() {
@@ -459,7 +486,7 @@ build_runtime_command() {
         -c "model_reasoning_effort=\"${codex_effort}\""
         --no-alt-screen
       )
-      if [[ -n "$STARTUP" ]]; then
+      if [[ -n "$STARTUP" && "${STARTUP_VIA_INJECTION:-false}" != true ]]; then
         RUNTIME_CMD+=("$STARTUP")
       fi
       ;;
@@ -477,7 +504,7 @@ build_runtime_command() {
       if [[ -n "$REASONING_EFFORT" ]]; then
         RUNTIME_CMD+=(--thinking "$REASONING_EFFORT")
       fi
-      if [[ -n "$STARTUP" ]]; then
+      if [[ -n "$STARTUP" && "${STARTUP_VIA_INJECTION:-false}" != true ]]; then
         RUNTIME_CMD+=(--message "$STARTUP")
       fi
       ;;
@@ -493,7 +520,11 @@ build_runtime_command() {
   done < <(jq -r '(.runtime_args // [])[]' <<< "$ENTRY")
 }
 
-if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
+if [[ -n "${TMUX_PANE:-}" ]]; then
+  # Runtime-agnostic startup injection. Whether anything fires is decided per
+  # agent by startup_injection_allows() (the toggle), not by runtime. An agent
+  # with no startup_injection policy schedules nothing below.
+  #
   # PIDFILE per (agent, pane). Tmux pane ids are like %23 — the slash-safe
   # substitution matches the old per-agent scripts so existing /tmp files keep
   # working without orphaning.
@@ -516,31 +547,37 @@ if [[ "$RUNTIME" == "claude" && -n "${TMUX_PANE:-}" ]]; then
   CLAUDE_RENAME_DELAY="${CLAUDE_RENAME_DELAY:-10}"
   CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-12}"
 
-  # Stage 1: dismiss the --dangerously-load-development-channels warning.
-  # This is intentionally policy-gated so a stale Claude-only Enter cannot be
-  # inherited by Codex or another runtime.
+  # Stage 1: dismiss the runtime's startup/dev/permission warning intro.
+  # Policy-gated per agent, so a runtime that did not opt in never receives a
+  # stray Enter. Default key is Enter; an agent whose warning needs a different
+  # key (e.g. "1") sets startup_injection.warning_ack_keys (see schedule).
   if startup_injection_allows "dangerous_permission_enter"; then
-    schedule_tmux_enter "$CLAUDE_WARNING_ACK_DELAY"
+    schedule_warning_ack "$CLAUDE_WARNING_ACK_DELAY"
   fi
 
   if startup_injection_allows "startup_lines"; then
     read_startup_lines
     if (( ${#STARTUP_LINES[@]} > 0 )); then
       if [[ "$HAS_STARTUP_LINES" == true ]]; then
-        # When registry-supplied, send all lines together at startup delay.
+        # Registry-supplied lines: send all together at startup delay. Works for
+        # any runtime — the agent author owns the line content.
         schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "${STARTUP_LINES[@]}"
-      elif [[ -n "$COLOR" ]]; then
-        # Legacy path keeps historical spacing: color + rename, then startup.
+      elif [[ "$RUNTIME" == "claude" && -n "$COLOR" ]]; then
+        # Claude legacy path keeps historical spacing: color + rename, then startup.
         schedule_tmux_literal_lines "$CLAUDE_RENAME_DELAY" "/color $COLOR" "/rename $RENAME_TO"
         if [[ -n "$STARTUP" ]]; then
           schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "$STARTUP"
         fi
-      else
-        # Legacy path for entries that only specified rename/startup_slash.
+      elif [[ "$RUNTIME" == "claude" ]]; then
+        # Claude legacy path for entries that only specified rename/startup_slash.
         schedule_tmux_literal_lines "$CLAUDE_RENAME_DELAY" "/rename $RENAME_TO"
         if [[ -n "$STARTUP" ]]; then
           schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "$STARTUP"
         fi
+      elif [[ -n "$STARTUP" ]]; then
+        # Non-Claude fallback: inject only the startup command (no Claude-only
+        # /color or /rename slash commands, which would land as literal text).
+        schedule_tmux_literal_lines "$CLAUDE_STARTUP_DELAY" "$STARTUP"
       fi
     fi
   fi
@@ -549,6 +586,14 @@ fi
 # ---------------------------------------------------------------------------
 # Exec configured runtime.
 # ---------------------------------------------------------------------------
+# When startup_lines injection is active for this pane, the startup command is
+# delivered by keystroke injection (so it lands after the warning-ack), not as a
+# launch argument — otherwise codex/openclaw would receive the command twice.
+STARTUP_VIA_INJECTION=false
+if [[ -n "${TMUX_PANE:-}" ]] && startup_injection_allows "startup_lines"; then
+  STARTUP_VIA_INJECTION=true
+fi
+
 RUNTIME_CMD=()
 build_runtime_command "$RUNTIME"
 exec "${RUNTIME_CMD[@]}"
