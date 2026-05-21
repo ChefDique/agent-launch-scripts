@@ -2,24 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Shipped the startup-warning auto-dismiss (Claude default-on in `launch-agent.sh`) + a per-agent "Startup auto-run" HUD toggle (v1.4.16); retired `tmux-masta`→`neo` repo-wide. Opus-Neo, 2026-05-21.
+**Last working on:** Fixed the `/message-agent` send bug (two-phase tmux submit) and pushed both repos to origin. Opus-Neo, 2026-05-21.
 
-**State at last pause (2026-05-21T13:47:00-0700):**
-- ORIGINAL PROBLEM SOLVED: Claude agents auto-dismiss the dev-channels warning on launch/restart — warning-ack now **defaults ON** for Claude unless explicitly excluded (`launch-agent.sh`). Covers dasha + future Claude agents without per-agent wiring. Commit `80128ea`.
-- SWITCH DELIVERED (the thing Richard kept asking for): per-agent **"Startup auto-run"** toggle in the HUD gear panel (Claude agents), ON=inject / OFF=suppress. v1.4.16, commit `76ebc52`. Tests 145/145.
-- RENAME: `tmux-masta`→`neo` everywhere (docs/memory/tests/hook/assets; `agent-notes/neo.md`). Commit `acd7d10`.
-- NOT pushed. `agents.json` left dirty on purpose — Richard's active registry edit (incl. dasha=claude); do not commit it.
-- METHOD MISS (recurring): Richard set "first of all what problem are you trying to solve" as a diagnose-BEFORE-build gate; I built first repeatedly. Lesson logged in [[neo]] agent-notes. Honor the gate next time.
+**State at last pause (2026-05-21T15:05:00-0700):**
+- `/message-agent` SEND BUG FIXED + verified live + pushed: deliveries used to land in the agent's composer but not submit (intermittent). Root cause = delay placed after the submit + a `C-m`+`Enter` double-submit in `agent_bus_listener.py`. Fixed to the HUD's two-phase pattern (paste → 0.15s → single Enter). Commit `3c9509c` in the **message-agent repo** (`~/ai_projects/tools/message-agent`), pushed. 26/26 listener tests pass; proven against a throwaway Claude pane.
+- `agent-launch-scripts` ALL PUSHED to origin (`c3b2050`): startup warning default-on (`80128ea`), "Startup auto-run" toggle v1.4.16 (`76ebc52`), `tmux-masta`→`neo` rename (`acd7d10`), live registry, chores. Both repos now in sync with origin.
+- Toggle: Richard satisfied — default-on is the real win, the toggle is an optional override.
 
-**Next verifiable step:** PAUSED per Richard (2026-05-21). The diagnose-before-build goal-gate was unsatisfiable retroactively (build had already happened) and Richard cleared it; he then set goal = pause. On resume: relaunch the HUD to confirm the v1.4.16 "Startup auto-run" toggle renders; push the commits only when Richard asks.
+**Next verifiable step:** None pending. Open thread = the Shift+Enter cross-pane CR (needs Richard's input on which surface he types it in).
 
-**If that step fails:** toggle lives in `remote-app/index.html` (gear settings panel, the toggle-row after auto-restart) wired via `update-agent` PATCH; check the renderer console for a JS error in that block.
+**If that step fails:** n/a — no in-flight work.
 
-**Pending uncommitted diff:** `agents.json` only (Richard's edit).
+**Pending uncommitted diff:** none.
 
 ## Open priorities (<=5)
 
-- [OPEN] **Cross-pane extra CRs from Shift+Return** — iTerm Broadcast Input hypothesis rejected by Richard; cause unconfirmed, he moved on. See [[project_iterm_broadcast_extra_cr]].
+- [OPEN] **Shift+Enter → extra CRs in all panes** — Richard confirmed it persists; he uses Shift+Enter deliberately to avoid sending. Cause unconfirmed (iTerm broadcast rejected). Needs: agent pane vs HUD composer. Bus double-submit removal quiets one code-side CR source but isn't this mechanism. See [[project_iterm_broadcast_extra_cr]].
 - [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — live check owed; uses `[image:/path]` text ref, NOT OSC 1337.
 - [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.
 - [PARTIAL] **ALS-QUALITY-007 live AgentRemote verification** — send/submit verified; paste/attach/voice still need approved live checks.
