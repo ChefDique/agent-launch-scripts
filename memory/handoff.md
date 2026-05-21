@@ -5,13 +5,13 @@
 **Last working on:** Fixed the core "send-keys not submitting / have to press Enter manually" bug (ALS-LOCAL-006 + ALS-LOCAL-008), and integrated the prior Codex-Neo dirty work as logical commits. Opus-Neo, 2026-05-21.
 
 **State at last pause (2026-05-21):**
-- ROOT CAUSE + FIX shipped (v1.4.15): the send path delivered literal text and Enter in ONE tmux invocation, so a raw-mode TUI (Codex/Claude) read text+CR in one read() as a paste (newline in composer) instead of submitting. Fix = two-phase send: literal text, then Enter after `TMUX_SUBMIT_ENTER_DELAY_MS` (120ms) so the Enter lands in its own read as a deliberate keypress. Applied to both the broadcast/composer path (`sendKeysToCoord`) and the embedded-terminal submit path (`submitPaneText`). Empirically proven: new integration tests show two-phase = 2 separate reads (submits), combined = 1 fused read (the bug). 145 node tests pass.
-- `ALS-LOCAL-006` and `ALS-LOCAL-008` → `review_pending` (code shipped + static/integration tested; needs LIVE verification against Richard's actual Codex panes per the operator contract "Proof Before PASS").
+- ROOT CAUSE + FIX shipped (v1.4.15) and LIVE-VERIFIED: the send path delivered literal text and Enter in ONE tmux invocation, so a raw-mode TUI (Codex/Claude) read text+CR in one read() as a paste (newline in composer) instead of submitting. Fix = two-phase send: literal text, then Enter after `TMUX_SUBMIT_ENTER_DELAY_MS` (120ms) so the Enter lands in its own read as a deliberate keypress. Applied to both the broadcast/composer path (`sendKeysToCoord`) and the embedded-terminal submit path (`submitPaneText`). Empirically proven: integration tests show two-phase = 2 separate reads (submits), combined = 1 fused read (the bug). 145 node tests pass.
+- `ALS-LOCAL-006` and `ALS-LOCAL-008` → `done`. Richard relaunched the HUD at v1.4.15 and confirmed a live test send submitted on its own with no manual Enter ("test" -> "success").
 - Committed in logical units: gitignore graphify scratch; app-code (xhigh, owner-matching, Option+Backspace); the two-phase Enter fix; v1.4.15 bump; launcher cluster (department resolution, registry pane titles, cleanup script).
 - DEFERRED, NOT committed: `agents.json` — its dirty diff flips the whole fleet (mugatu/xavier/lucius) from `runtime: codex` to `runtime: claude` (opus-4-7, reasoning max). That contradicts the CLAUDE.md Codex-priority policy AND the live state (panes are running Codex, `cmd=2.1.143`). `agents.json` is also gitignored (machine-local). Left dirty pending Richard's call on whether the fleet should actually be on Claude.
 - Live `chq` at this session: 5 agents share ONE window as split panes (`chq:0.0`–`0.4`: Xavier, MUGATU, GOKU, NEO, LUCIUS) — violates one-agent-per-window, but layout is Swarmy's runtime domain.
 
-**Next verifiable step:** Get Richard's OK to live-verify the Enter fix against a real Codex pane (relaunch HUD at v1.4.15, select an agent, Send, confirm it submits without manual Enter). Then decide the `agents.json` codex-vs-claude question.
+**Next verifiable step:** HUD relaunched at v1.4.15 (PID was 61720) and Enter fix is live-verified. Remaining open item: decide the `agents.json` codex-vs-claude question (currently deferred/uncommitted). Image paste (ALS-LOCAL-001) still wants a dedicated live paste check.
 
 **If that step fails:** Stop before mutating live tmux or sidecar state. First list expected protected identities, observed panes, sidecar entries, exact mutation, rollback, and sibling-preservation check.
 
@@ -19,8 +19,8 @@
 
 ## Open priorities (<=5)
 
-- [REVIEW-PENDING] **ALS-LOCAL-006 simultaneous/timed Enter** — FIXED via two-phase send (v1.4.15); needs live Codex verification.
-- [REVIEW-PENDING] **ALS-LOCAL-008 tmux fallback submit failure** — same root cause + fix as 006; needs live verification.
+- [DONE] **ALS-LOCAL-006 simultaneous/timed Enter** — two-phase send (v1.4.15); live-verified after HUD relaunch.
+- [DONE] **ALS-LOCAL-008 tmux fallback submit failure** — same root cause + fix as 006; live-verified.
 - [DEFERRED] **agents.json fleet-flip** — dirty diff flips fleet codex→claude; contradicts Codex-priority policy + live state; left uncommitted for Richard's call.
 - [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — image paste path uses explicit submit flag → now two-phase; live verification still needed.
 - [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.

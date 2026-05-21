@@ -188,11 +188,11 @@
       "id": "ALS-LOCAL-006",
       "title": "Fix simultaneous timed Enter without breaking paste or Option+Backspace",
       "description": "Live symptom is not a generic stray Enter: a simultaneous/timed Enter is being sent into panes. Prior attempted guard suppressed the symptom by breaking expected image paste and Option+Backspace word deletion. Diagnose the timed Enter source directly and preserve paste plus Option+Backspace behavior. ROOT CAUSE FOUND: send delivered literal text and Enter in one tmux invocation, so a raw-mode TUI read text+CR in a single read() and treated it as a paste (newline in composer) instead of a submit. Fix splits into literal text, then Enter after a 120ms delay so the Enter lands in its own read as a deliberate keypress. Paste and Option+Backspace are separate code paths, untouched.",
-      "status": "review_pending",
+      "status": "done",
       "priority": "critical",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
-      "blocked_by": "Needs live confirmation if Richard wants a desktop relaunch",
+      "blocked_by": null,
       "tags": ["agentremote", "tmux", "keyboard", "startup-injection"],
       "acceptance": [
         "No simultaneous/timed Enter is sent into non-target panes.",
@@ -201,8 +201,8 @@
         "Live verification records the exact trigger that previously caused the timed Enter."
       ],
       "created_at": "2026-05-20T01:05:24-0700",
-      "notes": "Richard corrected the symptom: this is a simultaneous timed Enter, and the previous guard broke image paste and Option+Backspace. Treat those as required clues, not side effects to ignore. 2026-05-21: fixed via two-phase send (tmux-send-path.js + main.js submitPaneText/sendKeysToCoord), v1.4.15. Integration tests prove two-phase arrives as 2 separate reads (submits) vs combined 1 read (the bug). Needs live verification against Richard's Codex panes.",
-      "updated_at": "2026-05-21T00:00:00-0700"
+      "notes": "Richard corrected the symptom: this is a simultaneous timed Enter, and the previous guard broke image paste and Option+Backspace. Treat those as required clues, not side effects to ignore. 2026-05-21: fixed via two-phase send (tmux-send-path.js + main.js submitPaneText/sendKeysToCoord), v1.4.15. Integration tests prove two-phase arrives as 2 separate reads (submits) vs combined 1 read (the bug). LIVE-VERIFIED by Richard after HUD relaunch (test send submitted on its own, no manual Enter).",
+      "updated_at": "2026-05-21T11:30:00-0700"
     },
     {
       "id": "ALS-LOCAL-007",
@@ -227,7 +227,7 @@
       "id": "ALS-LOCAL-008",
       "title": "Find why tmux fallback messages do not send all the way through",
       "description": "Diagnose the AgentRemote/message-agent fallback path where `tmux send-keys` put text into Swarmy's Codex input/queued-message area but did not submit it to the agent. Future work must explain which key sequence or terminal focus/state is required to turn queued text into an actual delivered prompt. ANSWERED: Codex's raw-mode input layer treats literal text and a trailing CR arriving in one read() as a paste (newline in composer), not a submit. Required sequence is text first, THEN Enter as a separate keypress in its own read() — achieved by a delay between the two sends. Same root cause as ALS-LOCAL-006.",
-      "status": "review_pending",
+      "status": "done",
       "priority": "critical",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
@@ -239,8 +239,8 @@
         "Delivery evidence includes either recipient action, visible submitted prompt, or an explicit unresolved failure."
       ],
       "created_at": "2026-05-20T01:48:15-0700",
-      "notes": "Created after a report to Swarmy failed via message-agent and the tmux fallback visibly landed as queued input instead of being submitted. Do not conflate this with Swarmy's separate launch-runtime bug. 2026-05-21: same fix as ALS-LOCAL-006 (two-phase text+delayed Enter, v1.4.15). Broadcast/composer send (sendKeysToCoord) now resolves only after the Enter actually lands, so 'sent' is not optimistic. Needs live verification.",
-      "updated_at": "2026-05-21T00:00:00-0700"
+      "notes": "Created after a report to Swarmy failed via message-agent and the tmux fallback visibly landed as queued input instead of being submitted. Do not conflate this with Swarmy's separate launch-runtime bug. 2026-05-21: same fix as ALS-LOCAL-006 (two-phase text+delayed Enter, v1.4.15). Broadcast/composer send (sendKeysToCoord) now resolves only after the Enter actually lands, so 'sent' is not optimistic. LIVE-VERIFIED by Richard after HUD relaunch.",
+      "updated_at": "2026-05-21T11:30:00-0700"
     }
   ]
 }
