@@ -66,6 +66,12 @@ When a Codex pane looks visually wrong, preserve launcher contract first and ins
 **Why:** A short-term attempt to improve AgentRemote TUI behavior removed load-bearing Codex launch args and made the operator lose trusted visual cues.
 **How to apply:** For Codex/AgentRemote display or keyboard regressions, restore known launcher invariants, then patch the catalog, renderer, or tmux input path that actually owns the symptom.
 
+### 2026-05-21 — verify memory/inventory claims against live code before documenting or refactoring
+
+When building docs or a spec from session notes (or a subagent inventory), confirm each non-obvious claim against the actual `remote-app/` code before enshrining it. A memory note can be a stale diagnosis from a failed session, not the shipped behavior.
+**Why:** While writing the app reference + non-regression spec, the `## Failed approaches` note below states image paste "is ... OSC 1337 protocol, not keyboard transport." The shipped code does neither — it saves the image to `/tmp/agentremote-pasted-images/`, inserts a `[image: /path]` text reference, and submits (`grep` for `1337`/`MultipartFile` in remote-app returns nothing). Documenting OSC 1337 as the requirement would have invited a future agent to tear out the working text-reference path.
+**How to apply:** Before writing a requirement or refactoring to match a memory note, grep the live code for the mechanism. If they disagree, the code wins; record the reconciliation (done in spec REQ-A4). Subagent/Explore inventories need the same check — they locate code but can assert incomplete or stale specifics.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
