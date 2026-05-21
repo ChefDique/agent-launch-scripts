@@ -1,7 +1,9 @@
-# Session 2026-05-21 10:09 — startup-injection wired to Claude fleet + iTerm broadcast root cause
+# Session 2026-05-21 10:09 — startup-injection wired to Claude fleet (+ cross-pane CR investigation)
+
+> **CORRECTION (same session, 2026-05-21):** The "iTerm Broadcast Input" root cause asserted below was **REJECTED by Richard** ("def not"). The cross-pane extra-CR cause is **OPEN**. Treat every "iTerm Broadcast Input" claim in this fold as a disproven hypothesis. The startup-injection fix is unaffected and stands. See [[project_iterm_broadcast_extra_cr]].
 
 ## Outcome
-Fixed "never gets past the dangerous warning automatically": wired `startup_injection` (include `dangerous_permission_enter` + `startup_lines`) onto all 7 Claude fleet agents, so each auto-dismisses the dev-channels warning and runs its startup command on every launch/restart. Separately diagnosed Richard's "Shift+Return hits all panes / extra carriage returns" as iTerm2 **Broadcast Input**, not tmux or the scripts.
+Fixed "never gets past the dangerous warning automatically": wired `startup_injection` (include `dangerous_permission_enter` + `startup_lines`) onto all 7 Claude fleet agents, so each auto-dismisses the dev-channels warning and runs its startup command on every launch/restart. Separately investigated Richard's "Shift+Return hits all panes / extra carriage returns": hypothesized iTerm2 Broadcast Input, but Richard rejected that — cause remains OPEN (see correction above).
 
 ## Work
 - Root cause of the warning hang: **no** Claude agent had `dangerous_permission_enter` enabled; xavier + hansel explicitly set `exclude: ["dangerous_permission_enter"]`. The launcher mechanism (built/tested in commit `4d32e90`) was correct but unwired.
