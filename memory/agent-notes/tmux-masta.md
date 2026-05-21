@@ -78,6 +78,12 @@ To check what runtime a live agent pane is running, read the `@agent-runtime` pa
 **Why:** I read `pane_current_command=2.1.143` and told Richard the fleet was Codex; it was actually Claude (Opus 4.7), confirmed by `tmux show-options -p -t <pane> @agent-runtime` = claude. pane_current_command can surface an opaque/version-like string for wrapped or relaunched processes and does not reliably name the runtime. Asserting the wrong runtime mis-scoped the discussion and eroded trust.
 **How to apply:** Before stating an agent's runtime, run `tmux show-options -p -t <pane> @agent-runtime` and cross-check the statusline. Pairs with the "verify claims against live code" learning above.
 
+### 2026-05-21 — cross-pane "phantom Enter / extra carriage returns" is keystroke mirroring, not a send-path bug
+
+Before treating extra carriage returns or stray blank Enters that show up across multiple agent panes as a launcher/send-path code defect, first rule out keystroke mirroring: iTerm2 **Broadcast Input** (Shell → Broadcast Input; toggle ⌘⌥I) and tmux `synchronize-panes`. Both replay one keystroke into every pane and look exactly like a code bug.
+**Why:** Richard self-diagnosed 2026-05-21 that Shift+Return splashed extra CRs into all panes. Cause was iTerm Broadcast Input on a 6-panes-in-one-window control-mode session; tmux `synchronize-panes` was OFF on every window and no repo code broadcasts keys. The launcher's own warning-ack/startup injection is immune (it uses `tmux send-keys -t <pane>` to one target).
+**How to apply:** Triage cross-pane input symptoms with `tmux list-windows -a -F '...#{synchronize-panes}...'` and check iTerm's broadcast state (colored pane border = on) before editing send code. Separately, when verifying a runtime's startup/warning screen in a throwaway, use the REAL config dir — a fresh `CLAUDE_CONFIG_DIR` triggers first-run onboarding (theme picker) and misrepresents what the fleet actually hits. Pairs with [[project_iterm_broadcast_extra_cr]].
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
