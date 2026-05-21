@@ -103,7 +103,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "cwd": "$TMP_DIR/codex-cwd",
       "runtime": "codex",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "startup_slash": "/lead-gogo",
@@ -132,7 +132,7 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "runtime": "codex",
       "profile_preset": "runtime-presets",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "startup_slash": "/lead-gogo"
@@ -269,7 +269,7 @@ grep -qx 'ARG:never' <<< "$codex_output"
 grep -qx 'ARG:--sandbox' <<< "$codex_output"
 grep -qx 'ARG:danger-full-access' <<< "$codex_output"
 grep -qx 'ARG:-c' <<< "$codex_output"
-grep -qx 'ARG:model_reasoning_effort="high"' <<< "$codex_output"
+grep -qx 'ARG:model_reasoning_effort="xhigh"' <<< "$codex_output"
 grep -qx 'ARG:--no-alt-screen' <<< "$codex_output"
 grep -qx 'ARG:/lead-gogo' <<< "$codex_output"
 
@@ -290,7 +290,7 @@ grep -qx 'ENV:SWARMY_LOCAL_ATTACH=iterm_control_mode' <<< "$preset_output"
 
 override_output="$(run_agent preset-override)"
 grep -qx 'ARG:gpt-5.5' <<< "$override_output"
-grep -qx 'ARG:model_reasoning_effort="high"' <<< "$override_output"
+grep -qx 'ARG:model_reasoning_effort="xhigh"' <<< "$override_output"
 
 catalog_model_output="$(SWARMY_MODEL_OVERRIDE='gpt-5.4' run_agent_with_catalog codex)"
 grep -qx 'COMMAND:codex' <<< "$catalog_model_output"
@@ -305,7 +305,7 @@ grep -qx 'ARG:never' <<< "$override_output"
 legacy_output="$(run_agent legacy)"
 grep -qx 'COMMAND:codex' <<< "$legacy_output"
 grep -qx 'ARG:gpt-5.5' <<< "$legacy_output"
-grep -qx 'ARG:model_reasoning_effort="high"' <<< "$legacy_output"
+grep -qx 'ARG:model_reasoning_effort="xhigh"' <<< "$legacy_output"
 
 intentional_runtime_output="$(run_agent intentional-runtime)"
 grep -qx 'COMMAND:claude' <<< "$intentional_runtime_output"
@@ -423,7 +423,7 @@ grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=xavier-codex' <<< "$xavier_codex_identity_o
 contaminated_codex_override_output="$(SWARMY_RUNTIME_OVERRIDE=codex SWARMY_MODEL_OVERRIDE='claude-opus-4-7[1m]' SWARMY_REASONING_EFFORT_OVERRIDE=max run_agent codex 2>&1)"
 grep -qx 'COMMAND:codex' <<< "$contaminated_codex_override_output"
 grep -qx 'ARG:gpt-5.5' <<< "$contaminated_codex_override_output"
-grep -qx 'ARG:model_reasoning_effort="high"' <<< "$contaminated_codex_override_output"
+grep -qx 'ARG:model_reasoning_effort="xhigh"' <<< "$contaminated_codex_override_output"
 grep -q "ignoring Claude model 'claude-opus-4-7\\[1m\\]' for Codex runtime agent 'codex'" <<< "$contaminated_codex_override_output"
 
 if unsupported_codex_model_output="$(SWARMY_MODEL_OVERRIDE='gpt-5.1' run_agent codex 2>&1)"; then

@@ -72,6 +72,21 @@ if awk -F: '$3 != 1 { bad=1 } END { exit bad ? 0 : 1 }' <<< "$windows"; then
   exit 1
 fi
 
+pane_titles="$(tmux list-panes -s -t "$SESSION" -F '#{pane_title}' 2>/dev/null | sort)"
+if [[ "$pane_titles" != $'A\nB\nC' ]]; then
+  echo "expected pane titles to stay on registry display names; got:" >&2
+  echo "$pane_titles" >&2
+  exit 1
+fi
+
+while IFS= read -r window_id; do
+  [[ -z "$window_id" ]] && continue
+  if [[ "$(tmux show-options -w -t "$window_id" -qv allow-set-title)" != "off" ]]; then
+    echo "expected allow-set-title=off for window $window_id so cwd/title escapes cannot overwrite pane names" >&2
+    exit 1
+  fi
+done < <(tmux list-windows -t "$SESSION" -F '#{window_id}' 2>/dev/null)
+
 key_bindings="$(tmux list-keys -T root)"
 if [[ "$(tmux show -gqv extended-keys)" != "on" ]]; then
   echo "expected tmux extended-keys=on so modified keys are available without forcing raw CSI-u into apps" >&2

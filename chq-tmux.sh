@@ -36,6 +36,65 @@ shell_quote() {
   printf '%q' "$1"
 }
 
+canonical_agent_slug() {
+  local slug="$1"
+  case "$slug" in
+    *-claude) slug="${slug%-claude}" ;;
+    *-codex) slug="${slug%-codex}" ;;
+    *-hermes) slug="${slug%-hermes}" ;;
+    *-openclaw) slug="${slug%-openclaw}" ;;
+  esac
+  tr '[:upper:]' '[:lower:]' <<< "$slug" | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+//; s/-+$//'
+}
+
+department_matches() {
+  local requested="$1"
+  local dept="$2"
+  local wname="$3"
+  local requested_slug dept_slug wname_slug registry_alias
+  requested_slug="$(canonical_agent_slug "$requested")"
+  dept_slug="$(canonical_agent_slug "$dept")"
+  wname_slug="$(canonical_agent_slug "$wname")"
+
+  [[ "$requested" == "$dept" || "$requested" == "$wname" ]] && return 0
+  [[ "$requested_slug" == "$dept_slug" || "$requested_slug" == "$wname_slug" ]] && return 0
+
+  if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
+    registry_alias="$(
+      jq -r --arg id "$dept" '
+        .agents[]?
+        | select(.id == $id)
+        | (.tmux_target // .message_agent_slug // empty)
+      ' "$REGISTRY" 2>/dev/null | head -n 1
+    )"
+    [[ -n "$registry_alias" && "$requested_slug" == "$(canonical_agent_slug "$registry_alias")" ]] && return 0
+  fi
+
+  return 1
+}
+
+department_name_taken() {
+  local candidate="$1"
+  local dept cwd wname script
+  for entry in "${DEPARTMENTS[@]}"; do
+    IFS='|' read -r dept cwd wname script <<< "$entry"
+    department_matches "$candidate" "$dept" "$wname" && return 0
+  done
+  return 1
+}
+
+add_static_department() {
+  local dept="$1"
+  local cwd="$2"
+  local wname="$3"
+  local script="$4"
+
+  [[ -f "$script" ]] || return 0
+  department_name_taken "$dept" && return 0
+  department_name_taken "$wname" && return 0
+  DEPARTMENTS+=("${dept}|${cwd}|${wname}|${script}")
+}
+
 DEPARTMENTS=()
 if [[ -f "$REGISTRY" ]] && command -v jq >/dev/null 2>&1; then
   # Pull id|cwd|display_name from the registry. The DEPARTMENTS entry uses
@@ -58,14 +117,14 @@ else
   echo "WARN: agents.json registry not found or jq missing — registry agents unavailable" >&2
 fi
 
-# Static agent-factory entries (not in agents.json — their scripts live in the
-# agent-factory repo). Insert these after the registry agents.
-DEPARTMENTS+=(
-  "ceo|${AGENT_FACTORY}/dogfood-agents/CEO_Office|mugatu|${AGENT_FACTORY}/Operations/scripts/mugatu.sh"
-  "engineering|${AGENT_FACTORY}/Engineering|derek|${AGENT_FACTORY}/Operations/scripts/derek.sh"
-  "marketing|${HOME}/ai_projects/adairlabs|hansel|${AGENT_FACTORY}/Operations/scripts/hansel.sh"
-  "operations|${AGENT_FACTORY}/Operations|maury|${AGENT_FACTORY}/Operations/scripts/maury.sh"
-)
+# Static agent-factory entries are legacy fallbacks. Only expose them when the
+# backing script exists and no registry-owned agent already claims the same
+# operator name. This keeps `mugatu` on the registry/Codex launch path once the
+# registry has a MUGATU/mugatu entry.
+add_static_department "ceo" "${AGENT_FACTORY}/dogfood-agents/CEO_Office" "mugatu" "${AGENT_FACTORY}/Operations/scripts/mugatu.sh"
+add_static_department "engineering" "${AGENT_FACTORY}/Engineering" "derek" "${AGENT_FACTORY}/Operations/scripts/derek.sh"
+add_static_department "marketing" "${HOME}/ai_projects/adairlabs" "hansel" "${AGENT_FACTORY}/Operations/scripts/hansel.sh"
+add_static_department "operations" "${AGENT_FACTORY}/Operations" "maury" "${AGENT_FACTORY}/Operations/scripts/maury.sh"
 
 # Sidecar file written by chq-tmux.sh at pane creation time. Maps agent id
 # (from agents.json) → stable pane_id (%N notation) so remote-app/main.js can
@@ -133,6 +192,39 @@ normalize_session_for_layout() {
     windows|ittab) normalize_session_to_tmux_windows "$layout" ;;
     *) return 0 ;;
   esac
+}
+
+disable_title_overrides() {
+  session_exists || return 0
+  local window_id
+  while IFS= read -r window_id; do
+    [[ -z "$window_id" ]] && continue
+    tmux set-window-option -t "$window_id" -q allow-set-title off 2>/dev/null || true
+  done < <(tmux list-windows -t "$SESSION" -F '#{window_id}' 2>/dev/null || true)
+}
+
+retitle_registry_panes() {
+  session_exists || return 0
+  [[ -f "$REGISTRY" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local id display_name runtime message_slug identity pane_id pane_identity window_panes
+  while IFS=$'\t' read -r id display_name runtime message_slug; do
+    [[ -z "$id" ]] && continue
+    [[ -n "$display_name" ]] || display_name="$id"
+    [[ -n "$runtime" ]] || runtime="codex"
+    [[ -n "$message_slug" ]] || message_slug="$id"
+    identity="$(canonical_agent_slug "$message_slug")-${runtime}"
+
+    while IFS=$'\t' read -r pane_id pane_identity; do
+      [[ "$pane_identity" == "$identity" ]] || continue
+      tmux select-pane -t "$pane_id" -T "$display_name" 2>/dev/null || true
+      window_panes=$(tmux display-message -t "$pane_id" -p '#{window_panes}' 2>/dev/null || echo "")
+      if [[ "$window_panes" == "1" ]]; then
+        tmux rename-window -t "$pane_id" "$display_name" 2>/dev/null || true
+      fi
+    done < <(tmux list-panes -s -t "$SESSION" -F $'#{pane_id}\t#{@agent-identity}' 2>/dev/null || true)
+  done < <(jq -r '.agents[] | [.id, (.display_name // .id), (.runtime // "codex"), (.message_agent_slug // "")] | @tsv' "$REGISTRY")
 }
 
 # Write/update the pane sidecar at SIDECAR_PATH. Called once per pane at
@@ -258,7 +350,7 @@ cmd_start() {
     local found=""
     for entry in "${DEPARTMENTS[@]}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
-      if [[ "$wname" == "$name" || "$dept" == "$name" ]]; then
+      if department_matches "$name" "$dept" "$wname"; then
         found="$entry"
         break
       fi
@@ -306,6 +398,7 @@ cmd_start() {
   IFS='|' read -r dept cwd wname script <<< "$first"
 
   tmux new-session -d -s "$SESSION" -n "chq" -c "$cwd" -x 220 -y 50 "$(pane_loop "$cwd" "$script" "$dept")"
+  disable_title_overrides
   tmux select-pane -t "${SESSION}:chq.0" -T "$wname"
   # Capture stable pane_id for the sidecar (registry agents only — static
   # agent-factory entries don't have an agents.json id to key on, so skip them).
@@ -328,6 +421,7 @@ cmd_start() {
           # so we target by id rather than positional index from here on.
           local new_pid
           new_pid=$(tmux split-window -h -t "${SESSION}:chq" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
+          disable_title_overrides
           tmux select-pane -t "$new_pid" -T "$wname"
           write_pane_sidecar "$dept" "$new_pid" || true
           ;;
@@ -341,6 +435,7 @@ cmd_start() {
           # → "create window failed: index 0 in use". With -t "chq:" it works.
           local new_pid
           new_pid=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
+          disable_title_overrides
           tmux select-pane -t "$new_pid" -T "$wname"
           write_pane_sidecar "$dept" "$new_pid" || true
           ;;
@@ -352,7 +447,8 @@ cmd_start() {
 
   tmux set -t "$SESSION" pane-border-status top
   tmux set -t "$SESSION" pane-border-format " #T "
-  tmux set-option -t "$SESSION" -q allow-set-title off
+  disable_title_overrides
+  retitle_registry_panes
   # Apply the chosen pane layout. `tiled` auto-balances into a grid; `panes`
   # keeps the historical even-horizontal split. `windows`/`ittab` only have
   # one pane in chq:0, so even-horizontal is a no-op for them but harmless.
@@ -476,7 +572,7 @@ cmd_add() {
     local found=""
     for entry in "${DEPARTMENTS[@]}"; do
       IFS='|' read -r dept cwd wname script <<< "$entry"
-      if [[ "$wname" == "$name" || "$dept" == "$name" ]]; then
+      if department_matches "$name" "$dept" "$wname"; then
         found="$entry"
         break
       fi
@@ -500,7 +596,8 @@ cmd_add() {
   if [[ "$stored_layout" != "$layout" ]]; then
     tmux set-option -t "$SESSION" -q '@chq_layout' "$layout"
   fi
-  tmux set-option -t "$SESSION" -q allow-set-title off
+  disable_title_overrides
+  retitle_registry_panes
 
   # Existing-titles check — substring match across ALL panes in the session
   # (not just chq:0) so an agent already in a detached window isn't re-spawned.
@@ -522,6 +619,7 @@ cmd_add() {
         # renumber on every split. Both `panes` and `tiled` go via split-window;
         # `tiled` gets an additional `select-layout tiled` re-balance below.
         new_pane_id=$(tmux split-window -h -t "${SESSION}:0" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
+        disable_title_overrides
         ;;
       windows|ittab)
         # new-window -P -F prints the new window's pane id directly. Trailing
@@ -529,6 +627,7 @@ cmd_add() {
         # documented in cmd_start above when the first window's name equals
         # the session name).
         new_pane_id=$(tmux new-window -t "${SESSION}:" -n "$wname" -c "$cwd" -P -F '#{pane_id}' "$(pane_loop "$cwd" "$script" "$dept")")
+        disable_title_overrides
         ;;
     esac
     tmux select-pane -t "$new_pane_id" -T "$wname"
@@ -549,6 +648,7 @@ cmd_add() {
     else
       tmux select-layout -t "${SESSION}:0" even-horizontal
     fi
+    retitle_registry_panes
   fi
   echo "Added ${added} pane(s) to existing CHQ session."
 }
@@ -570,7 +670,7 @@ cmd_restart() {
   local found=""
   for entry in "${DEPARTMENTS[@]}"; do
     IFS='|' read -r dept cwd wname script <<< "$entry"
-    if [[ "$wname" == "$target" || "$dept" == "$target" ]]; then
+    if department_matches "$target" "$dept" "$wname"; then
       found="$entry"
       break
     fi

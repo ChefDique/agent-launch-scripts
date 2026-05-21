@@ -448,7 +448,7 @@ build_runtime_command() {
       ;;
     codex)
       local codex_model="${MODEL:-$(codex_default_model)}"
-      local codex_effort="${REASONING_EFFORT:-high}"
+      local codex_effort="${REASONING_EFFORT:-xhigh}"
       local codex_sandbox="${SANDBOX:-danger-full-access}"
       local codex_approval="${APPROVAL_POLICY:-never}"
       RUNTIME_CMD=(

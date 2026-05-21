@@ -16,8 +16,9 @@ Session-end cleanup for agent-launch-scripts.
 
 Default behavior:
   - Stop AgentRemote Electron processes from the canonical checkout and Codex worktrees.
+  - Close marked AgentRemote iTerm viewer windows left behind after tmux detach.
   - Clear AgentRemote Chromium caches while preserving Local Storage and pet-state.json.
-  - Print git status, worktree list, and any remaining AgentRemote processes.
+  - Print git status, worktree list, remaining AgentRemote processes, and viewer residue.
 
 Options:
   --keep-agentremote  Do not stop AgentRemote; still report running processes.
@@ -53,6 +54,67 @@ print_agentremote_processes() {
     | awk '/agent-launch-scripts\/remote-app\/node_modules\/electron\/dist\/Electron.app\/Contents\/MacOS\/Electron|--app-path=.*agent-launch-scripts\/remote-app/ && !/awk / { print }'
 }
 
+print_marked_iterm_viewers() {
+  pgrep -x iTerm2 >/dev/null 2>&1 || {
+    echo "(no iTerm process)"
+    return 0
+  }
+
+  osascript <<'APPLESCRIPT' 2>/dev/null || true
+tell application "iTerm2"
+  set markerName to "AgentRemote CHQ Viewer"
+  set foundViewer to false
+  repeat with candidateWindow in windows
+    set windowHasMarker to false
+    repeat with candidateTab in tabs of candidateWindow
+      repeat with candidateSession in sessions of candidateTab
+        try
+          if (name of candidateSession as text) contains markerName then
+            set windowHasMarker to true
+            set foundViewer to true
+          end if
+        end try
+      end repeat
+    end repeat
+    if windowHasMarker then
+      log "marked-viewer-window=" & (index of candidateWindow as text) & " name=" & (name of candidateWindow as text)
+    end if
+  end repeat
+  if foundViewer is false then log "(no marked AgentRemote iTerm viewer windows)"
+end tell
+APPLESCRIPT
+}
+
+close_marked_iterm_viewers() {
+  pgrep -x iTerm2 >/dev/null 2>&1 || return 0
+
+  if ((DRY_RUN)); then
+    echo "[dry-run] close iTerm windows containing AgentRemote CHQ Viewer marker"
+    return 0
+  fi
+
+  osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
+tell application "iTerm2"
+  set markerName to "AgentRemote CHQ Viewer"
+  set windowsToClose to {}
+  repeat with candidateWindow in windows
+    set windowHasMarker to false
+    repeat with candidateTab in tabs of candidateWindow
+      repeat with candidateSession in sessions of candidateTab
+        try
+          if (name of candidateSession as text) contains markerName then set windowHasMarker to true
+        end try
+      end repeat
+    end repeat
+    if windowHasMarker then set end of windowsToClose to candidateWindow
+  end repeat
+  repeat with candidateWindow in windowsToClose
+    close candidateWindow
+  end repeat
+end tell
+APPLESCRIPT
+}
+
 clear_cache_dir() {
   local rel="$1"
   local target="$AGENTREMOTE_SUPPORT_DIR/$rel"
@@ -67,6 +129,9 @@ clear_cache_dir() {
 echo "== AgentRemote processes before cleanup =="
 print_agentremote_processes || true
 
+echo "== Marked iTerm viewers before cleanup =="
+print_marked_iterm_viewers || true
+
 if ((KEEP_AGENTREMOTE)); then
   echo "== Keeping AgentRemote running =="
 else
@@ -78,6 +143,9 @@ else
     sleep 0.5
   fi
 fi
+
+echo "== Closing marked AgentRemote iTerm viewers =="
+close_marked_iterm_viewers || true
 
 if ((SKIP_CACHE)); then
   echo "== Skipping AgentRemote cache cleanup =="
@@ -106,3 +174,6 @@ git -C "$ROOT_DIR" worktree list
 
 echo "== AgentRemote processes after cleanup =="
 print_agentremote_processes || true
+
+echo "== Marked iTerm viewers after cleanup =="
+print_marked_iterm_viewers || true
