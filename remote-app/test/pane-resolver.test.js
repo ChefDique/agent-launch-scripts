@@ -41,6 +41,56 @@ test('sidecar entries for another session are ignored', () => {
   assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar }), []);
 });
 
+test('stale sidecar pane is ignored when live pane identity belongs to another agent', () => {
+  const panes = [
+    {
+      coord: 'chq:0.0',
+      paneId: '%1080',
+      title: 'CorporateHQ',
+      agentIdentity: 'xavier-codex'
+    }
+  ];
+  const sidecar = {
+    'mugatu-claude': { pane_id: '%1080', session: 'chq' }
+  };
+  const agent = { id: 'mugatu-claude', tmuxTarget: 'mugatu', displayName: 'MUGATU' };
+
+  assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar }), []);
+});
+
+test('sidecar still resolves when live pane identity matches the same agent on another runtime suffix', () => {
+  const panes = [
+    {
+      coord: 'chq:0.0',
+      paneId: '%1080',
+      title: '',
+      agentIdentity: 'mugatu-codex'
+    }
+  ];
+  const sidecar = {
+    'mugatu-claude': { pane_id: '%1080', session: 'chq' }
+  };
+  const agent = { id: 'mugatu-claude', tmuxTarget: 'mugatu', displayName: 'MUGATU' };
+
+  assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar }), [
+    { coord: 'chq:0.0', paneId: '%1080', title: '', agentIdentity: 'mugatu-codex', matchSource: 'sidecar' }
+  ]);
+});
+
+test('title fallback is ignored when live pane identity contradicts the selected agent', () => {
+  const panes = [
+    {
+      coord: 'chq:0.0',
+      paneId: '%1080',
+      title: 'MUGATU',
+      agentIdentity: 'xavier-codex'
+    }
+  ];
+  const agent = { id: 'mugatu-claude', tmuxTarget: 'mugatu', displayName: 'MUGATU' };
+
+  assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar: {} }), []);
+});
+
 test('sidecar cleanup removes killed agent ids without touching siblings', () => {
   const sidecar = {
     claude: { pane_id: '%44', session: 'chq' },

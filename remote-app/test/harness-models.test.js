@@ -53,6 +53,7 @@ test('codex default is the coding model', () => {
 
 test('codex exposes thinking-level wording and xhigh effort', () => {
   assert.strictEqual(getReasoningLabelForHarness('codex'), 'thinking level');
+  assert.strictEqual(getDefaultReasoningForHarness('codex'), 'xhigh');
   assert.ok(getReasoningLevelsForHarness('codex').some(level => level.id === 'xhigh'));
 });
 
@@ -102,6 +103,7 @@ test('unknown harness returns empty list and null default (no throw)', () => {
 test('case-insensitive harness lookup', () => {
   assert.ok(getModelsForHarness('CLAUDE').length > 0, 'CLAUDE should match claude');
   assert.strictEqual(getDefaultModelForHarness('Codex'), 'gpt-5.5');
+  assert.strictEqual(getDefaultReasoningForHarness(' Codex '), 'xhigh');
   assert.strictEqual(getDefaultReasoningForHarness('OpenClaw'), 'high');
 });
 

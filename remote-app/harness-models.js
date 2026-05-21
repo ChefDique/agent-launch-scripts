@@ -108,7 +108,7 @@ function normalizeCodexEntry(entry) {
 
 function entryFor(runtime) {
   const config = load();
-  const key = String(runtime || '').toLowerCase();
+  const key = String(runtime || '').trim().toLowerCase();
   const entry = config[key] || null;
   if (!entry) return null;
   if (key === 'codex') return normalizeCodexEntry(entry);

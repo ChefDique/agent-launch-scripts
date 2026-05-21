@@ -21,7 +21,7 @@ function keydown(overrides = {}) {
 test('terminal input maps Option/Alt word navigation and deletion to readline bytes', () => {
   assert.equal(terminalWordShortcutBytes(keydown({ key: 'ArrowLeft', code: 'ArrowLeft' })), '\x1bb');
   assert.equal(terminalWordShortcutBytes(keydown({ key: 'ArrowRight', code: 'ArrowRight' })), '\x1bf');
-  assert.equal(terminalWordShortcutBytes(keydown({ key: 'Backspace', code: 'Backspace' })), '\x1b\x7f');
+  assert.equal(terminalWordShortcutBytes(keydown({ key: 'Backspace', code: 'Backspace' })), '\x17');
   assert.equal(terminalWordShortcutBytes(keydown({ key: 'Delete', code: 'Delete' })), '\x1bd');
   assert.equal(terminalWordShortcutBytes(keydown({ key: 'b', code: 'KeyB' })), '\x1bb');
   assert.equal(terminalWordShortcutBytes(keydown({ key: 'f', code: 'KeyF' })), '\x1bf');
@@ -35,6 +35,7 @@ test('terminal input leaves paste and non-Alt shortcuts alone', () => {
 });
 
 test('terminal input converts readline and xterm modified-key bytes to tmux keys', () => {
+  assert.deepEqual(tmuxKeysForTerminalInput('\x17'), ['C-w']);
   assert.deepEqual(tmuxKeysForTerminalInput('\x1bb'), ['Escape', 'b']);
   assert.deepEqual(tmuxKeysForTerminalInput('\x1bf'), ['Escape', 'f']);
   assert.deepEqual(tmuxKeysForTerminalInput('\x1b\x7f'), ['Escape', 'BSpace']);

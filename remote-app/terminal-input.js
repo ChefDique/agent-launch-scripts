@@ -1,6 +1,7 @@
 'use strict';
 
 const TERMINAL_WORD_KEY_SEQUENCES = new Map([
+  ['\x17', ['C-w']],
   ['\x1bb', ['Escape', 'b']],
   ['\x1bf', ['Escape', 'f']],
   ['\x1b\x7f', ['Escape', 'BSpace']],
@@ -20,7 +21,7 @@ function terminalWordShortcutBytes(ev) {
 
   if (code === 'ArrowLeft' || key === 'arrowleft') return '\x1bb';
   if (code === 'ArrowRight' || key === 'arrowright') return '\x1bf';
-  if (code === 'Backspace' || key === 'backspace') return '\x1b\x7f';
+  if (code === 'Backspace' || key === 'backspace') return '\x17';
   if (code === 'Delete' || key === 'delete') return '\x1bd';
   if (code === 'KeyB' || key === 'b') return '\x1bb';
   if (code === 'KeyF' || key === 'f') return '\x1bf';

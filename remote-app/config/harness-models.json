@@ -19,7 +19,7 @@
   },
   "codex": {
     "default": "gpt-5.5",
-    "defaultReasoning": "high",
+    "defaultReasoning": "xhigh",
     "reasoningLabel": "thinking level",
     "models": [
       { "id": "gpt-5.5", "label": "GPT-5.5" },

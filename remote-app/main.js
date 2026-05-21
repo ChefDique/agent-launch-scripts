@@ -661,7 +661,7 @@ function loadAgents() {
     const raw = fs.readFileSync(REGISTRY_PATH, 'utf8');
     const data = JSON.parse(raw);
     return data.agents.map(a => {
-      const runtime = a.runtime || 'codex';
+      const runtime = normalizeRuntime(a.runtime || 'codex');
       const tmuxTarget = a.tmux_target
         || (runtime === 'claude' && a.rename_to
           ? a.rename_to.toLowerCase()
@@ -1676,7 +1676,7 @@ function listPanes() {
     // when panes shift). Both are needed: coord for tmux subcommands keyed by
     // position, pane_id for matching against $TMUX_PANE-keyed PIDFILEs that
     // launch-agent.sh writes to /tmp.
-    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}';
+    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}\t#{@agent-identity}';
     execFile('tmux', ['list-panes', '-a', '-F', fmt], (err, stdout, stderr) => {
       if (err) {
         // No tmux server running is a benign "no targets" — return empty.
@@ -1686,7 +1686,7 @@ function listPanes() {
       const out = stdout.split('\n').filter(Boolean).map(line => {
         const parts = line.split('\t');
         if (parts.length < 3) return null;
-        return { coord: parts[0], paneId: parts[1], title: parts[2] };
+        return { coord: parts[0], paneId: parts[1], title: parts[2], agentIdentity: parts[3] || '' };
       }).filter(Boolean);
       resolve(out);
     });
@@ -2286,8 +2286,8 @@ function applyRuntimePolicy(entry, runtime) {
     if (!entry.model || !isModelSupportedForHarness('codex', entry.model)) {
       entry.model = getDefaultModelForHarness('codex') || 'gpt-5.5';
     }
-    if (!entry.reasoning_effort || ['max', 'xhigh', 'policy-only'].includes(entry.reasoning_effort)) {
-      entry.reasoning_effort = getDefaultReasoningForHarness('codex') || 'high';
+    if (!entry.reasoning_effort || ['max', 'policy-only'].includes(entry.reasoning_effort)) {
+      entry.reasoning_effort = getDefaultReasoningForHarness('codex') || 'xhigh';
     }
     if (!entry.sandbox) entry.sandbox = 'danger-full-access';
     if (!entry.approval_policy) entry.approval_policy = 'never';

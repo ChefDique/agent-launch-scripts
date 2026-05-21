@@ -7,6 +7,24 @@ function sidecarSessionMatches(pane, sidecarEntry) {
   return typeof pane.coord === 'string' && pane.coord.startsWith(`${sidecarEntry.session}:`);
 }
 
+function canonicalAgentBase(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/-(claude|codex|hermes|openclaw)$/, '')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function paneOwnerMatchesAgent(pane, agent) {
+  const owner = canonicalAgentBase(pane && (pane.agentIdentity || pane.agent || pane.identity));
+  if (!owner) return true;
+  const agentBase = canonicalAgentBase(agent && agent.id);
+  const targetBase = canonicalAgentBase(agent && agent.tmuxTarget);
+  const displayBase = canonicalAgentBase(agent && agent.displayName);
+  return owner === agentBase || owner === targetBase || owner === displayBase;
+}
+
 function resolveAgentPanes({ agent, panes = [], sidecar = {} } = {}) {
   if (!agent || !agent.id) return [];
 
@@ -20,6 +38,7 @@ function resolveAgentPanes({ agent, panes = [], sidecar = {} } = {}) {
 
   const add = (pane, matchSource) => {
     if (!pane) return;
+    if (!paneOwnerMatchesAgent(pane, agent)) return;
     const key = paneKey(pane);
     if (!key || seen.has(key)) return;
     seen.add(key);
