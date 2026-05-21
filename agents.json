@@ -185,6 +185,127 @@
       }
     },
     {
+      "id": "hansel",
+      "display_name": "HANSEL",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CMO",
+      "color": "cyan",
+      "startup_slash": "",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "theme_color": "#00f2ff",
+      "avatar": "hansel.png",
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color pink"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "dasha",
+      "display_name": "DASHA",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/dasha-storefront",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#ee00ff",
+      "avatar": "acrm-builder.png",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "allow_claude_runtime": true
+    },
+    {
+      "id": "lucius",
+      "display_name": "LUCIUS",
+      "runtime": "claude",
+      "cwd": "~/ai_projects/research-and-development",
+      "color": "purple",
+      "theme_color": "#4c00ff",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "startup_slash": "/lead-gogo",
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
+      "env": {
+        "KOKORO_VOICE": "am_michael"
+      },
+      "rename_to": "LUCIUS",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "medium",
+      "avatar": "lucius.png",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "vegeta",
+      "display_name": "VEGETA",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod/team/08_asset-producer",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "theme_color": "#007bff",
+      "avatar": "vegeta.png",
+      "auto_restart": false,
+      "sandbox": "danger-full-access",
+      "approval_policy": "never"
+    },
+    {
+      "id": "zoolander",
+      "display_name": "ZOOLANDER",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CTO",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "theme_color": "#6600ff",
+      "avatar": "zoolander.gif",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "neo",
+      "display_name": "NEO",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#00ff4c",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "avatar": "neo.gif",
+      "allow_claude_runtime": true,
+      "auto_restart": false,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
       "id": "xavier",
       "display_name": "Professor Xavier",
       "runtime": "claude",
@@ -235,129 +356,6 @@
           "startup_lines"
         ]
       }
-    },
-    {
-      "id": "vegeta",
-      "display_name": "VEGETA",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod/team/08_asset-producer",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "xhigh",
-      "theme_color": "#007bff",
-      "avatar": "vegeta.png",
-      "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "neo",
-      "display_name": "NEO",
-      "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#00ff4c",
-      "model": "claude-opus-4-7[1m]",
-      "reasoning_effort": "max",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "avatar": "neo.gif",
-      "allow_claude_runtime": true,
-      "auto_restart": false,
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
-      "id": "zoolander",
-      "display_name": "ZOOLANDER",
-      "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CTO",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "claude-opus-4-7[1m]",
-      "reasoning_effort": "max",
-      "theme_color": "#6600ff",
-      "avatar": "zoolander.gif",
-      "allow_claude_runtime": true,
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
-      "id": "hansel",
-      "display_name": "HANSEL",
-      "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CMO",
-      "color": "cyan",
-      "startup_slash": "",
-      "model": "claude-opus-4-7[1m]",
-      "reasoning_effort": "max",
-      "theme_color": "#00f2ff",
-      "avatar": "hansel.png",
-      "allow_claude_runtime": true,
-      "startup_lines": [
-        "/color pink"
-      ],
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
-      "id": "lucius",
-      "display_name": "LUCIUS",
-      "runtime": "claude",
-      "cwd": "~/ai_projects/research-and-development",
-      "color": "purple",
-      "theme_color": "#4c00ff",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "startup_slash": "/lead-gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
-      "env": {
-        "KOKORO_VOICE": "am_michael"
-      },
-      "rename_to": "LUCIUS",
-      "model": "claude-opus-4-7[1m]",
-      "reasoning_effort": "max",
-      "avatar": "lucius.png",
-      "allow_claude_runtime": true,
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
-      "id": "dasha",
-      "display_name": "dasha",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/dasha-storefront",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#ee00ff",
-      "avatar": "acrm-builder.png",
-      "model": "gpt-5.5",
-      "reasoning_effort": "xhigh",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
-      "auto_restart": false
     },
     {
       "id": "overlord-swarmy",
