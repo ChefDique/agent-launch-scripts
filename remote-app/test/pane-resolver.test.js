@@ -10,7 +10,7 @@ test('sidecar pane resolves even when the pane title no longer matches the agent
   const sidecar = {
     claude: { pane_id: '%44', session: 'chq' }
   };
-  const agent = { id: 'claude', tmuxTarget: 'tmux-masta', displayName: 'Claude' };
+  const agent = { id: 'claude', tmuxTarget: 'neo', displayName: 'Claude' };
 
   assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar }), [
     { coord: 'chq:1.0', paneId: '%44', title: '', command: 'zsh', matchSource: 'sidecar' }
@@ -24,7 +24,7 @@ test('sidecar and title matches are deduped by stable pane id', () => {
   const sidecar = {
     claude: { pane_id: '%1', session: 'chq' }
   };
-  const agent = { id: 'claude', tmuxTarget: 'tmux-masta' };
+  const agent = { id: 'claude', tmuxTarget: 'neo' };
 
   assert.equal(resolveAgentPanes({ agent, panes, sidecar }).length, 1);
 });
@@ -36,7 +36,7 @@ test('sidecar entries for another session are ignored', () => {
   const sidecar = {
     claude: { pane_id: '%44', session: 'chq' }
   };
-  const agent = { id: 'claude', tmuxTarget: 'tmux-masta' };
+  const agent = { id: 'claude', tmuxTarget: 'neo' };
 
   assert.deepEqual(resolveAgentPanes({ agent, panes, sidecar }), []);
 });

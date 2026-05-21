@@ -13,7 +13,7 @@ test('pet pane stream filtering is module-backed and not agent or model name rou
 
   assert.match(petWindow, /require\('\.\/pane-stream-filter'\)/);
   assert.doesNotMatch(petWindow, /function sanitizePaneChunk|function isRenderablePaneLine|Opus\|Sonnet\|Claude\|Codex\|GPT/);
-  assert.doesNotMatch(filter, /\b(?:Claude|Codex|Opus|Sonnet|GPT|Xavier|Lucius|Gekko|tmux-masta)\b/);
+  assert.doesNotMatch(filter, /\b(?:Claude|Codex|Opus|Sonnet|GPT|Xavier|Lucius|Gekko|neo)\b/);
 });
 
 test('AgentRemote pet stream policy is registry data, not per-agent branches', () => {

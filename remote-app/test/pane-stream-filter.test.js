@@ -14,7 +14,7 @@ const {
 test('pane stream filter strips terminal controls without hardcoded agent or model names', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'pane-stream-filter.js'), 'utf8');
 
-  assert.doesNotMatch(source, /\b(?:Claude|Codex|Opus|Sonnet|GPT|Xavier|Lucius|Gekko|tmux-masta)\b/);
+  assert.doesNotMatch(source, /\b(?:Claude|Codex|Opus|Sonnet|GPT|Xavier|Lucius|Gekko|neo)\b/);
   assert.equal(sanitizeTerminalText('\x1b[>1uvisible\x1b[0m'), 'visible');
 });
 

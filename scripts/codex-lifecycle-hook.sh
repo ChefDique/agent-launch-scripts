@@ -603,7 +603,7 @@ guard_applies_to_session() {
   fi
 
   case "${MESSAGE_AGENT_IDENTITY:-}" in
-    neo|neo-codex|tmux-masta|tmux-masta-codex) return 0 ;;
+    neo|neo-codex) return 0 ;;
   esac
 
   cwd_is_inside_guard_repo

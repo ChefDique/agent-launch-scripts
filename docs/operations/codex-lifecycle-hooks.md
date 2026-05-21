@@ -27,7 +27,7 @@ It blocks or nudges on conservative signals:
 - `SessionStart`: emits a startup/lane checkpoint that points at the required
   session status artifact. This is context only; the hard gate is `PreToolUse`.
 - `PreToolUse`: for Neo/Codex (`MESSAGE_AGENT_IDENTITY=neo-codex` or
-  `tmux-masta`), refuses file edits outside this repo and refuses live
+  `neo`), refuses file edits outside this repo and refuses live
   AgentRemote/iTerm/tmux mutations. The explicit operator override is
   `CODEX_LIFECYCLE_OPERATOR_OVERRIDE=1`; use it only when Richard has approved
   that specific cross-repo or live desktop action.

@@ -11,7 +11,7 @@ approval or another repo owner.
 
 | Requirement | Artifact / evidence | Current state |
 |---|---|---|
-| Replace `tmux-masta.md` wording with Neo while preserving the stable id. | `AGENTS.md`, `memory/agent-notes/tmux-masta.md`. | Done. Visible lane name is Neo; stable registry id remains `tmux-masta` for compatibility. |
+| Replace `neo.md` wording with Neo while preserving the stable id. | `AGENTS.md`, `memory/agent-notes/neo.md`. | Done. Visible lane name is Neo; stable registry id remains `neo` for compatibility. |
 | Do not change the memory folder location. | `memory/` remains the repo-local handoff/session/status folder; `.claude/memory/handoff.md` is only mirrored because startup reads it first. | Done. No memory relocation. |
 | Consolidate and improve codebase architecture. | `docs/product/agentremote-prd.md`, `docs/product/agentremote-feature-index.md`, `docs/operations/agentremote-quality-gates.md`, `memory/tasks/tasks.json`, lifecycle-hook docs. | Done for documentation/control-plane architecture; live runtime architecture remains approval-gated for desktop checks. |
 | Legit model and thinking-level selection. | `remote-app/config/harness-models.json`, `remote-app/harness-models.js`, `launch-agent.sh`, `remote-app/test/harness-models.test.js`, `test/launch-agent-runtime.test.sh`, renderer static tests. | Done for Codex local catalog/config/env choices and safe Codex model validation. The picker reads `~/.codex/models_cache.json`, keeps the configured GPT fallback list, labels the Codex control as `thinking level`, and exposes/passes `xhigh` as `model_reasoning_effort="xhigh"`. No remote ChatGPT/Claude web feed is implemented. |

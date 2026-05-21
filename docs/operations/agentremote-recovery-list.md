@@ -10,7 +10,7 @@ open/recurring failures against that contract.
 
 ## Operating Rules
 
-- Swarmy is the live spawn/summon authority. Neo/`tmux-masta` should not act as
+- Swarmy is the live spawn/summon authority. Neo/`neo` should not act as
   the live window operator unless Richard explicitly authorizes that live
   mutation in the current turn.
 - Do not equate "AgentRemote shows online" with "Richard has a usable terminal."

@@ -56,7 +56,7 @@ bash ../launch-remote.sh
   tmux pane scraping. Transcript selection must prove the active cwd/session
   before rendering; if it cannot, return unavailable or use an explicit
   registry fallback rather than showing another session's newest output.
-- Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another Neo/`tmux-masta` lane; classify them explicitly and merge them into the current understanding.
+- Review dirty state before treating it as unrelated. Registry/avatar diffs can be app-generated from live AgentRemote usage or another Neo/`neo` lane; classify them explicitly and merge them into the current understanding.
 - Launch AgentRemote after UI or IPC changes.
 - Verify the running Electron process points at `/Users/richardadair/ai_projects/agent-launch-scripts/remote-app`, not the compatibility symlink or a stale `.codex/worktrees/.../agent-launch-scripts/remote-app` copy.
 - Bump `package.json` and `package-lock.json` by SemVer for app changes, then verify the HUD build badge can identify version, branch, commit, dirty state, and checkout path.

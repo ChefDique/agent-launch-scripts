@@ -12,7 +12,7 @@ AgentRemote terminal behavior was fixed by restarting stale wrapped Codex child 
 
 ## Artifacts
 - `memory/handoff.md`
-- `memory/agent-notes/tmux-masta.md`
+- `memory/agent-notes/neo.md`
 - Prior failure receipt: `memory/sessions/2026-05-19_0054_agentremote-terminal-failure-closeout.md`
 - Live wrapper scripts inspected: `/tmp/swarmy-agentremote-runtime/chq-mugatu-claude.sh`, `chq-xavier.sh`, `chq-dasha.sh`, `chq-lucius.sh`
 

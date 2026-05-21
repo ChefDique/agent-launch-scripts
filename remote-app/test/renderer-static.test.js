@@ -162,7 +162,7 @@ test('agent pets are per-agent and use the Codex pet roster instead of a hard-co
   assert.doesNotMatch(html, /id="codex-pet"/);
   assert.doesNotMatch(html, /professor-xavier/);
   assert.doesNotMatch(html, /codeberg/);
-  assert.doesNotMatch(html, /agent\.id === 'tmux-masta'/);
+  assert.doesNotMatch(html, /agent\.id === 'neo'/);
   assert.equal(fs.existsSync(path.join(__dirname, '..', 'assets', 'pets', 'goku')), false);
 });
 
@@ -176,7 +176,7 @@ test('dock labels and chat identity are registry-driven, not hard-coded by agent
   assert.doesNotMatch(petWindow, /overlordswarmy/);
   assert.doesNotMatch(main, /professor-xavier/);
   assert.doesNotMatch(main, /codeberg/);
-  assert.doesNotMatch(main, /agent\.id === 'tmux-masta'/);
+  assert.doesNotMatch(main, /agent\.id === 'neo'/);
 });
 
 test('floating pet window has draggable sprite, mini log, close, and reply controls', () => {

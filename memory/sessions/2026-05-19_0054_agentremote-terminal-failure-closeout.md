@@ -12,7 +12,7 @@ This session did not deliver a trustworthy fix. Richard remains blocked by broke
 
 ## Artifacts
 - `memory/handoff.md`
-- `memory/agent-notes/tmux-masta.md`
+- `memory/agent-notes/neo.md`
 - Commits already on `main` before this closeout: `07f75ea`, `5ca26ba`, `bd602b2`, `fa4fc2d`
 - External reference: https://iterm2.com/documentation-images.html
 

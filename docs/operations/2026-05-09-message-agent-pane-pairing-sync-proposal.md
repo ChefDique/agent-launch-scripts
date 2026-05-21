@@ -2,7 +2,7 @@
 
 Date: 2026-05-09
 Status: proposal for validation
-Owner: Neo / `tmux-masta`
+Owner: Neo / `neo`
 
 ## Problem
 
@@ -18,7 +18,7 @@ The observed failure was:
 
 - `lucius-claude` listener was registered to `chq:0.1`.
 - AgentRemote sidecar showed Lucius at stable pane `%515`, currently `chq:0.2`.
-- Neo / `tmux-masta` was currently `chq:0.1` / `%552`.
+- Neo / `neo` was currently `chq:0.1` / `%552`.
 - A message addressed to `lucius-claude` surfaced in Neo's Codex chat.
 
 This is a comms integrity bug. It can cause an agent to see another agent's
@@ -200,7 +200,7 @@ This prevents cross-agent leakage while preserving async delivery.
 ## Aria Comms-Owner Review
 
 Aria responded on correlation
-`tmux-masta-codex-to-aria-hermes-1778301854`. Her position:
+`neo-codex-to-aria-hermes-1778301854`. Her position:
 
 - Delivery should resolve to a stable tmux pane id at send time, not trust
   listener-start `session:window.pane` coordinates.

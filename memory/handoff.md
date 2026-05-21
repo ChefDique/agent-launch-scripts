@@ -1,4 +1,4 @@
-# Handoff — Neo (`tmux-masta`)
+# Handoff — Neo (`neo`)
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 

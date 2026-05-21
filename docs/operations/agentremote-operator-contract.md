@@ -27,7 +27,7 @@ hide runtime failures behind optimistic UI state.
   launched process must be Codex. Do not silently reuse a stale runtime, model,
   profile preset, sandbox policy, or approval policy from a prior row.
 - Agent creation and launch are dynamic. Do not hardcode Xavier, Swarmy,
-  Neo/`tmux-masta`, or any other agent as a special case unless the
+  Neo/`neo`, or any other agent as a special case unless the
   registry/profile explicitly declares that behavior.
 - AgentRemote must not turn every new terminal into a Codex harness. Manual
   Terminal or iTerm windows are Richard's unless explicitly created by the

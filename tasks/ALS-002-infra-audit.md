@@ -66,7 +66,7 @@ Once a session is started in `tiled` mode, subsequent Deploys are locked to `til
 - Three bun pollers running (PIDs 10409, 79944, 95880).
 - Bun PID 10409 → parent claude PID 10330 (`-n Gekko`); `telegram-trading/bot.pid` = 10423 (the inner `bun server.ts`). **Trading/Gekko telegram is live.**
 - Bun PID 95880 → parent claude PID 95831 (`-n Xavier`); `telegram-xavier/bot.pid` = 95891. **Xavier telegram is live.**
-- Bun PID 79944 → parent claude PID 79835 (`-n Claude`). No matching `bot.pid` file anywhere for this meta-agent. **Claude/meta-agent has a poller but its state dir is `telegram-tmux-masta/` (per `agent-launch-scripts/.claude/settings.local.json`) and that dir has no `bot.pid`.**
+- Bun PID 79944 → parent claude PID 79835 (`-n Claude`). No matching `bot.pid` file anywhere for this meta-agent. **Claude/meta-agent has a poller but its state dir is `telegram-neo/` (per `agent-launch-scripts/.claude/settings.local.json`) and that dir has no `bot.pid`.**
 - Lucius (`-n Lucius`) is NOT running. Swarmy is NOT running. Neither has a bun poller.
 
 ### Root cause hypotheses (ranked)
@@ -89,13 +89,13 @@ The `grep -qv "T"` check is inverted relative to intent. `grep -qv "T"` returns 
 All four primary agents have distinct tokens (8683/8003/8736/8621 per `telegram-routing.md`). No obvious token collision in the current config. Not the root cause here, but remains a latent risk if `settings.local.json` is ever copied without updating the token.
 
 **4. `TELEGRAM_STATE_DIR` missing → session reads no token.**
-The plugin reads `TELEGRAM_STATE_DIR` from the project's `settings.local.json`. CorporateHQ, R&D, Trading, and Swarmy all have this set correctly. Agent-launch-scripts has it pointing to `telegram-tmux-masta/` which has a token. This is correctly configured for all current running agents.
+The plugin reads `TELEGRAM_STATE_DIR` from the project's `settings.local.json`. CorporateHQ, R&D, Trading, and Swarmy all have this set correctly. Agent-launch-scripts has it pointing to `telegram-neo/` which has a token. This is correctly configured for all current running agents.
 
 ### Fix recommendation
 
 1. Start Lucius and Swarmy — that immediately restores their bots.
 2. Fix `telegram-cleanup.sh:37`: the condition `grep -qv "T"` should be `grep -q "T"` (without the negation) to correctly match suspended/stopped parents.
-3. Optionally add a `bot.pid` write to `telegram-tmux-masta/` so the meta-agent's poller is tracked alongside the others.
+3. Optionally add a `bot.pid` write to `telegram-neo/` so the meta-agent's poller is tracked alongside the others.
 
 ---
 

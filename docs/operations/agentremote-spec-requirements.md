@@ -25,12 +25,12 @@ Every historical attempt to fix one of {send/submit, Enter handling, Option word
 | ID | Requirement | Collides with (don't break) | Evidence | Guard |
 |---|---|---|---|---|
 | **A1** | Send means **send AND submit**. A composed/typed/voice/paste-submit message MUST be delivered *and* submitted at the target pane. Text and Enter MUST arrive in **separate reads** (two-phase: literal text, then Enter ≥ `TMUX_SUBMIT_ENTER_DELAY_MS` later). MUST NOT be fused into one `send-keys ... Enter` invocation — a raw-mode TUI reads the fused form as a paste and never submits. | A2, A4; any send-path refactor that re-fuses text+Enter; the old Enter-focus guard | LRN-20260521-001; S:2026-05-20_0108; S:2026-05-20_0217 (ALS-006/008) | `test/tmux-send-path.integration.test.js` (2 reads vs 1) + `tmux-send-path.test.js`; live send. **Held + live-verified 2026-05-21 (v1.4.15).** |
-| **A2** | Option/Alt word-edit keys MUST keep working in the embedded terminal: Option+Backspace→`C-w`, Alt+←/→ word nav, Alt+B/F/D. They are a **Meta-sequence transport** problem, separate from paste. | A1, A4; Enter-handling and paste-path edits | S:2026-05-18_2200; S:2026-05-20_0217; `tmux-masta.md` | `test/terminal-input.test.js`; live word-edit in a real Codex prompt |
+| **A2** | Option/Alt word-edit keys MUST keep working in the embedded terminal: Option+Backspace→`C-w`, Alt+←/→ word nav, Alt+B/F/D. They are a **Meta-sequence transport** problem, separate from paste. | A1, A4; Enter-handling and paste-path edits | S:2026-05-18_2200; S:2026-05-20_0217; `neo.md` | `test/terminal-input.test.js`; live word-edit in a real Codex prompt |
 | **A3** | Text paste MUST NOT auto-submit, and MUST NOT forward raw control bytes (e.g. a lone `0x16`/SYN from plain Ctrl+V is treated as paste, never sent raw). Only the explicit `submit` flag submits. | A1; Ctrl+V / SYN handling | LRN-20260508-004; quality-gates Paste row | `renderer-static.test.js`; live paste |
 | **A4** | Image paste MUST produce a **readable reference the agent can act on**. Current shipped mechanism: save to `/tmp/agentremote-pasted-images/`, insert `[image: /path]` text, then submit via the delayed-Enter (A1) path. MUST keep working whenever terminal-input/Enter handling changes. | A1, A2; raw-byte/keyboard forwarding (the failed approach) | LRN-20260508-004; S:2026-05-19_0054; ALS-LOCAL-001 (review_pending) | `renderer-static.test.js` + `tmux-send-path` tests; **live paste check still owed** |
 | **A5** | A standalone Enter in the embedded terminal is a real keypress to the **active agent's pane only**, sent isolated (not fused with text). MUST NOT send a stray Enter to a non-target pane. | A1, D2 (pane targeting) | S:2026-05-20_0108/_0217 | pane-resolver owner-matching + A1 guards; live |
 
-> **Reconciliation (diff finding):** `memory/agent-notes/tmux-masta.md` records that image paste "must" use the **iTerm2 OSC 1337 multipart protocol**. That was a *diagnosis from a failed session*, **not** the shipped solution — the current code uses the `[image: /path]` text-reference path and there is **no OSC 1337 transport in `remote-app/`**. Do **not** rip out the working text-reference path to implement OSC 1337 without Richard's explicit direction. This note exists so the stale memory entry does not trigger a regression.
+> **Reconciliation (diff finding):** `memory/agent-notes/neo.md` records that image paste "must" use the **iTerm2 OSC 1337 multipart protocol**. That was a *diagnosis from a failed session*, **not** the shipped solution — the current code uses the `[image: /path]` text-reference path and there is **no OSC 1337 transport in `remote-app/`**. Do **not** rip out the working text-reference path to implement OSC 1337 without Richard's explicit direction. This note exists so the stale memory entry does not trigger a regression.
 
 ---
 
@@ -51,7 +51,7 @@ Every historical attempt to fix one of {send/submit, Enter handling, Option word
 
 | ID | Requirement | Collides with | Evidence | Guard |
 |---|---|---|---|---|
-| **C1** | The Codex launch command MUST preserve `--no-alt-screen`, the configured startup command (e.g. `/lead-gogo`), and the pane title. These MUST NOT drift out while chasing a TUI/visual symptom. | launcher refactors; AgentRemote TUI tweaks | S:2026-05-19_0107; S:2026-05-20_0108; `tmux-masta.md` (2026-05-20) | `test/chq-codex-runtime-smoke.test.sh`, `launch-agent-runtime.test.sh` |
+| **C1** | The Codex launch command MUST preserve `--no-alt-screen`, the configured startup command (e.g. `/lead-gogo`), and the pane title. These MUST NOT drift out while chasing a TUI/visual symptom. | launcher refactors; AgentRemote TUI tweaks | S:2026-05-19_0107; S:2026-05-20_0108; `neo.md` (2026-05-20) | `test/chq-codex-runtime-smoke.test.sh`, `launch-agent-runtime.test.sh` |
 
 ---
 
@@ -79,7 +79,7 @@ Every historical attempt to fix one of {send/submit, Enter handling, Option word
 
 | ID | Requirement | Collides with | Evidence | Guard |
 |---|---|---|---|---|
-| **F1** | The add/edit form, settings popover, and popups MUST size to content without clipping Save/Cancel — proven against **live renderer bounds** (screenshot + visibility booleans like `actionsVisible`/`formBottomVisible`), not just a resize-intent assertion. The fallback height MUST reserve room for the dock and lower-panel rows. | `syncWindowSize`-only fixes | `tmux-masta.md` (2026-05-19); S:2026-05-19_0054/_0107 | `window-geometry.test.js` + live screenshot |
+| **F1** | The add/edit form, settings popover, and popups MUST size to content without clipping Save/Cancel — proven against **live renderer bounds** (screenshot + visibility booleans like `actionsVisible`/`formBottomVisible`), not just a resize-intent assertion. The fallback height MUST reserve room for the dock and lower-panel rows. | `syncWindowSize`-only fixes | `neo.md` (2026-05-19); S:2026-05-19_0054/_0107 | `window-geometry.test.js` + live screenshot |
 | **F2** | Every scrollable modal/picker/popover/overlay/roster/log/pet window MUST use the dark HUD scrollbar styling. Native white scrollbars are regressions. | new scrollable surfaces | CLAUDE.md; operator-contract | visual / static |
 
 ---
@@ -88,7 +88,7 @@ Every historical attempt to fix one of {send/submit, Enter handling, Option word
 
 | ID | Requirement | Collides with | Evidence | Guard |
 |---|---|---|---|---|
-| **G1** | For any live behavior mismatch, rule out **stale live process drift first** (compare pane process age + command across panes). Restart only the **stale wrapped child**; the wrapper parent MUST survive to auto-restart. NEVER blanket-kill tracked processes. Live panes do not inherit launcher/config changes until the child restarts. | jumping to renderer/tmux code patches; blind kills | S:2026-05-19_0107; S:2026-05-20_0538; `tmux-masta.md` | diagnostic discipline (not a unit test) |
+| **G1** | For any live behavior mismatch, rule out **stale live process drift first** (compare pane process age + command across panes). Restart only the **stale wrapped child**; the wrapper parent MUST survive to auto-restart. NEVER blanket-kill tracked processes. Live panes do not inherit launcher/config changes until the child restarts. | jumping to renderer/tmux code patches; blind kills | S:2026-05-19_0107; S:2026-05-20_0538; `neo.md` | diagnostic discipline (not a unit test) |
 | **G2** | No completion/PASS for runtime / input / paste / spawn / layout / Armory-import / avatar work without **live operator-workflow verification approved by Richard**. Static tests reduce blast radius; they are not a PASS. | declaring success on `npm test` alone | S:2026-05-19_0054; S:2026-05-19_2229; S:2026-05-20_0217; operator-contract "Proof Before PASS" | live check + approval |
 | **G3** | Closeout MUST be truthful: do not commit unsafe/unverified runtime-input changes, and do not mutate live iTerm/tmux/AgentRemote desktop in guarded lanes without Richard's explicit ask in the current turn. | optimistic closeout; live mutation without approval | S:2026-05-20_0217; `session-status.json`; LRN-20260520-001 | closeout discipline |
 
@@ -99,9 +99,9 @@ Every historical attempt to fix one of {send/submit, Enter handling, Option word
 What this spec **adds or reconciles** beyond the prior docs:
 
 1. **A1 two-phase "separate reads" rule** — newly shipped (v1.4.15) and now stated as a hard invariant; the old quality-gates "one ordered send+submit" wording predates it.
-2. **A4 image-paste reconciliation** — the stale `tmux-masta.md` OSC-1337 note is flagged as a non-shipped diagnosis so it cannot trigger a regression of the working text-reference path.
+2. **A4 image-paste reconciliation** — the stale `neo.md` OSC-1337 note is flagged as a non-shipped diagnosis so it cannot trigger a regression of the working text-reference path.
 3. **C1 launcher-invariant drift** — promoted from a session note to an explicit requirement after `--no-alt-screen`/startup-command drift cost real sessions.
-4. **G1 stale-process-first diagnostic** — promoted from `tmux-masta.md` notes; this single discipline would have saved the 2026-05-19 wasted session.
+4. **G1 stale-process-first diagnostic** — promoted from `neo.md` notes; this single discipline would have saved the 2026-05-19 wasted session.
 5. **F1 live-bounds proof for sizing** and **B6 model-gating placement** — under-captured in the surface matrix; stated here as MUST requirements.
 
-Empty memory dirs noted during mining: `memory/audits/`, `memory/decisions/`, `memory/workflows/`, `memory/coord/` are placeholders only. Durable requirements currently live in `memory/agent-notes/tmux-masta.md`, the session files, and `.learnings/LEARNINGS.md`.
+Empty memory dirs noted during mining: `memory/audits/`, `memory/decisions/`, `memory/workflows/`, `memory/coord/` are placeholders only. Durable requirements currently live in `memory/agent-notes/neo.md`, the session files, and `.learnings/LEARNINGS.md`.
