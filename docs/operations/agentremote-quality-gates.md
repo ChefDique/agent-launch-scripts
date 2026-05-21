@@ -9,6 +9,11 @@ can be called complete. It complements
 are the default evidence layer; live desktop checks require Richard's explicit
 approval in the current turn.
 
+This is the *how to test* layer. For *what must hold* — each requirement stated
+as a `MUST`/`MUST NOT` paired with the fix it historically collides with
+("don't break X to fix Y"), with session/LEARNINGS evidence — see the companion
+`docs/operations/agentremote-spec-requirements.md`.
+
 ## Gate Rules
 
 - Treat AgentRemote as a local operator HUD over the Swarmy-owned runtime path.

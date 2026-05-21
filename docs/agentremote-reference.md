@@ -250,3 +250,5 @@ Key node tests: `tmux-send-path[.integration].test.js` (two-phase submit), `pane
 - Status/kill/restart/attach/broadcast/voice paths verify the real target/result — no optimistic success. §4, §7
 - Dark HUD scrollbar styling on every scrollable surface; no native white scrollbars.
 - Before AgentRemote work: read the operator contract and `remote-app/AGENTS.md`, and check `.learnings/LEARNINGS.md`.
+
+Each invariant above is stated as a testable `MUST`/`MUST NOT` with its "don't break X to fix Y" collision pair and evidence in `operations/agentremote-spec-requirements.md` — read that before changing any input/send/runtime/spawn surface.

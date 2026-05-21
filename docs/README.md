@@ -51,6 +51,7 @@ the relevant contract instead of copying large sections into a new brief:
 | What is the app for? | `product/agentremote-prd.md` |
 | What features exist and where are they implemented? | `product/agentremote-feature-index.md` |
 | What checks are required before shipping? | `operations/agentremote-quality-gates.md` |
+| What must NOT break when I change something? | `operations/agentremote-spec-requirements.md` |
 | What is actually done versus blocked right now? | `operations/agentremote-completion-audit.md` |
 | What live runtime behavior must not be violated? | `operations/agentremote-operator-contract.md` |
 | How do launchers, tmux, and Swarmy fit together? | `operations/launch-scripts.md` |
