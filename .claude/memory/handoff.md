@@ -4,12 +4,13 @@
 
 **Last working on:** Fixed the `/message-agent` send bug (two-phase tmux submit) and pushed both repos to origin. Opus-Neo, 2026-05-21.
 
-**State at last pause (2026-05-21T15:05:00-0700):**
+**State at last pause (2026-05-21T16:46:00-0700):**
 - `/message-agent` SEND BUG FIXED + verified live + pushed: deliveries used to land in the agent's composer but not submit (intermittent). Root cause = delay placed after the submit + a `C-m`+`Enter` double-submit in `agent_bus_listener.py`. Fixed to the HUD's two-phase pattern (paste → 0.15s → single Enter). Commit `3c9509c` in the **message-agent repo** (`~/ai_projects/tools/message-agent`), pushed. 26/26 listener tests pass; proven against a throwaway Claude pane.
 - `agent-launch-scripts` ALL PUSHED to origin (`c3b2050`): startup warning default-on (`80128ea`), "Startup auto-run" toggle v1.4.16 (`76ebc52`), `tmux-masta`→`neo` rename (`acd7d10`), live registry, chores. Both repos now in sync with origin.
 - Toggle: Richard satisfied — default-on is the real win, the toggle is an optional override.
+- CLOSEOUT (16:46): `/done` ran; `session-end-cleanup` stopped Richard's live HUD and he said "don't close my shit" — relaunched immediately, v1.4.16 is up (detached). Neo session left RUNNING (skipped `/done`'s kill-PID per his call). Never close his running apps or kill the session on closeout — see [[feedback_dont_close_richards_running_apps]].
 
-**Next verifiable step:** None pending. Open thread = the Shift+Enter cross-pane CR (needs Richard's input on which surface he types it in).
+**Next verifiable step:** None pending; Neo left running per Richard. Open thread = the Shift+Enter cross-pane CR (needs which surface he types it in: agent pane vs HUD).
 
 **If that step fails:** n/a — no in-flight work.
 
