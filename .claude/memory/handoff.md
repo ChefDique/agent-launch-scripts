@@ -18,7 +18,7 @@
 ## Open priorities (<=5)
 
 - [DEFERRED] **agents.json commit** — matches the live Claude fleet (not a contradiction); gitignored; commit only on Richard's call.
-- [FOLLOWUP] **applyRuntimePolicy strips startup_injection from non-Claude on UI-edit** — lift if Richard wants HUD-managed Codex injection; not needed for the Claude fleet.
+- [FOLLOWUP] **Startup-injection toggle not wired to the fleet** — most agents have `startup_slash: /lead-gogo` but NO `startup_injection` policy, so the launcher auto-injects nothing (no warning-ack + /lead-gogo) on restart. To drive startup fleet-wide, add the policy per agent in `agents.json` (`include: ["dangerous_permission_enter","startup_lines"]`). Also: `applyRuntimePolicy` (`remote-app/main.js` ~735/~2298) strips `startup_injection` from non-Claude on UI-edit — lift for HUD-managed Codex injection.
 - [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — live check owed; uses `[image:/path]` text ref, NOT OSC 1337 (stale note; spec REQ-A4).
 - [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.
 - [PARTIAL] **ALS-QUALITY-007 live AgentRemote verification** — send/submit verified; paste/attach/voice still need approved live checks.
