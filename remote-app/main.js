@@ -11,7 +11,11 @@ const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, reso
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
 const { buildITermAttachScript } = require('./iterm-attach');
-const { tmuxSendSubmittedTextArgs } = require('./tmux-send-path');
+const {
+  tmuxSendLiteralArgs,
+  tmuxSendEnterArgs,
+  TMUX_SUBMIT_ENTER_DELAY_MS
+} = require('./tmux-send-path');
 const { transcriptMessagesForAgent } = require('./agent-transcript-source');
 const { tmuxKeysForTerminalInput } = require('./terminal-input');
 const {
@@ -1563,10 +1567,20 @@ async function resolveBroadcastTargets({ selectedAgents, isAll }) {
 }
 
 function sendKeysToCoord(coord, message) {
+  // Two-phase submit: deliver the literal text, then send Enter as a separate,
+  // slightly-delayed keypress so raw-mode TUIs (Codex/Claude) submit instead of
+  // treating text+CR in one read as a paste. See tmux-send-path.js. The promise
+  // resolves only after BOTH phases land, so the broadcast "sent" count reflects
+  // a real submit, not an optimistic one.
   return new Promise((resolve, reject) => {
-    execFile('tmux', tmuxSendSubmittedTextArgs(coord, message), (err, _o, ser) => {
+    execFile('tmux', tmuxSendLiteralArgs(coord, message), (err, _o, ser) => {
       if (err) return reject(new Error(ser || err.message));
-      resolve(coord);
+      setTimeout(() => {
+        execFile('tmux', tmuxSendEnterArgs(coord), (err2, _o2, ser2) => {
+          if (err2) return reject(new Error(ser2 || err2.message));
+          resolve(coord);
+        });
+      }, TMUX_SUBMIT_ENTER_DELAY_MS);
     });
   });
 }
@@ -3499,6 +3513,16 @@ function sendPaneKeys(paneId, keys) {
   execFile('tmux', ['send-keys', '-t', paneId, ...keys], () => {});
 }
 
+// Submit literal text into a pane the way a human does: type it, pause so the
+// TUI input layer flushes the paste, then press Enter as a separate keypress.
+// Codex/Claude treat text+CR arriving in one read() as a paste (a newline in the
+// composer) rather than a submit, so the pause is load-bearing. See
+// tmux-send-path.js for the same reasoning behind the broadcast send path.
+function submitPaneText(paneId, text) {
+  if (typeof text === 'string' && text.length > 0) sendPaneLiteral(paneId, text);
+  setTimeout(() => sendPaneKeys(paneId, ['Enter']), TMUX_SUBMIT_ENTER_DELAY_MS);
+}
+
 // pane-input — renderer sends terminal keystrokes and paste payloads for the xterm.
 // Text is forwarded literally. Known word-edit escape sequences are forwarded
 // as real keys so tmux does not flatten them into inert literal bytes. Enter is
@@ -3520,37 +3544,29 @@ ipcMain.on('pane-input', (_event, payload = {}) => {
     return;
   }
 
-  if (!allowEnter && /[\r\n]/.test(data)) {
-    const pasteText = data.replace(/\r\n/g, '\n').replace(/[\r\n]+$/g, '');
-    if (pasteText.length > 0) {
-      sendPaneLiteral(entry.paneId, pasteText);
-      if (submit) sendPaneKeys(entry.paneId, ['Enter']);
-    }
+  const hasNewline = /[\r\n]/.test(data);
+  const stripped = data.replace(/\r\n/g, '\n').replace(/[\r\n]+$/g, '');
+
+  // Paste path (Enter not explicitly allowed): forward literally. A trailing
+  // CR/LF must NOT auto-submit — only the explicit submit flag does, and it
+  // submits via a delayed isolated Enter so the paste is not re-coalesced.
+  if (!allowEnter && hasNewline) {
+    if (submit) submitPaneText(entry.paneId, stripped);
+    else if (stripped.length > 0) sendPaneLiteral(entry.paneId, stripped);
     return;
   }
 
-  // Handle special sequences: Enter key (\r or \n) → send as Enter keystroke
-  // so the agent's readline/TUI sees a real Return. All other bytes via -l (literal).
-  // xterm.js sends \r for Enter, \x7f for backspace, etc.
-  const parts = data.split(/(\r|\n)/);
-  let pending = '';
-  for (const part of parts) {
-    if (part === '\r' || part === '\n') {
-      if (pending.length > 0) {
-        sendPaneLiteral(entry.paneId, pending);
-        pending = '';
-      }
-      sendPaneKeys(entry.paneId, ['Enter']);
-    } else {
-      pending += part;
-    }
+  // Typed/terminal path. A lone Enter (no other text) is already an isolated
+  // keypress, so it submits as-is. Text immediately followed by Enter in one
+  // payload is the burst case that TUIs misread as a paste — route it through
+  // the delayed-Enter submit. Plain text with no newline is just typing.
+  if (hasNewline) {
+    if (stripped.length > 0) submitPaneText(entry.paneId, stripped);
+    else sendPaneKeys(entry.paneId, ['Enter']);
+    return;
   }
-  if (pending.length > 0) {
-    sendPaneLiteral(entry.paneId, pending);
-  }
-  if (submit) {
-    sendPaneKeys(entry.paneId, ['Enter']);
-  }
+  if (submit) submitPaneText(entry.paneId, data);
+  else sendPaneLiteral(entry.paneId, data);
 });
 
 // Tear down pipe for one agent: stop read stream, unlink FIFO, stop tmux pipe-pane.

@@ -233,7 +233,10 @@ test('main process pet windows are resizable and broadcasts submit chat in one t
   assert.match(main, /mode: 'control-mode-focus'/);
   assert.doesNotMatch(main, /mode: 'focused-existing'/);
   assert.doesNotMatch(main, /split vertically with default profile command/);
-  assert.match(main, /tmuxSendSubmittedTextArgs\(coord, message\)/);
+  // Broadcast/composer send is two-phase: literal text, then a delayed isolated
+  // Enter, so TUIs submit instead of treating text+CR as a paste.
+  assert.match(main, /execFile\('tmux', tmuxSendLiteralArgs\(coord, message\)/);
+  assert.match(main, /execFile\('tmux', tmuxSendEnterArgs\(coord\)/);
   assert.doesNotMatch(main, /send-keys', '-t', coord, '-l', message/);
   assert.doesNotMatch(main, /send-keys', '-t', coord, 'C-m'/);
 });
@@ -413,10 +416,23 @@ test('embedded terminal only sends Enter for explicit terminal key data', () => 
   assert.match(terminalOnDataBlock, /ipcRenderer\.send\('pane-input', \{ id: agentId, data, allowEnter: true \}\)/);
   assert.match(paneInputBlock, /const allowEnter = payload\.allowEnter === true/);
   assert.match(paneInputBlock, /const submit = payload\.submit === true/);
-  assert.match(paneInputBlock, /if \(!allowEnter && \/\[\\r\\n\]\/\.test\(data\)\) \{/);
+  assert.match(paneInputBlock, /const hasNewline = \/\[\\r\\n\]\/\.test\(data\)/);
+  assert.match(paneInputBlock, /if \(!allowEnter && hasNewline\) \{/);
   assert.match(paneInputBlock, /replace\(\/\[\\r\\n\]\+\$\/g, ''\)/);
-  assert.match(paneInputBlock, /if \(submit\) sendPaneKeys\(entry\.paneId, \['Enter'\]\)/);
+  // Submit / burst cases must route through the delayed-Enter helper so TUIs
+  // submit instead of treating text+CR as a paste. A lone Enter stays a direct
+  // isolated keypress.
+  assert.match(paneInputBlock, /if \(submit\) submitPaneText\(entry\.paneId, stripped\)/);
   assert.match(paneInputBlock, /sendPaneKeys\(entry\.paneId, \['Enter'\]\)/);
+});
+
+test('embedded terminal submit helper delays the Enter into its own keypress', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /function submitPaneText\(paneId, text\)/);
+  assert.match(main, /setTimeout\(\(\) => sendPaneKeys\(paneId, \['Enter'\]\), TMUX_SUBMIT_ENTER_DELAY_MS\)/);
+  // The broadcast/composer path must also two-phase its submit.
+  assert.match(main, /tmuxSendLiteralArgs,\s*\n\s*tmuxSendEnterArgs,\s*\n\s*TMUX_SUBMIT_ENTER_DELAY_MS/);
+  assert.match(main, /execFile\('tmux', tmuxSendEnterArgs\(coord\)/);
 });
 
 test('floating pet chat uses clean team chat stream and supports pasted images', () => {
