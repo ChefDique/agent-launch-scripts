@@ -60,6 +60,12 @@ Codex lifecycle hooks in this repo emit context or block unsafe tool use; they d
 **Why:** Richard caught Neo continuing implementation and explanations while the hook/discipline expectation was to do the actual cleanup.
 **How to apply:** If a session creates a broad checkpoint or the user asks about ignored hooks, immediately run the `/chores` procedure: inspect memory scaffold, overwrite `memory/handoff.md`, append only real learnings, run safe verification, then commit if the checkpoint is green.
 
+### 2026-05-20 — do not fix AgentRemote TUI symptoms by removing launcher contract
+
+When a Codex pane looks visually wrong, preserve launcher contract first and inspect the specific failing layer. Do not remove `--no-alt-screen`, startup slash delivery, pane titles, or startup policy just because a terminal UI symptom appears nearby.
+**Why:** A short-term attempt to improve AgentRemote TUI behavior removed load-bearing Codex launch args and made the operator lose trusted visual cues.
+**How to apply:** For Codex/AgentRemote display or keyboard regressions, restore known launcher invariants, then patch the catalog, renderer, or tmux input path that actually owns the symptom.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):

@@ -2,43 +2,31 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** AgentRemote Codex model picker/catalog repair and lifecycle hook enforcement.
+**Last working on:** Fixed the core "send-keys not submitting / have to press Enter manually" bug (ALS-LOCAL-006 + ALS-LOCAL-008), and integrated the prior Codex-Neo dirty work as logical commits. Opus-Neo, 2026-05-21.
 
-**State at last pause (2026-05-20T06:27:24Z):**
-- Re-audited the premature-goal-reset objective against live evidence: `/goal` state is still `active`, `memory/session-status.json` is `status=blocked`, handoff/taskboard hashes match the status artifact, and `Stop` dry-run emits `STOP LIFECYCLE CONTINUATION`.
-- Updated `docs/operations/agentremote-completion-audit.md` with the current completion decision: do not call `update_goal(status=complete)` while ALS-QUALITY-005 and ALS-QUALITY-007 remain blocked.
-- Fixed the Codex model picker regression where `gpt-5.5` was treated as the entire model list. The picker now keeps `gpt-5.5` as default while listing `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, and `gpt-5.2`.
-- `remote-app/harness-models.js` now reads `~/.codex/models_cache.json` when present, filters runtime-eligible GPT slugs, keeps configured fallback models, and preserves env allowlist overrides.
-- `launch-agent.sh` now validates Codex model overrides against the same local catalog/fallback set instead of only accepting the current default unless an env allowlist exists.
-- Codex thinking-level picker is labeled `thinking level`; the available levels include `low`, `medium`, `high`, and `xhigh`, and launcher tests prove `xhigh` reaches `codex` as `model_reasoning_effort="xhigh"`.
-- Verification passed for this fix: `node --test remote-app/test/harness-models.test.js`; `bash test/launch-agent-runtime.test.sh`; `npm --prefix remote-app test`; shell syntax checks; `bash scripts/audit-codex-lifecycle-hooks.sh` (`warnings=0`); `git diff --check`.
-- Created `docs/operations/agentremote-completion-audit.md`, a prompt-to-artifact checklist that maps Richard's explicit asks to concrete evidence and names the remaining blocked surfaces.
-- Updated `tasks.json`: ALS-QUALITY-004 and ALS-QUALITY-006 are done after fresh verification; ALS-QUALITY-005 remains blocked in Swarmy; ALS-QUALITY-007 remains blocked until Richard approves live AgentRemote/iTerm/tmux mutation.
-- Fixed global hook wiring in `~/.codex/hooks.json` without removing existing self-improving hooks. Neo lifecycle hooks are now wired for `SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, and `Stop`; `UserPromptSubmit` stays unwired.
-- Updated docs read order to include the completion audit so future sessions do not treat tests or a commit as proof of full goal completion.
-- Verification passed after the hook wiring fix: `npm --prefix remote-app test`; `bash scripts/audit-codex-lifecycle-hooks.sh` (`warnings=0`); shell syntax checks; launcher smoke tests; `jq` checks; `git diff --check`.
-- Repo commit `b5916cb` contains the model-picker/catalog repair and docs/status updates.
-- Message-agent coordination attempt to `overlordswarmy` failed with connection refused; deadletter/thread id `neo-codex-to-overlordswarmy-1779255895` and Mugatu alert succeeded.
-- Added explicit hook-audit coverage that `status=blocked` is not terminal: `Stop` dry-run must emit `STOP LIFECYCLE CONTINUATION`, so the goal cannot be shut down merely because a blocker is recorded.
-- Fallback coordination pointer to `mugatu-codex` was accepted: thread `neo-codex-to-mugatu-codex-1779256168`.
-- Created global cross-harness skill `adhoc-task-intake` under `~/.agents/skills`, linked it into Claude/Codex/Hermes/OpenClaw skill roots and Hermes profiles, verified wrappers, synced the skills vault, and committed the vault skill copy as `0c58326`.
+**State at last pause (2026-05-21):**
+- ROOT CAUSE + FIX shipped (v1.4.15): the send path delivered literal text and Enter in ONE tmux invocation, so a raw-mode TUI (Codex/Claude) read text+CR in one read() as a paste (newline in composer) instead of submitting. Fix = two-phase send: literal text, then Enter after `TMUX_SUBMIT_ENTER_DELAY_MS` (120ms) so the Enter lands in its own read as a deliberate keypress. Applied to both the broadcast/composer path (`sendKeysToCoord`) and the embedded-terminal submit path (`submitPaneText`). Empirically proven: new integration tests show two-phase = 2 separate reads (submits), combined = 1 fused read (the bug). 145 node tests pass.
+- `ALS-LOCAL-006` and `ALS-LOCAL-008` → `review_pending` (code shipped + static/integration tested; needs LIVE verification against Richard's actual Codex panes per the operator contract "Proof Before PASS").
+- Committed in logical units: gitignore graphify scratch; app-code (xhigh, owner-matching, Option+Backspace); the two-phase Enter fix; v1.4.15 bump; launcher cluster (department resolution, registry pane titles, cleanup script).
+- DEFERRED, NOT committed: `agents.json` — its dirty diff flips the whole fleet (mugatu/xavier/lucius) from `runtime: codex` to `runtime: claude` (opus-4-7, reasoning max). That contradicts the CLAUDE.md Codex-priority policy AND the live state (panes are running Codex, `cmd=2.1.143`). `agents.json` is also gitignored (machine-local). Left dirty pending Richard's call on whether the fleet should actually be on Claude.
+- Live `chq` at this session: 5 agents share ONE window as split panes (`chq:0.0`–`0.4`: Xavier, MUGATU, GOKU, NEO, LUCIUS) — violates one-agent-per-window, but layout is Swarmy's runtime domain.
 
-**Next verifiable step:** Either Richard approves live AgentRemote/iTerm/tmux verification for ALS-QUALITY-007, or Swarmy/overlordswarmy comes back online and resolves ALS-QUALITY-005 in Swarmy.
+**Next verifiable step:** Get Richard's OK to live-verify the Enter fix against a real Codex pane (relaunch HUD at v1.4.15, select an agent, Send, confirm it submits without manual Enter). Then decide the `agents.json` codex-vs-claude question.
 
-**If that step fails:** Fix the failing artifact or hook wiring first. Do not mark the active goal complete while ALS-QUALITY-005 or ALS-QUALITY-007 remain blocked.
+**If that step fails:** Stop before mutating live tmux or sidecar state. First list expected protected identities, observed panes, sidecar entries, exact mutation, rollback, and sibling-preservation check.
+
+**Pending uncommitted diff:** `agents.json` only (deferred fleet-flip, see above). Everything else is committed on `main` (not pushed). Separate Swarmy repo may still be dirty; out of this lane's scope.
 
 ## Open priorities (<=5)
 
-- [DONE] **ALS-QUALITY-004 current fixes** — safe tests passed; completion audit records exact evidence.
-- [DONE] **ALS-QUALITY-006 dirty/change review** — repo-local scope classified; global hook wiring noted as outside Git.
-- [DONE] **Global Codex lifecycle hook system** — hook/audit/docs/status artifact implemented and live global hook audit passes with `warnings=0`.
-- [DONE] **Premature goal shutdown guard** — live goal is active, `status=blocked` Stop-continuation is covered by the lifecycle audit, and the completion audit says not to call `update_goal(status=complete)` while ALS-QUALITY-005/007 remain blocked.
-- [DONE] **Global ad hoc task intake skill** — `adhoc-task-intake` now requires visible task lists, chores/handoff refresh, acceptance proof, and truthful done/block reporting before ad hoc work.
-- [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy owns its model defaults and worker-completion proof; latest `overlordswarmy` delivery failed transport and deadlettered.
-- [BLOCKED] **ALS-QUALITY-007 live AgentRemote verification** — requires Richard approval before mutating live AgentRemote/iTerm/tmux.
+- [REVIEW-PENDING] **ALS-LOCAL-006 simultaneous/timed Enter** — FIXED via two-phase send (v1.4.15); needs live Codex verification.
+- [REVIEW-PENDING] **ALS-LOCAL-008 tmux fallback submit failure** — same root cause + fix as 006; needs live verification.
+- [DEFERRED] **agents.json fleet-flip** — dirty diff flips fleet codex→claude; contradicts Codex-priority policy + live state; left uncommitted for Richard's call.
+- [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — image paste path uses explicit submit flag → now two-phase; live verification still needed.
+- [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.
+- [BLOCKED] **ALS-QUALITY-007 live AgentRemote verification** — not passable until the runtime/input mess is cleaned up and live-verified.
 
 ## Cross-session comms
 
-- 2026-05-19 Neo -> Swarmy: reported unsupported `gpt-5.1` Codex worker launch and missing pane/window names; asked Swarmy to fix in its own repo and coordinate by PR/worktree, not by editing `agent-launch-scripts`.
-- 2026-05-20 Neo -> overlordswarmy: delivery failed (`[Errno 61] Connection refused`), correlation/thread `neo-codex-to-overlordswarmy-1779255895`; message-agent wrote deadletter and alerted Mugatu.
-- 2026-05-20 Neo -> mugatu-codex: accepted 202, thread `neo-codex-to-mugatu-codex-1779256168`, one-line pointer to completion audit and Swarmy deadletter.
+- 2026-05-20 Neo -> overlordswarmy: message-agent failed with connection refused and deadlettered as `neo-codex-to-overlordswarmy-1779266195`.
+- 2026-05-20 Neo -> Swarmy pane `%1083`: tmux fallback placed a long report into Codex's queued input but did not prove submission; do not count it as delivered.

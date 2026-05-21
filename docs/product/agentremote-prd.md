@@ -75,7 +75,7 @@ specific source for the surface they are changing:
 | Launcher, tmux, deployment, and verification commands | `docs/operations/launch-scripts.md` |
 | Visual system and UI behavior | `DESIGN.md` |
 | Current implementation rules for Electron/IPC/UI edits | `remote-app/AGENTS.md` |
-| Current board and quality-task ownership | `tasks.json` |
+| Current board and quality-task ownership | `memory/tasks/tasks.json` |
 
 `agentremote-feature-index.md` and `agentremote-quality-gates.md` are tracked by
 ALS-QUALITY-001 and ALS-QUALITY-003. If a future session finds either missing or

@@ -35,6 +35,41 @@ Treat `docs/operations/agentremote-operator-contract.md` as the mandatory source
 
 ---
 
+## [LRN-20260520-001] correction
+
+**Logged**: 2026-05-20T00:16:10-0700
+**Priority**: high
+**Status**: resolved
+**Area**: infra
+
+### Summary
+After detaching or stopping everything, the next step is not optional: immediately run the follow-through verification and report the next concrete action.
+
+### Details
+Richard corrected that Neo repeatedly treats "detach everything" or cleanup as the end of the loop, then fails the step that comes immediately after. The failure pattern is loop control: cleanup creates a false sense of completion unless the closeout/startup surface forces a follow-through check.
+
+### Suggested Action
+After any detach-all, stop-all, cleanup, or session-end action, perform the next required verification before final status: inspect remaining processes/sessions/windows, confirm the intended post-detach state, and state the next concrete action or blocker. Do not stop at "detached" or "cleaned up."
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/AGENTS.md, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md, /Users/richardadair/ai_projects/agent-launch-scripts/scripts/session-end-cleanup.sh, /Users/richardadair/.agents/skills/done/SKILL.md
+- Tags: detach, cleanup, done, loop_control, follow-through, verification
+- Pattern-Key: lifecycle.detach_requires_followthrough
+- Recurrence-Count: 1
+- First-Seen: 2026-05-20
+- Last-Seen: 2026-05-20
+- Control Surface: /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md and /Users/richardadair/.agents/skills/done/SKILL.md
+- Loop Owner: closeout
+- Verification: `rg -n "Follow through after detach|After any detach-all" /Users/richardadair/.agents/skills/done/SKILL.md /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md`
+
+### Resolution
+- **Resolved**: 2026-05-20T00:34:00-0700
+- **Commit/PR**: pending
+- **Notes**: Closed the live marked `AgentRemote CHQ Viewer` iTerm residue, verified 0 iTerm windows and 0 tmux clients, and updated `scripts/session-end-cleanup.sh` so cleanup closes only marked AgentRemote iTerm viewer windows and reports before/after residue.
+
+---
+
 ## [LRN-20260508-003] correction
 
 **Logged**: 2026-05-08T03:05:00-07:00
@@ -340,5 +375,40 @@ When a form shows derived defaults for backward compatibility, track whether the
 - **Resolved**: 2026-05-18T20:16:48-0700
 - **Commit/PR**: `7935e5b`
 - **Notes**: `startupLinesConfigured` now distinguishes explicit registry arrays from legacy display defaults; edit-form save only sends `startupLines` when the three inputs change, and static tests assert the guard.
+
+---
+
+## [LRN-20260521-001] correction
+
+**Logged**: 2026-05-21T00:00:00-0700
+**Priority**: critical
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Submitting to a raw-mode TUI (Codex/Claude) requires the literal text and the Enter to arrive in SEPARATE read()s. Sending them in one tmux invocation makes the TUI treat text+CR as a paste and insert a newline in the composer instead of submitting.
+
+### Details
+Richard reported "tmux send keys are not sending all the way through — I have to go press enter in the window." The send path built `send-keys -t T -l -- text ; send-keys -t T Enter` and ran it as ONE execFile, which tmux flushes as a single write. A line-buffered consumer (`cat`) submits regardless, which masked the bug in earlier tests. But Codex/Claude do their own raw-mode line editing: text and a trailing CR arriving in one read() are read as a bracketed-paste-style block, so the CR becomes a literal newline in the composer and the message sits unsubmitted. This is the "simultaneous/timed Enter" Richard described (ALS-LOCAL-006) and the "queued but not submitted" tmux-fallback failure (ALS-LOCAL-008) — same root cause. A prior session mis-diagnosed it as a "stray Enter" and added a focus guard that broke image paste and Option+Backspace.
+
+### Suggested Action
+Submit in two phases: send the literal text, wait `TMUX_SUBMIT_ENTER_DELAY_MS` (120ms), then send Enter as its own keypress so it lands in a separate read() the TUI recognizes as a deliberate submit. Keep it runtime-agnostic (line-buffered shells submit either way). Never re-fuse text and Enter into one send for the chat/composer or embedded-terminal submit paths. Prove it with an integration test that counts read()s on a raw-mode consumer: two-phase = 2 reads (submits), combined = 1 read (the bug). Image paste and Option+Backspace are SEPARATE code paths — do not guard the Enter symptom by touching them.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/tmux-send-path.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/tmux-send-path.integration.test.js, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md
+- Tags: agentremote, tmux, send-keys, codex, claude, tui, bracketed-paste, submit, enter
+- Pattern-Key: agentremote.submit_text_and_enter_must_be_separate_reads
+- Recurrence-Count: 1
+- First-Seen: 2026-05-21
+- Last-Seen: 2026-05-21
+- Control Surface: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/test/tmux-send-path.integration.test.js
+- Loop Owner: runtime
+- Verification: `cd remote-app && node --test test/tmux-send-path.test.js test/tmux-send-path.integration.test.js`
+
+### Resolution
+- **Resolved**: 2026-05-21T00:00:00-0700
+- **Commit/PR**: agent-launch-scripts v1.4.15 (two-phase submit)
+- **Notes**: Two-phase send in `tmuxSendLiteralArgs` + `tmuxSendEnterArgs` + `submitPaneText`/`sendKeysToCoord`. Integration tests assert 2-reads-vs-1-read. Still pending LIVE verification against Richard's Codex panes.
 
 ---

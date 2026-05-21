@@ -183,6 +183,9 @@ Before saying the work is done:
 3. Confirm whether any stale worktree Electron or iTerm control-mode windows
    remain.
 4. Confirm tmux sessions, clients, and pane-binding health: verify `@agent-identity` tags are set on listener panes (`tmux list-panes -a -F '#{pane_id} #{@agent-identity}'`). If absent, run `scripts/tag_existing_claude_panes.sh`. Check `/tmp/agent-remote-panes.json` only as a secondary diagnostic.
-5. State what was not live-tested and why.
+5. After any detach-all, stop-all, or cleanup action, perform the follow-through
+   check before final status: prove what processes, sessions, panes, viewers,
+   and windows remain, then state the next concrete action or blocker.
+6. State what was not live-tested and why.
 
 If any of these are unknown, say "not done" and name the blocker.

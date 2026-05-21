@@ -16,15 +16,16 @@ one of the fleet panes.
 ## Startup Read Order
 
 1. `.claude/memory/handoff.md` — current active thread and next verifiable step.
-2. `context.md` — current model/runtime and ACRM operating contract.
-3. `docs/README.md` — durable docs map.
-4. `docs/product/agentremote.md` — product boundary and money-path focus.
-5. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
-6. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
-7. `DESIGN.md` — AgentRemote visual system and migration target.
-8. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
-9. `remote-app/AGENTS.md` — required before UI or IPC edits.
-10. `.claude/agents/tmux-electron-master.md` — specialist role/style reference for AgentRemote UI and tmux orchestration work.
+2. `memory/tasks/tasks.json` — canonical app-quality board; root `tasks.json` is only a compatibility pointer.
+3. `context.md` — current model/runtime and ACRM operating contract.
+4. `docs/README.md` — durable docs map.
+5. `docs/product/agentremote.md` — product boundary and money-path focus.
+6. `docs/operations/agentremote-operator-contract.md` — canonical "what Richard wants" contract for spawn/layout/runtime/window behavior.
+7. `docs/operations/launch-scripts.md` — launcher, tmux, and deployment control notes.
+8. `DESIGN.md` — AgentRemote visual system and migration target.
+9. `docs/exec-plans/active/agentremote-v1-pivot-plan.md` — active pivot plan.
+10. `remote-app/AGENTS.md` — required before UI or IPC edits.
+11. `.claude/agents/tmux-electron-master.md` — specialist role/style reference for AgentRemote UI and tmux orchestration work.
 
 ## Key Components
 

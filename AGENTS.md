@@ -17,7 +17,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
 ## Startup Read Order
 
 1. `.claude/memory/handoff.md` — current active thread and next verifiable step.
-2. `tasks.json` — root app-quality board; do not guess feature scope before reading it.
+2. `memory/tasks/tasks.json` — canonical app-quality board; root `tasks.json` is only a compatibility pointer.
 3. `context.md` — current model/runtime and ACRM operating contract.
 4. `docs/README.md` — durable docs map.
 5. `docs/product/agentremote-prd.md` — plain-English product contract and source-of-truth map.

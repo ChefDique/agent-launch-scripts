@@ -1,19 +1,19 @@
 {
   "repo_root": "/Users/richardadair/ai_projects/agent-launch-scripts",
   "lane": "neo-agentremote-quality",
-  "active_goal": "Keep the AgentRemote goal active until prompt-to-artifact audit proves each requested surface is done or explicitly blocked.",
+  "active_goal": "Close out the current AgentRemote recovery session truthfully without committing unsafe runtime/input changes.",
   "status": "blocked",
-  "next_action": "Do not mark complete until ALS-QUALITY-005 is resolved by Swarmy or Swarmy route is restored, and ALS-QUALITY-007 receives approved live AgentRemote verification.",
-  "updated_at": "2026-05-20T06:27:24Z",
+  "next_action": "Restore/verify Mugatu if needed, then fix ALS-LOCAL-006 timed Enter without breaking paste or Option+Backspace and ALS-LOCAL-008 tmux fallback submission.",
+  "updated_at": "2026-05-20T09:17:28Z",
   "handoff": {
     "path": "memory/handoff.md",
-    "sha256": "ec802e03aeee6043a2c2807e281288b55216db9b65e037f1a2b212d6c4bf0715",
-    "read_at": "2026-05-20T06:27:24Z"
+    "sha256": "c79efce29e1324bb7e466fab8124cf3691c45c924865f29e3b8216dc13010d63",
+    "read_at": "2026-05-20T09:17:28Z"
   },
   "taskboard": {
     "path": "memory/tasks/tasks.json",
-    "sha256": "c3f0356f89435e8ca5def5da08e46bf41fbb554053ce92d138270870c01e1c90",
-    "read_at": "2026-05-20T05:38:44Z"
+    "sha256": "36cb162c488eebbcf0accc7bb22a9d375b476674ec640a9b6a200566cd83f4c2",
+    "read_at": "2026-05-20T09:17:28Z"
   },
   "keep_running_processes": []
 }

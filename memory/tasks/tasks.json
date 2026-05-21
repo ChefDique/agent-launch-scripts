@@ -1,23 +1,126 @@
 {
-  "_comment": "Local task fallback. ACRM-row-compatible schema so migration to Supabase is one-shot. Use when ACRM is down OR the work does not justify a full ACRM row.",
-  "_schema_version": "1.0",
+  "_schema_version": "1.1",
   "_project": "agent-launch-scripts",
   "_owner": "tmux-masta",
-  "_updated_at": "2026-05-18T20:16:48-0700",
+  "_purpose": "Canonical AgentRemote task board. Root tasks.json is only a compatibility pointer.",
+  "_updated_at": "2026-05-20T01:12:10-0700",
+  "_status_order": ["inbox", "assigned", "in_progress", "review_pending", "review", "done", "blocked"],
+  "rules": [
+    "Stay inside /Users/richardadair/ai_projects/agent-launch-scripts unless Richard explicitly authorizes another repo.",
+    "Do not mutate Richard's live iTerm/tmux/AgentRemote desktop unless he explicitly asks for that exact live action in the current turn.",
+    "Use this file as the single local board; do not add a second divergent task list at root tasks.json.",
+    "Every feature must have an owner doc, expected behavior, regression tests or an explicit manual verification path.",
+    "Do not mark live AgentRemote behavior done from static tests alone."
+  ],
   "tasks": [
+    {
+      "id": "ALS-QUALITY-001",
+      "title": "Create complete AgentRemote feature inventory",
+      "status": "done",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "artifacts": ["docs/product/agentremote-feature-index.md"],
+      "acceptance": [
+        "Every visible AgentRemote feature and launcher/runtime feature has a named entry.",
+        "Each entry includes source files, expected behavior, tests, and live-safe verification notes.",
+        "Inventory covers spawn, attach, stop/restart, layout, model/runtime picker, startup injection, paste, keyboard shortcuts, pet chat, voice, registry, sidecar, hooks, and cleanup."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-002",
+      "title": "Create AgentRemote PRD and app contract index",
+      "status": "done",
+      "priority": "critical",
+      "owner": "prd-worker",
+      "artifacts": ["docs/product/agentremote-prd.md", "docs/README.md"],
+      "acceptance": [
+        "PRD explains the purpose of the app in plain English.",
+        "PRD links to the operator contract, design system, launch docs, feature index, and quality gates.",
+        "Future sessions can read the PRD and know what must not regress."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-003",
+      "title": "Build regression and blast-radius matrix",
+      "status": "done",
+      "priority": "critical",
+      "owner": "qa-worker",
+      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "acceptance": [
+        "Every high-risk surface lists likely blast radius and required tests.",
+        "Matrix distinguishes static tests, isolated tmux tests, and live-desktop checks that require Richard's approval.",
+        "Known regressions from this session are included: image paste, Option key word navigation, Claude Enter injection, model picker, invisible viewer attach, pane/window naming."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-004",
+      "title": "Track and verify current fixes from this session",
+      "status": "done",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "artifacts": ["memory/tasks/tasks.json", "docs/operations/agentremote-completion-audit.md"],
+      "acceptance": [
+        "PreToolUse hook is installed and audit passes with warnings=0.",
+        "Model/thinking picker tests pass.",
+        "Claude-only startup injection tests pass.",
+        "Image paste and Option-key terminal tests pass.",
+        "No live-desktop PASS is claimed without explicit live verification."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-005",
+      "title": "Swarmy unsupported Codex model escalation",
+      "status": "blocked",
+      "priority": "critical",
+      "owner": "swarmy",
+      "blocked_by": "Outside this repo",
+      "artifacts": ["message-agent thread overlord-swarmy-codex"],
+      "acceptance": [
+        "Swarmy stops selecting unsupported gpt-5.1 for Codex workers on this machine/account.",
+        "Swarmy proves worker completion, not just run-folder creation.",
+        "Neo does not patch Swarmy directly from this repo."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-006",
+      "title": "Review all uncommitted changes before ship",
+      "status": "done",
+      "priority": "critical",
+      "owner": "review-worker",
+      "artifacts": ["docs/operations/agentremote-completion-audit.md"],
+      "acceptance": [
+        "Dirty files are classified by task.",
+        "No unrelated or unsafe changes are included silently.",
+        "Full safe test suite passes after integration."
+      ]
+    },
+    {
+      "id": "ALS-QUALITY-007",
+      "title": "Approval-gated live verification of AgentRemote",
+      "status": "blocked",
+      "priority": "critical",
+      "owner": "neo-orchestrator",
+      "blocked_by": "Richard approval for live AgentRemote/iTerm/tmux mutation",
+      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "acceptance": [
+        "Canonical AgentRemote launches from this checkout.",
+        "Image paste, Option-key navigation, model/thinking selection, Claude startup injection, attach/viewer, and pane naming are verified against approved live targets.",
+        "No live PASS is claimed from static tests alone."
+      ]
+    },
     {
       "id": "ALS-LOCAL-001",
       "title": "Verify image paste in AgentRemote chat and embedded tmux terminal",
-      "description": "Confirm the already-shipped v1.4.7 paste path lets Richard paste screenshots into both the AgentRemote main chat and the embedded terminal/xterm path.",
+      "description": "Confirm the already-shipped paste path lets Richard paste screenshots into both the AgentRemote main chat and the embedded terminal/xterm path.",
       "status": "review_pending",
       "priority": "high",
       "department": "agent-launch-scripts",
       "assignee": "tmux-masta",
       "blocked_by": "Richard live UI verification",
       "tags": ["agentremote", "paste", "image", "tmux"],
-      "notes": "Code shipped in 2f4a2c2. Need live paste check after canonical AgentRemote relaunch.",
+      "notes": "Code shipped earlier; needs live paste check after canonical AgentRemote relaunch.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T20:16:48-0700"
+      "updated_at": "2026-05-20T01:05:24-0700"
     },
     {
       "id": "ALS-LOCAL-002",
@@ -29,9 +132,9 @@
       "assignee": "tmux-masta",
       "blocked_by": null,
       "tags": ["agentremote", "startup", "ui", "registry"],
-      "notes": "Implemented in AgentRemote v1.4.8 and shipped in 7935e5b. Add/edit and settings expose three startup_lines inputs; renderer/main persistence is covered by static tests.",
+      "notes": "Implemented earlier. Add/edit and settings expose three startup_lines inputs; renderer/main persistence is covered by static tests.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T20:16:48-0700"
+      "updated_at": "2026-05-20T01:05:24-0700"
     },
     {
       "id": "ALS-LOCAL-003",
@@ -43,9 +146,9 @@
       "assignee": "tmux-masta",
       "blocked_by": null,
       "tags": ["launcher", "startup", "tmux", "registry"],
-      "notes": "Implemented in launch-agent.sh for Claude tmux startup only and shipped in 7935e5b. startup_lines supports placeholders, uses literal tmux send for configured lines, preserves legacy fallback only when startup_lines is absent, and respects explicit empty arrays.",
+      "notes": "Implemented earlier for Claude tmux startup only. Non-Claude runtimes ignore startup_lines and startup_injection.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T20:16:48-0700"
+      "updated_at": "2026-05-20T01:05:24-0700"
     },
     {
       "id": "ALS-LOCAL-004",
@@ -57,9 +160,87 @@
       "assignee": "tmux-masta",
       "blocked_by": null,
       "tags": ["review", "tests", "merge", "agentremote"],
-      "notes": "Cheap lint/static pass was clean. Cheap code review found legacy-edit drift, which was fixed. Final cheap re-review was clean. Full local verification passed before merge; main pushed at 7935e5b and canonical AgentRemote relaunched.",
+      "notes": "Earlier lane completed. Future sessions should create specific new rows rather than reopening this catch-all.",
       "created_at": "2026-05-18T19:34:14-0700",
-      "updated_at": "2026-05-18T20:16:48-0700"
+      "updated_at": "2026-05-20T01:05:24-0700"
+    },
+    {
+      "id": "ALS-LOCAL-005",
+      "title": "Restore Codex reasoning picker and set Codex agents to xhigh",
+      "description": "Fix the AgentRemote reasoning catalog/normalizer path so Codex shows registered thinking levels and preserves xhigh instead of normalizing it away.",
+      "status": "done",
+      "priority": "critical",
+      "department": "agent-launch-scripts",
+      "assignee": "tmux-masta",
+      "blocked_by": null,
+      "tags": ["agentremote", "codex", "reasoning", "registry"],
+      "acceptance": [
+        "Codex harness default reasoning is xhigh.",
+        "AgentRemote does not render '(no reasoning levels registered)' for Codex.",
+        "Existing Codex registry entries use reasoning_effort xhigh.",
+        "Focused harness/launcher tests pass."
+      ],
+      "created_at": "2026-05-20T01:05:24-0700",
+      "notes": "Richard confirmed live thinking level selection is working.",
+      "updated_at": "2026-05-20T01:58:35-0700"
+    },
+    {
+      "id": "ALS-LOCAL-006",
+      "title": "Fix simultaneous timed Enter without breaking paste or Option+Backspace",
+      "description": "Live symptom is not a generic stray Enter: a simultaneous/timed Enter is being sent into panes. Prior attempted guard suppressed the symptom by breaking expected image paste and Option+Backspace word deletion. Diagnose the timed Enter source directly and preserve paste plus Option+Backspace behavior. ROOT CAUSE FOUND: send delivered literal text and Enter in one tmux invocation, so a raw-mode TUI read text+CR in a single read() and treated it as a paste (newline in composer) instead of a submit. Fix splits into literal text, then Enter after a 120ms delay so the Enter lands in its own read as a deliberate keypress. Paste and Option+Backspace are separate code paths, untouched.",
+      "status": "review_pending",
+      "priority": "critical",
+      "department": "agent-launch-scripts",
+      "assignee": "tmux-masta",
+      "blocked_by": "Needs live confirmation if Richard wants a desktop relaunch",
+      "tags": ["agentremote", "tmux", "keyboard", "startup-injection"],
+      "acceptance": [
+        "No simultaneous/timed Enter is sent into non-target panes.",
+        "Image paste still works in AgentRemote chat and embedded terminal paths.",
+        "Option+Backspace / word deletion still works in the Codex terminal path.",
+        "Live verification records the exact trigger that previously caused the timed Enter."
+      ],
+      "created_at": "2026-05-20T01:05:24-0700",
+      "notes": "Richard corrected the symptom: this is a simultaneous timed Enter, and the previous guard broke image paste and Option+Backspace. Treat those as required clues, not side effects to ignore. 2026-05-21: fixed via two-phase send (tmux-send-path.js + main.js submitPaneText/sendKeysToCoord), v1.4.15. Integration tests prove two-phase arrives as 2 separate reads (submits) vs combined 1 read (the bug). Needs live verification against Richard's Codex panes.",
+      "updated_at": "2026-05-21T00:00:00-0700"
+    },
+    {
+      "id": "ALS-LOCAL-007",
+      "title": "Consolidate task boards into memory taskboard",
+      "description": "Collapse the divergent root tasks.json and memory/tasks/tasks.json boards into one canonical taskboard under memory.",
+      "status": "done",
+      "priority": "high",
+      "department": "agent-launch-scripts",
+      "assignee": "tmux-masta",
+      "blocked_by": null,
+      "tags": ["tasks", "memory", "chores"],
+      "acceptance": [
+        "memory/tasks/tasks.json contains the canonical merged board.",
+        "root tasks.json points to the canonical memory board instead of carrying a second task list.",
+        "Startup docs point future agents at the canonical board."
+      ],
+      "created_at": "2026-05-20T01:05:24-0700",
+      "notes": "Canonical board moved to memory/tasks/tasks.json; root tasks.json is a pointer; startup/docs references updated.",
+      "updated_at": "2026-05-20T01:12:10-0700"
+    },
+    {
+      "id": "ALS-LOCAL-008",
+      "title": "Find why tmux fallback messages do not send all the way through",
+      "description": "Diagnose the AgentRemote/message-agent fallback path where `tmux send-keys` put text into Swarmy's Codex input/queued-message area but did not submit it to the agent. Future work must explain which key sequence or terminal focus/state is required to turn queued text into an actual delivered prompt. ANSWERED: Codex's raw-mode input layer treats literal text and a trailing CR arriving in one read() as a paste (newline in composer), not a submit. Required sequence is text first, THEN Enter as a separate keypress in its own read() — achieved by a delay between the two sends. Same root cause as ALS-LOCAL-006.",
+      "status": "review_pending",
+      "priority": "critical",
+      "department": "agent-launch-scripts",
+      "assignee": "tmux-masta",
+      "blocked_by": null,
+      "tags": ["message-agent", "tmux", "codex-input", "operator-trust"],
+      "acceptance": [
+        "A failed message-agent send is not reported as delivered.",
+        "Tmux fallback proves the message was submitted, not merely queued in the input box.",
+        "Delivery evidence includes either recipient action, visible submitted prompt, or an explicit unresolved failure."
+      ],
+      "created_at": "2026-05-20T01:48:15-0700",
+      "notes": "Created after a report to Swarmy failed via message-agent and the tmux fallback visibly landed as queued input instead of being submitted. Do not conflate this with Swarmy's separate launch-runtime bug. 2026-05-21: same fix as ALS-LOCAL-006 (two-phase text+delayed Enter, v1.4.15). Broadcast/composer send (sendKeysToCoord) now resolves only after the Enter actually lands, so 'sent' is not optimistic. Needs live verification.",
+      "updated_at": "2026-05-21T00:00:00-0700"
     }
   ]
 }

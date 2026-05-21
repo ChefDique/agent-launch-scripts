@@ -2,7 +2,7 @@
 
 Task: ALS-QUALITY-001
 
-This inventory is derived from `tasks.json`, `docs/product/agentremote.md`,
+This inventory is derived from `memory/tasks/tasks.json`, `docs/product/agentremote.md`,
 `docs/operations/agentremote-operator-contract.md`,
 `docs/operations/launch-scripts.md`, `DESIGN.md`, `remote-app/AGENTS.md`,
 `remote-app/index.html`, `remote-app/main.js`, the AgentRemote helper modules,
