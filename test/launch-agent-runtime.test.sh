@@ -414,8 +414,17 @@ xavier_no_policy_output="$(
 )"
 grep -qx 'COMMAND:claude' <<< "$xavier_no_policy_output"
 sleep 1
-if grep -q '^send-keys' "$TMUX_CALLS"; then
-  echo "Claude runtime without startup_injection policy must not auto-inject blank Enter or startup lines" >&2
+# New contract (2026-05-21): Claude is always launched with
+# --dangerously-load-development-channels, which always shows the dev-channels
+# warning, so a no-policy Claude agent now auto-acks it (one Enter) by default.
+# It must still NOT inject startup lines (those stay opt-in via startup_lines).
+if ! grep -qx 'send-keys -t %nopolicy Enter' "$TMUX_CALLS"; then
+  echo "Claude runtime without startup_injection policy must auto-ack the dev-channels warning (one Enter)" >&2
+  cat "$TMUX_CALLS" >&2
+  exit 1
+fi
+if grep -q '^send-keys -t %nopolicy -l' "$TMUX_CALLS"; then
+  echo "Claude runtime without startup_injection policy must NOT inject startup lines" >&2
   cat "$TMUX_CALLS" >&2
   exit 1
 fi

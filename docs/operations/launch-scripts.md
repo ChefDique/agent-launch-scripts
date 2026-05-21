@@ -8,7 +8,7 @@ The root repo is a set of Bash launchers plus a current Electron HUD under `remo
 
 Swarmy is the live runtime authority. It owns spawn, attach/reveal, kill,
 relaunch, status, layout, runtime choice, and tmux identity. AgentRemote is a
-local HUD over Swarmy state and commands. Neo/`tmux-masta` should not manually
+local HUD over Swarmy state and commands. Neo/`neo` should not manually
 repair live iTerm/tmux state, detach clients, open viewers, or spawn live agents
 unless Richard explicitly asks for that live mutation in the current turn.
 If the canonical checkout already has unrelated dirty AgentRemote/runtime state,
@@ -61,8 +61,12 @@ gateway-only.
   `exclude` wins over `include`, and the whole policy is ignored unless the
   effective runtime is `claude`.
 - `dangerous_permission_enter` is the initial Enter used to accept Claude's
-  dangerous-permission/development-channel confirmation. It must never be sent
-  for Codex, Hermes, OpenClaw, or a Claude row without explicit policy opt-in.
+  dangerous-permission/development-channel confirmation. Claude always launches
+  with `--dangerously-load-development-channels`, which raises that warning every
+  start, so for the Claude runtime the warning-ack **defaults ON** unless an agent
+  explicitly lists `dangerous_permission_enter` in `startup_injection.exclude`.
+  It must never be sent for Codex, Hermes, or OpenClaw, which require explicit
+  opt-in (so they never receive a stray Enter).
 - `startup_lines` schedules either registry startup lines or the legacy fallback
   `/color` + `/rename` + `startup_slash`. Registry `startup_lines` supports
   `{{color}}`, `{{rename_to}}`, `{{startup_slash}}`, `{{display_name}}`,
@@ -97,7 +101,7 @@ gateway-only.
   in one solo tmux window, surfaced through iTerm control mode. The durable unit
   is still the stable `%N` pane id recorded in `/tmp/agent-remote-panes.json`.
 - `chq` is the canonical tmux attach target. Grouped aliases such as
-  `chq-xavier`, `chq-swarmy`, or `chq-tmux-masta` are recovery residue unless a
+  `chq-xavier`, `chq-swarmy`, or `chq-neo` are recovery residue unless a
   future spec explicitly reintroduces them; AgentRemote must refuse to open a
   viewer while they exist.
 - The intended default viewing contract is team wrapped: agent process -> tmux

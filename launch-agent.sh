@@ -548,10 +548,16 @@ if [[ -n "${TMUX_PANE:-}" ]]; then
   CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-12}"
 
   # Stage 1: dismiss the runtime's startup/dev/permission warning intro.
-  # Policy-gated per agent, so a runtime that did not opt in never receives a
-  # stray Enter. Default key is Enter; an agent whose warning needs a different
-  # key (e.g. "1") sets startup_injection.warning_ack_keys (see schedule).
-  if startup_injection_allows "dangerous_permission_enter"; then
+  # Claude is always launched with --dangerously-load-development-channels (see
+  # build_runtime_command), which shows a blocking "Loading development channels"
+  # warning on every start. So for the Claude runtime the warning-ack defaults ON
+  # unless an agent explicitly excludes it: this covers any Claude agent with no
+  # startup_injection policy (e.g. dasha) and restores the pre-2026-05-20
+  # auto-dismiss. Non-Claude runtimes still require explicit opt-in, so they never
+  # receive a stray Enter. Default key is Enter; an agent whose warning needs a
+  # different key (e.g. "1") sets startup_injection.warning_ack_keys (see schedule).
+  if startup_injection_allows "dangerous_permission_enter" \
+     || { [[ "$RUNTIME" == "claude" ]] && ! startup_injection_excludes "dangerous_permission_enter"; }; then
     schedule_warning_ack "$CLAUDE_WARNING_ACK_DELAY"
   fi
 
