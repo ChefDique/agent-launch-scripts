@@ -90,7 +90,7 @@
       "profile_id": "trusted-local-debug",
       "runtime": "codex",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "layout": "teams",
       "disabled_by_default": true,
       "requires_human_approval": true,
@@ -165,24 +165,29 @@
   ],
   "agents": [
     {
-      "id": "mugatu-claude",
+      "id": "mugatu",
       "display_name": "MUGATU",
-      "runtime": "codex",
+      "runtime": "claude",
       "tmux_target": "mugatu",
       "cwd": "/Users/richardadair/ai_projects/ecommerce",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
       "theme_color": "#ff0000",
       "avatar": "mugatu.gif",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
     },
     {
       "id": "xavier",
       "display_name": "Professor Xavier",
-      "runtime": "codex",
+      "runtime": "claude",
       "cwd": "~/ai_projects/CorporateHQ",
       "color": "yellow",
       "theme_color": "#fff700",
@@ -193,11 +198,166 @@
       "startup_slash": "/lead-gogo",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Xavier",
       "rename_to": "XAVIER",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
       "avatar": "xavier.png",
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color yellow",
+        "/lead-gogo"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "08_creative",
+      "display_name": "08_GOKU",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#00fffb",
+      "avatar": "goku.gif",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "vegeta",
+      "display_name": "VEGETA",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod/team/08_asset-producer",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "theme_color": "#007bff",
+      "avatar": "vegeta.png",
+      "auto_restart": false,
       "sandbox": "danger-full-access",
       "approval_policy": "never"
+    },
+    {
+      "id": "neo",
+      "display_name": "NEO",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#00ff4c",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "avatar": "neo.gif",
+      "allow_claude_runtime": true,
+      "auto_restart": false,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "zoolander",
+      "display_name": "ZOOLANDER",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CTO",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "theme_color": "#6600ff",
+      "avatar": "zoolander.gif",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "hansel",
+      "display_name": "HANSEL",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CMO",
+      "color": "cyan",
+      "startup_slash": "",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "theme_color": "#00f2ff",
+      "avatar": "hansel.png",
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color pink"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "lucius",
+      "display_name": "LUCIUS",
+      "runtime": "claude",
+      "cwd": "~/ai_projects/research-and-development",
+      "color": "purple",
+      "theme_color": "#4c00ff",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "startup_slash": "/lead-gogo",
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
+      "env": {
+        "KOKORO_VOICE": "am_michael"
+      },
+      "rename_to": "LUCIUS",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "avatar": "lucius.png",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "dasha",
+      "display_name": "dasha",
+      "runtime": "codex",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/dasha-storefront",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#ee00ff",
+      "avatar": "acrm-builder.png",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "sandbox": "danger-full-access",
+      "approval_policy": "never",
+      "auto_restart": false
     },
     {
       "id": "overlord-swarmy",
@@ -215,7 +375,7 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Swarmy",
       "avatar": "swarmy.svg",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "auto_restart": false,
       "sandbox": "danger-full-access",
       "approval_policy": "never"
@@ -228,83 +388,9 @@
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "theme_color": "#ff0040",
       "avatar": "homelander.png",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "dasha",
-      "display_name": "dasha",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/dasha-storefront",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#ee00ff",
-      "avatar": "acrm-builder.png",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "lucius",
-      "display_name": "LUCIUS",
-      "runtime": "codex",
-      "cwd": "~/ai_projects/research-and-development",
-      "color": "purple",
-      "theme_color": "#fdad63",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "startup_slash": "/lead-gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
-      "env": {
-        "KOKORO_VOICE": "am_michael"
-      },
-      "rename_to": "LUCIUS",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "avatar": "lucius.png",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "09_reach-distribution-pod",
-      "display_name": "09_reach-distribution-pod",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/09_reach-distribution-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#00fffb",
-      "avatar": "goku.gif",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "neo",
-      "display_name": "NEO",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#00ff4c",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "avatar": "neo.gif",
-      "auto_restart": false,
       "sandbox": "danger-full-access",
       "approval_policy": "never"
     },
@@ -316,54 +402,9 @@
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "theme_color": "#ffa200",
       "avatar": "ballstein.png",
-      "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "zoolander",
-      "display_name": "ZOOLANDER",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/ecommerce-catalog-portfolio-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "theme_color": "#ae00ff",
-      "avatar": "zoolander.gif",
-      "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "hansel",
-      "display_name": "HANSEL",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/ecommerce-reach-distribution-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "theme_color": "#00f2ff",
-      "avatar": "hansel.png",
-      "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "vegeta",
-      "display_name": "VEGETA",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/ecommerce-analytics-optimization-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "high",
-      "theme_color": "#007bff",
-      "avatar": "vegeta.png",
       "auto_restart": false,
       "sandbox": "danger-full-access",
       "approval_policy": "never"
@@ -376,21 +417,11 @@
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "theme_color": "#00f2ff",
       "avatar": "kenpachi.png",
       "sandbox": "danger-full-access",
       "approval_policy": "never"
-    },
-    {
-      "id": "gaara",
-      "display_name": "GAARA",
-      "runtime": "openclaw",
-      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#ff5c5c",
-      "avatar": "gara.gif"
     },
     {
       "id": "aria-hermes-tmux-interactive-session",
@@ -416,7 +447,7 @@
       "color": "green",
       "theme_color": "#00ff88",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "profile_preset": "trusted-local-debug",
@@ -428,6 +459,16 @@
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Gekko",
       "rename_to": "GEKKO",
       "avatar": "gekko.png"
+    },
+    {
+      "id": "gaara",
+      "display_name": "GAARA",
+      "runtime": "openclaw",
+      "cwd": "/Users/richardadair/ai_projects/agent-launch-scripts",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#ff5c5c",
+      "avatar": "gara.gif"
     },
     {
       "id": "openclaw-generic",
@@ -446,7 +487,7 @@
       "cwd": "~/ai_projects/agent-launch-scripts",
       "theme_color": "#0affc2",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "sandbox": "danger-full-access",
       "approval_policy": "never",
       "profile_preset": "trusted-local-debug",
@@ -466,7 +507,7 @@
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
-      "reasoning_effort": "high",
+      "reasoning_effort": "xhigh",
       "theme_color": "#ff9500",
       "sandbox": "danger-full-access",
       "approval_policy": "never"
