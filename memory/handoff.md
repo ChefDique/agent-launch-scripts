@@ -2,27 +2,27 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Shipped + live-verified the two-phase send/submit fix (ALS-006/008), integrated prior dirty work, then wrote the up-to-date app reference and the non-regression spec. Opus-Neo, 2026-05-21.
+**Last working on:** Rebuilt startup injection as a runtime-agnostic per-agent toggle + two-phase submit fix in `launch-agent.sh`; corrected that the live fleet is Claude. Opus-Neo, 2026-05-21.
 
-**State at last pause (2026-05-21T07:26:00-0700):**
-- Two-phase send/submit fix is LIVE at v1.4.15 and Richard-verified ("test" → "success"); root cause + details in the 2026-05-21_0726 session fold. 145 node tests pass.
-- New docs: `docs/agentremote-reference.md` (how the app works now) and `docs/operations/agentremote-spec-requirements.md` (23 non-regression requirements with "don't break X to fix Y" collision pairs). Linked from docs/README + quality-gates.
-- `agents.json` deferred/uncommitted: its diff flips the fleet codex→claude (opus-4-7, reasoning max), contradicting Codex-priority policy + the live Codex panes. Awaiting Richard's call.
+**State at last pause (2026-05-21T08:36:00-0700):**
+- Startup injection (dev-warning ack → startup-command inject) is now a **dynamic per-agent toggle**, runtime-agnostic, with the two-phase submit fix so injected `/lead-gogo` actually submits. Runs on every auto-restart; lands on the next agent restart. Isolated test green; 145 node tests pass. (commit `4d32e90`)
+- Live fleet is **Claude** (Opus 4.7) — verified via the `@agent-runtime` pane tags. The on-disk `agents.json` (claude/opus-4-7) MATCHES the running fleet; it is not a contradiction (earlier "Codex" claim was a misread of `pane_current_command`).
 - All work committed on `main`; NOT pushed.
 
-**Next verifiable step:** Get Richard's decision on the `agents.json` codex-vs-claude flip — apply it or `git checkout -- agents.json` to discard. (Optional) live paste check for ALS-LOCAL-001.
+**Next verifiable step:** If Richard wants HUD-managed Codex injection, lift the `applyRuntimePolicy` `startup_injection` strip (`remote-app/main.js` ~735, ~2298) + add a test. Otherwise: the `agents.json` commit decision, and the ALS-LOCAL-001 live paste check.
 
 **If that step fails:** Stop before mutating live tmux or sidecar state. First list expected protected identities, observed panes, sidecar entries, exact mutation, rollback, and sibling-preservation check.
 
-**Pending uncommitted diff:** `agents.json` only (deferred fleet-flip, see above). Separate Swarmy repo may still be dirty; out of this lane's scope.
+**Pending uncommitted diff:** `agents.json` only (gitignored, machine-local; matches the live Claude fleet; commit on Richard's call).
 
 ## Open priorities (<=5)
 
-- [DEFERRED] **agents.json fleet-flip** — dirty diff flips fleet codex→claude; contradicts Codex-priority policy + live state; uncommitted, awaiting Richard's call.
-- [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — now routes through the two-phase submit; dedicated live paste check still owed. Note: code uses a `[image: /path]` text reference, NOT OSC 1337 (the OSC-1337 memory note is a stale failed-session diagnosis — see spec REQ-A4).
+- [DEFERRED] **agents.json commit** — matches the live Claude fleet (not a contradiction); gitignored; commit only on Richard's call.
+- [FOLLOWUP] **applyRuntimePolicy strips startup_injection from non-Claude on UI-edit** — lift if Richard wants HUD-managed Codex injection; not needed for the Claude fleet.
+- [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — live check owed; uses `[image:/path]` text ref, NOT OSC 1337 (stale note; spec REQ-A4).
 - [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.
-- [PARTIAL] **ALS-QUALITY-007 live AgentRemote verification** — send/submit now live-verified; remaining surfaces (paste, attach/layout, voice) still need approved live checks.
+- [PARTIAL] **ALS-QUALITY-007 live AgentRemote verification** — send/submit verified; paste/attach/voice still need approved live checks.
 
 ## Cross-session comms
 
-- None outstanding. (2026-05-20 deadletter + tmux-fallback-queue items resolved: the two-phase fix means a tmux fallback now actually submits.)
+- None outstanding.

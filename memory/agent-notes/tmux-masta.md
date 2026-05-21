@@ -72,6 +72,12 @@ When building docs or a spec from session notes (or a subagent inventory), confi
 **Why:** While writing the app reference + non-regression spec, the `## Failed approaches` note below states image paste "is ... OSC 1337 protocol, not keyboard transport." The shipped code does neither — it saves the image to `/tmp/agentremote-pasted-images/`, inserts a `[image: /path]` text reference, and submits (`grep` for `1337`/`MultipartFile` in remote-app returns nothing). Documenting OSC 1337 as the requirement would have invited a future agent to tear out the working text-reference path.
 **How to apply:** Before writing a requirement or refactoring to match a memory note, grep the live code for the mechanism. If they disagree, the code wins; record the reconciliation (done in spec REQ-A4). Subagent/Explore inventories need the same check — they locate code but can assert incomplete or stale specifics.
 
+### 2026-05-21 — confirm a pane's runtime from @agent-runtime, not pane_current_command
+
+To check what runtime a live agent pane is running, read the `@agent-runtime` pane option (set by launch-agent.sh) and/or the in-pane statusline — not `pane_current_command`.
+**Why:** I read `pane_current_command=2.1.143` and told Richard the fleet was Codex; it was actually Claude (Opus 4.7), confirmed by `tmux show-options -p -t <pane> @agent-runtime` = claude. pane_current_command can surface an opaque/version-like string for wrapped or relaunched processes and does not reliably name the runtime. Asserting the wrong runtime mis-scoped the discussion and eroded trust.
+**How to apply:** Before stating an agent's runtime, run `tmux show-options -p -t <pane> @agent-runtime` and cross-check the statusline. Pairs with the "verify claims against live code" learning above.
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
