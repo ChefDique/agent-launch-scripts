@@ -143,7 +143,7 @@ test('submit payload includes startup_lines array and settings patch supports ar
   assert.match(main, /startup_lines: v => normalizeStartupLines\(v\)/);
   assert.match(main, /startup_injection: v => normalizeStartupInjectionPolicy\(v\)/);
   assert.match(main, /function defaultClaudeStartupInjectionPolicy\(\)/);
-  assert.match(main, /include: \['startup_lines'\], exclude: \['dangerous_permission_enter'\]/);
+  assert.match(main, /include: \['dangerous_permission_enter', 'startup_lines'\]/);
   assert.match(main, /syncStartupInjectionPolicy\(entry\)/);
   assert.doesNotMatch(main, /delete entry\.startup_lines;\s*\n\s*if \(cleanPatch\.runtime\)/);
 });

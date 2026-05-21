@@ -5975,6 +5975,18 @@
             <span class="knob"></span>
           </label>
         </div>
+        ${(agent.runtime || 'codex') === 'claude' ? `
+        <div class="toggle-row">
+          <div class="toggle-meta">
+            <div class="verb">Startup auto-run</div>
+            <div class="hint">Auto-dismiss the dev-channels warning + run startup</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="set-startup-injection" ${(agent.startupInjection && Array.isArray(agent.startupInjection.exclude) && agent.startupInjection.exclude.includes('dangerous_permission_enter')) ? '' : 'checked'} />
+            <span class="track"></span>
+            <span class="knob"></span>
+          </label>
+        </div>` : ''}
         <div class="settings-row">
           <label for="set-display-name">Name</label>
           <input type="text" id="set-display-name" value="${escapeHtml(agent.displayName || '')}"
@@ -6061,6 +6073,27 @@
           flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
         }
       });
+
+      // ---- Startup auto-run toggle (Claude only) ----
+      // ON  => auto-dismiss the dev-channels warning + run startup lines.
+      // OFF => explicitly suppress both, overriding the Claude default-on.
+      const siToggle = layer.querySelector('#set-startup-injection');
+      if (siToggle) {
+        siToggle.addEventListener('change', async () => {
+          const next = siToggle.checked;
+          const prevInj = agent.startupInjection;
+          const policy = next
+            ? { include: ['dangerous_permission_enter', 'startup_lines'] }
+            : { exclude: ['dangerous_permission_enter', 'startup_lines'] };
+          agent.startupInjection = policy;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { startup_injection: policy } });
+          if (!res.ok) {
+            agent.startupInjection = prevInj;
+            siToggle.checked = !next;
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          }
+        });
+      }
 
       const harnessPicker = layer.querySelector('#set-harness-picker');
       const modelSelect   = layer.querySelector('#set-model');

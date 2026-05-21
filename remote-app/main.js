@@ -726,7 +726,9 @@ function normalizeStartupInjectionPolicy(value) {
 }
 
 function defaultClaudeStartupInjectionPolicy() {
-  return { include: ['startup_lines'], exclude: ['dangerous_permission_enter'] };
+  // Claude always shows the dev-channels warning, so the warning-ack is on by
+  // default alongside startup_lines — matches launch-agent.sh's Claude default.
+  return { include: ['dangerous_permission_enter', 'startup_lines'] };
 }
 
 function syncStartupInjectionPolicy(entry) {
