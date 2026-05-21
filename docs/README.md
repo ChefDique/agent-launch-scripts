@@ -2,6 +2,8 @@
 
 This directory is the durable knowledge base for `agent-launch-scripts`. Keep `AGENTS.md` short and use this index as the map to deeper source-of-truth files.
 
+**Start here for the current state of the app:** [`agentremote-reference.md`](agentremote-reference.md) — the single up-to-date "how AgentRemote actually works now" reference (architecture, send path, runtime/model catalog, IPC surface, pane targeting, deploy/attach, pet chat, tests). Kept current with the shipping `remote-app/` code.
+
 ## Read Order
 
 1. `../AGENTS.md` — model-agnostic agent map.
@@ -45,6 +47,7 @@ the relevant contract instead of copying large sections into a new brief:
 
 | Question | Read |
 |---|---|
+| How does the whole app work right now? | `agentremote-reference.md` |
 | What is the app for? | `product/agentremote-prd.md` |
 | What features exist and where are they implemented? | `product/agentremote-feature-index.md` |
 | What checks are required before shipping? | `operations/agentremote-quality-gates.md` |
