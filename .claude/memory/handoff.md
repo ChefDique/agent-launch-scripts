@@ -10,7 +10,7 @@
 - Toggle: Richard satisfied — default-on is the real win, the toggle is an optional override.
 - CLOSEOUT (16:46): `/done` ran; `session-end-cleanup` stopped Richard's live HUD and he said "don't close my shit" — relaunched immediately, v1.4.16 is up (detached). Neo session left RUNNING (skipped `/done`'s kill-PID per his call). Never close his running apps or kill the session on closeout — see [[feedback_dont_close_richards_running_apps]].
 
-**Next verifiable step (NEXT-SESSION PRIMARY):** Brainstorm + plan how to prepare AgentRemote (`remote-app/`) for public release + a monetization plan ($10 one-time vs open-source funnel; it's popular on Richard's TikTok). Brainstorm/plan FIRST, confirm direction with Richard before building. Full brief: [[project_agentremote_public_release]]. (Also still open: Shift+Enter cross-pane CR.)
+**Next verifiable step (NEXT-SESSION PRIMARY):** AgentRemote public-release READINESS — NOT the simplest path; the MVP is buggy/broken and can't ship as-is (Richard would be "bothered non-stop"). Review-first approach: (1) ASK Richard where the MVP lives (`remote-app/` here vs a separate build he has); (2) dispatch a couple of architect reviews (`tmux-electron-master` on Electron/tmux + send/attach; release-readiness/de-Richard-ify; secrets/paths sweep); (3) converge ONE prioritized list (broken → blockers → fix order); (4) he steers, THEN fix. Plus the $10-vs-open-source call. Brainstorm/review FIRST, build only on his green light. Full brief: [[project_agentremote_public_release]]. (Also open: Shift+Enter cross-pane CR.)
 
 **If that step fails:** n/a — no in-flight work.
 
