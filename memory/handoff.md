@@ -2,29 +2,31 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Richard surfaced 4 recurring AgentRemote/launcher complaints in one 2026-05-23 session and hit a breaking point ("I quit") over fixes that hardcode per-agent and don't survive sessions. Opus-Neo. Standing contract now: dynamic-not-hardcoded, root-cause durably, use the `tmux-electron-master` specialist — see [[feedback-dynamic-not-hardcoded]].
+**Last working on:** 2026-05-23 session. Richard surfaced 4 recurring AgentRemote/launcher complaints and hit a breaking point (personal crisis — eviction — by session end; asked to /done). Two fixes landed + pushed; two root-caused. Opus-Neo. Standing contract: dynamic-not-hardcoded, root-cause durably, use the `tmux-electron-master` specialist, and — NEW — QMD-search prior fixes + read the recovery list BEFORE acting, and COMMIT every fix. See [[feedback-dynamic-not-hardcoded]].
 
 **State at last pause (2026-05-23):**
-1. **Launcher startup injection — FIXED + COMMITTED (`e124898`), tests green, NOT pushed.** `startup_lines` (/color+/rename+startup_slash) now defaults ON for ALL Claude agents via `startup_injection_active()` — no per-agent `startup_injection.include` needed (the dasha bug). Also fixed: `read_startup_lines` returned 1 on empty `startup_slash` → `set -e` ABORTED the launch before exec, so hansel (empty startup_slash) failed to launch at all — now `return 0`; and Claude null/empty `startup_slash` defaults to `/lead-gogo`. Opt out via `startup_injection.exclude`; non-Claude untouched. Green: launch-agent contract + remote-app 145. Live relaunch of dasha/hansel = approval-gated, not done.
-2. **Codex pane keyboard shortcuts (Option+Delete word-delete) — ROOT-CAUSED; fix is Richard's GUI change.** Not tmux: iTerm profiles have Option Key = Normal. Richard: iTerm → Settings → Profiles → Default → Keys → Left/Right Option Key → **Esc+**. [[reference-codex-keys-iterm-fix]]. Optional code hardening (re-apply tmux binds on Attach) = task #4.
-3. **HUD per-agent inputs don't persist + color never matches — ROOT-CAUSED (auditor); fix pending Richard's design call.** Two color controls write two fields: the settings-panel Color (text input) writes `color` (the Claude `/color` name, used only at next launch); the HUD tile/orb renders ONLY from `theme_color` (set by the Add-form hex picker). So editing the panel Color changes nothing visible — "never matches." Plus a commit gap: settings inputs save on blur/Enter only, and a window-blur teardown can drop an uncommitted edit. Fix: unify panel Color on `theme_color` + re-render after save + flush-on-teardown. DECISION owed: keep the separate Claude `/color` name field or drop/auto-derive it? Task #7 (HUD work needs version bump + 145 green).
-4. **Stale-session / Telegram-poller / MCP cleanup hooks — QUEUED (task #6, NOT started).** Old SessionStart/End cleanup gone; a new session can't use MCP tools held by the prior agent; sessions don't fully shut down. MUST be precise/deterministic — NEVER kill the current session or Richard's running apps/HUD ([[feedback_dont_close_richards_running_apps]]).
+1. **Launcher dynamic startup injection — DONE, committed `e124898`, PUSHED.** All Claude agents default-on (fixed dasha). Also fixed `read_startup_lines` returning 1 on empty `startup_slash` (this CRASHED hansel's launch before exec under `set -e`) + Claude null/empty `startup_slash` now defaults to `/lead-gogo`. launch-agent contract + remote-app 146 green.
+2. **HUD color + input persistence — DONE, committed `44ff2f3`, PUSHED, HUD relaunched LIVE on v1.4.17.** The settings-panel Color wrote `color` (the Claude /color name) while the tile renders from `theme_color` — so it "never matched." Now the panel Color is a hex picker writing `theme_color` with live repaint + a flush-on-teardown for the blur/Enter commit gap. 146 tests pass.
+3. **Codex keyboard (Option+Delete word-delete) — ROOT-CAUSED; Richard's GUI fix, NOT mine to do.** iTerm Default profile Left/Right Option Key is set to Normal and must be **Esc+**. That's the whole fix (and why it "worked then stopped"). [[reference-codex-keys-iterm-fix]]. Optional code hardening (re-apply tmux binds on Attach) = task #4, cross-repo (swarmy).
+4. **Stale-session / Telegram / MCP cleanup (#6) — PARTIALLY already solved.** The Telegram-poller killer fix is committed in CorporateHQ (`5bb362e0`, Lucius — `lsof`/`bun server.ts` poller logic). Remaining: stale MCP tools held by a prior session + sessions not fully closing = SessionStart/End hooks in GLOBAL `~/.claude/settings.json` — APPROVAL-GATED (a read got denied; needs Richard's explicit OK; not this repo's lane).
 
-**Next verifiable step:** get Richard's design call on the HUD Color field (keep/drop the `/color` name), then implement the HUD persist+color fix (task #7) per the auditor (index.html settings panel ~5996–6334; main.js `UPDATABLE_FIELDS` ~2261–2282; dock render index.html:4900–4902). Then task #6 (stale-session cleanup, precise).
+**Déjà-vu root cause (NEW, found via QMD):** Richard relives the same fixes because (a) fixes get made but NOT committed → wiped on the next checkout (the telegram fix literally said "live on disk, not committed"), and (b) the agent skips reading `docs/operations/agentremote-recovery-list.md` + `agentremote-operator-contract.md` before acting. Fix the loop: QMD-search + read the recovery list before any iTerm/tmux/cleanup action; commit every fix.
 
-**If that step fails:** the launcher fix is independently committed + green; not at risk.
+**Mistake this session:** ran `scripts/session-end-cleanup.sh` just to clear a Chromium cache — it ALSO closes marked iTerm viewer windows (violated the recovery-list "never close operator windows as setup" rule; Richard noticed). tmux sessions/agents all survived; only viewer windows closed. For a cache-only clear, `rm` the specific cache dirs directly — never the closeout script mid-session.
 
-**Pending uncommitted diff:** `agents.json` (M) — registry reorder (lucius moved below vegeta; vegeta cwd → pod root) from another lane/app, NOT mine. Left for Richard.
+**Next verifiable step:** get Richard's OK to edit global `~/.claude/settings.json` hooks for the stale-MCP/session-shutdown cleanup (#6). His iTerm Option-key change is owed for Codex keys. Then optional codex tmux-conf hardening (#4, coordinate with swarmy).
+
+**Pending uncommitted diff:** `agents.json` (M) — registry reorder from another lane, NOT mine. Left for Richard.
+
+**Session-end note:** Did NOT kill the session PID — Richard in distress + standing rule never to close his running session/apps ([[feedback_dont_close_richards_running_apps]]). HUD left running (v1.4.17).
 
 ## Open priorities (<=5)
 
-- [PRIMARY] **HUD inputs persist + color match** (task #7) — root cause found (color vs theme_color split + commit-event gap); implement after Richard's design call.
-- [QUEUED] **Stale-session/Telegram/MCP cleanup hooks** (task #6) — precise deterministic kill of prior-session leftovers ONLY.
-- [RICHARD-ACTION] **Codex keys** — iTerm Default profile Option Key → Esc+. [[reference-codex-keys-iterm-fix]]
-- [OPTIONAL] **Codex keybind durability** (task #4) — move tmux binds to a sourced conf loaded on Attach too.
+- [APPROVAL-GATED] **Stale MCP / session-shutdown cleanup** (#6) — needs Richard's OK to edit global `~/.claude/settings.json` hooks. Telegram-poller half already committed in CorporateHQ.
+- [RICHARD-ACTION] **Codex keys** — iTerm Default profile Left/Right Option Key → Esc+. [[reference-codex-keys-iterm-fix]]
+- [OPTIONAL] **Codex keybind durability** (#4) — move tmux binds to a sourced conf loaded on Attach too (swarmy lane).
 - [APPROVAL-GATED] **Live-relaunch dasha/hansel** to confirm the launcher fix on the real desktop.
-
-Paused/superseded (resume after the 4 above): AgentRemote public-release prep [[project_agentremote_public_release]]; Shift+Enter cross-pane CR [[project_iterm_broadcast_extra_cr]].
+- Paused (resume later): AgentRemote public-release prep [[project_agentremote_public_release]]; Shift+Enter cross-pane CR [[project_iterm_broadcast_extra_cr]].
 
 ## Cross-session comms
 
