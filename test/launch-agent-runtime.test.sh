@@ -196,7 +196,20 @@ cat > "$TMP_DIR/agents.json" <<JSON
       "cwd": "$TMP_DIR/legacy-runtime-cwd",
       "runtime": "claude",
       "allow_claude_runtime": true,
+      "color": "cyan",
       "startup_slash": "/lead-gogo"
+    },
+    {
+      "id": "empty-slash-claude",
+      "display_name": "Empty Slash",
+      "cwd": "$TMP_DIR/legacy-runtime-cwd",
+      "runtime": "claude",
+      "allow_claude_runtime": true,
+      "color": "cyan",
+      "startup_slash": "",
+      "startup_injection": {
+        "include": ["dangerous_permission_enter", "startup_lines"]
+      }
     },
     {
       "id": "exclude-enter-runtime",
@@ -414,17 +427,76 @@ xavier_no_policy_output="$(
 )"
 grep -qx 'COMMAND:claude' <<< "$xavier_no_policy_output"
 sleep 1
-# New contract (2026-05-21): Claude is always launched with
-# --dangerously-load-development-channels, which always shows the dev-channels
-# warning, so a no-policy Claude agent now auto-acks it (one Enter) by default.
-# It must still NOT inject startup lines (those stay opt-in via startup_lines).
+# Contract (2026-05-23): startup injection is SYMMETRICALLY default-on for the
+# Claude runtime. A no-policy Claude agent auto-acks the dev-channels warning (one
+# Enter) AND injects its startup lines, built from the legacy color/rename_to/
+# startup_slash fields (/color + /rename + startup_slash). This removes the prior
+# asymmetry where only the warning-ack defaulted on, which left Claude agents
+# migrated without an explicit startup_injection policy (e.g. dasha, hansel)
+# booting with no /color or /lead-gogo. Opt out per token via startup_injection.exclude.
 if ! grep -qx 'send-keys -t %nopolicy Enter' "$TMUX_CALLS"; then
-  echo "Claude runtime without startup_injection policy must auto-ack the dev-channels warning (one Enter)" >&2
+  echo "no-policy Claude agent must auto-ack the dev-channels warning (one Enter)" >&2
   cat "$TMUX_CALLS" >&2
   exit 1
 fi
-if grep -q '^send-keys -t %nopolicy -l' "$TMUX_CALLS"; then
-  echo "Claude runtime without startup_injection policy must NOT inject startup lines" >&2
+for expected in \
+  'send-keys -t %nopolicy -l -- /color cyan' \
+  'send-keys -t %nopolicy -l -- /rename PROFESSOR XAVIER' \
+  'send-keys -t %nopolicy -l -- /lead-gogo'; do
+  if ! grep -Fxq "$expected" "$TMUX_CALLS"; then
+    echo "no-policy Claude agent must inject startup line: $expected" >&2
+    cat "$TMUX_CALLS" >&2
+    exit 1
+  fi
+done
+
+# Contract (2026-05-23): a Claude agent whose registry startup_slash is empty (or
+# missing) still boots into /lead-gogo by default — the launcher supplies the
+# Claude default startup command, so no per-agent startup_slash entry is required.
+# This is the hansel case (policy present, startup_slash ""), which previously
+# booted with /color + /rename but no /lead-gogo. Mirrors the HUD default.
+TMUX_CALLS="$TMP_DIR/empty-slash-tmux-calls.log"
+rm -f "$TMUX_CALLS" /tmp/empty-slash-claude-bg-_emptyslash.pids
+empty_slash_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%emptyslash" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_RENAME_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" empty-slash-claude
+)"
+grep -qx 'COMMAND:claude' <<< "$empty_slash_output"
+sleep 1
+for expected in \
+  'send-keys -t %emptyslash -l -- /color cyan' \
+  'send-keys -t %emptyslash -l -- /rename EMPTY SLASH' \
+  'send-keys -t %emptyslash -l -- /lead-gogo'; do
+  if ! grep -Fxq "$expected" "$TMUX_CALLS"; then
+    echo "Claude agent with empty startup_slash must default to /lead-gogo: $expected" >&2
+    cat "$TMUX_CALLS" >&2
+    exit 1
+  fi
+done
+
+# Negative guard (contract preservation): an explicit STARTUP_SLASH= env override
+# (empty) must STILL disable the startup command — the Claude default must not
+# override an operator's deliberate clear.
+TMUX_CALLS="$TMP_DIR/empty-slash-envdisable-tmux-calls.log"
+rm -f "$TMUX_CALLS" /tmp/empty-slash-claude-bg-_envdisable.pids
+STARTUP_SLASH="" \
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    TMUX_PANE="%envdisable" \
+    TMUX_CALLS="$TMUX_CALLS" \
+    CLAUDE_WARNING_ACK_DELAY=0 \
+    CLAUDE_RENAME_DELAY=0 \
+    CLAUDE_STARTUP_DELAY=0 \
+    bash "$REPO_ROOT/launch-agent.sh" empty-slash-claude >/dev/null
+sleep 1
+if grep -Fxq 'send-keys -t %envdisable -l -- /lead-gogo' "$TMUX_CALLS"; then
+  echo "STARTUP_SLASH= env override must disable the startup command, not default it" >&2
   cat "$TMUX_CALLS" >&2
   exit 1
 fi
@@ -542,8 +614,8 @@ if invalid_policy_output="$(run_agent invalid-startup-policy 2>&1)"; then
 fi
 grep -q "startup_injection.include" <<< "$invalid_policy_output"
 
-grep -q 'startup_injection_allows "dangerous_permission_enter"' "$REPO_ROOT/launch-agent.sh"
-grep -q 'startup_injection_allows "startup_lines"' "$REPO_ROOT/launch-agent.sh"
+grep -q 'startup_injection_active "dangerous_permission_enter"' "$REPO_ROOT/launch-agent.sh"
+grep -q 'startup_injection_active "startup_lines"' "$REPO_ROOT/launch-agent.sh"
 grep -q 'read_startup_lines()' "$REPO_ROOT/launch-agent.sh"
 ! grep -q 'submit_tmux_text' "$REPO_ROOT/launch-agent.sh"
 

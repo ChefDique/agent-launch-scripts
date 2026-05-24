@@ -55,26 +55,28 @@ gateway-only.
   is execed.
 - The AgentRemote deploy/attach/stop/layout runtime belongs to Swarmy at `~/ai_projects/swarmy/scripts/agentremote_runtime.py`; `chq-tmux.sh` is compatibility/manual fallback, not the app runtime.
 - Per-agent scripts launch the configured runtime and clean stale Claude delayed
-  injection jobs for Claude tmux launches. Boot-time injection is opt-in through
-  registry `startup_injection`, for example:
+  injection jobs for Claude tmux launches. Boot-time injection is driven by
+  `startup_injection`, for example:
   `{ "include": ["dangerous_permission_enter", "startup_lines"], "exclude": [] }`.
-  `exclude` wins over `include`, and the whole policy is ignored unless the
-  effective runtime is `claude`.
-- `dangerous_permission_enter` is the initial Enter used to accept Claude's
-  dangerous-permission/development-channel confirmation. Claude always launches
-  with `--dangerously-load-development-channels`, which raises that warning every
-  start, so for the Claude runtime the warning-ack **defaults ON** unless an agent
-  explicitly lists `dangerous_permission_enter` in `startup_injection.exclude`.
-  It must never be sent for Codex, Hermes, or OpenClaw, which require explicit
-  opt-in (so they never receive a stray Enter).
+  `exclude` always wins.
+- **Claude default-on (dynamic — no per-agent entry required).** For the `claude`
+  runtime, BOTH `dangerous_permission_enter` and `startup_lines` default ON via
+  `startup_injection_active()`. A Claude agent with no `startup_injection` object
+  at all (e.g. a freshly migrated agent like `dasha`) still gets the warning-ack
+  Enter AND its startup lines. Opt out per token with `startup_injection.exclude`.
+  Non-Claude runtimes (Codex/Hermes/OpenClaw) still require explicit `include`, so
+  they never receive a stray Enter or the Claude-only `/color`/`/rename`.
+- `dangerous_permission_enter` is the initial Enter that accepts Claude's
+  development-channel/permission warning (Claude always launches with
+  `--dangerously-load-development-channels`, which raises it every start).
 - `startup_lines` schedules either registry startup lines or the legacy fallback
   `/color` + `/rename` + `startup_slash`. Registry `startup_lines` supports
   `{{color}}`, `{{rename_to}}`, `{{startup_slash}}`, `{{display_name}}`,
-  `{{agent_id}}`, and `{{cwd}}` so the old `/color` and `/rename` commands can
-  be edited as normal startup text. An explicit empty `startup_lines: []`
-  disables the legacy fallback. The legacy registry fields (`color`,
-  `rename_to`, `startup_slash`) are still supported only after
-  `startup_injection.include` contains `startup_lines`.
+  `{{agent_id}}`, and `{{cwd}}`. An explicit empty `startup_lines: []` disables the
+  legacy fallback. For the Claude runtime, when `startup_slash` is null or empty it
+  defaults to `/lead-gogo` (mirrors the HUD `DEFAULT_LEAD_STARTUP_SLASH`) unless a
+  `STARTUP_SLASH=` env override clears it. `read_startup_lines` always returns
+  success, so an empty `startup_slash` can never abort the launch.
 - Layout state can persist in the running tmux session through `@chq_layout`;
   Swarmy also records browser-safe team layout metadata in
   `@swarmy_team_layout`.

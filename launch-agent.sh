@@ -13,9 +13,9 @@
 #   1. Look up <id> in agents.json. cwd into the agent's project root.
 #   2. Run the optional pre_launch hook (typically telegram-cleanup --pre-launch).
 #   3. Export any per-agent env vars from the registry's "env" map.
-#   4. For Claude runtimes only, schedule explicitly allowed boot-time tmux
-#      auto-injects: warning ack, then runtime-safe startup lines.
-#      Stale subshell PID cleanup runs first.
+#   4. Schedule boot-time tmux auto-injects: warning ack, then startup lines.
+#      Default-ON for the Claude runtime (opt out via startup_injection.exclude);
+#      other runtimes opt in via startup_injection.include. PID cleanup runs first.
 #   5. exec the configured runtime command (claude, codex, hermes, openclaw).
 #
 # Pivot knobs — env overrides for shell aliases that want to repoint an agent:
@@ -267,6 +267,14 @@ if [[ -n "${STARTUP_SLASH+x}" ]]; then
 else
   STARTUP="$(field startup_slash)"
 fi
+# Claude default-on: every Claude lead boots into /lead-gogo. When the registry has
+# no usable startup_slash (null or "") and no env override is in play, default it
+# so a Claude agent gets the startup command WITHOUT a per-agent entry — the
+# dynamic contract (mirrors the HUD's DEFAULT_LEAD_STARTUP_SLASH). An env override
+# (STARTUP_SLASH=, even empty) always wins and can still disable it.
+if [[ "$RUNTIME" == "claude" && -z "$STARTUP" && -z "${STARTUP_SLASH+x}" ]]; then
+  STARTUP="/lead-gogo"
+fi
 
 expand_startup_line() {
   local line="$1"
@@ -313,6 +321,11 @@ read_startup_lines() {
     STARTUP_LINES+=("/rename $RENAME_TO")
   fi
   [[ -n "$STARTUP" ]] && STARTUP_LINES+=("$STARTUP")
+  # Explicit success. The bare [[ -n "$STARTUP" ]] above returns 1 when STARTUP is
+  # empty; as the function's last command that makes read_startup_lines return
+  # non-zero and trip `set -e` at the bare call site — i.e. a Claude agent with an
+  # empty startup_slash would fail to launch entirely. Always return success.
+  return 0
 }
 
 send_tmux_literal_line() {
@@ -361,15 +374,30 @@ startup_injection_excludes() {
 
 startup_injection_allows() {
   local token="$1"
-  # Runtime-agnostic: the per-agent startup_injection policy is the toggle. Any
-  # runtime can opt in; an agent with no startup_injection object gets nothing
-  # (so a stray blank Enter is never inherited by a runtime that did not ask).
+  # Explicit opt-in only: the per-agent startup_injection.include array. An agent
+  # with no startup_injection object is NOT allowed here (returns 1); the Claude
+  # default-on path is handled by startup_injection_active() below.
   jq -e '.startup_injection != null' <<< "$ENTRY" >/dev/null || return 1
   startup_injection_includes "$token" || return 1
   if startup_injection_excludes "$token"; then
     return 1
   fi
   return 0
+}
+
+startup_injection_active() {
+  # Unified default-on policy (the fix for per-agent hardcoding). A token fires
+  # when the per-agent policy explicitly allows it, OR the runtime is Claude and
+  # the token is not explicitly excluded. Claude always launches with
+  # --dangerously-load-development-channels (a blocking warning) and is the lane
+  # that wants the /color + /rename + startup_slash boot lines, so BOTH
+  # dangerous_permission_enter AND startup_lines default ON for Claude with no
+  # registry entry required. Opt out per token via startup_injection.exclude;
+  # non-Claude runtimes still require explicit opt-in (never a stray keystroke).
+  local token="$1"
+  startup_injection_allows "$token" && return 0
+  [[ "$RUNTIME" == "claude" ]] && ! startup_injection_excludes "$token" && return 0
+  return 1
 }
 
 schedule_warning_ack() {
@@ -547,21 +575,21 @@ if [[ -n "${TMUX_PANE:-}" ]]; then
   CLAUDE_RENAME_DELAY="${CLAUDE_RENAME_DELAY:-10}"
   CLAUDE_STARTUP_DELAY="${CLAUDE_STARTUP_DELAY:-12}"
 
-  # Stage 1: dismiss the runtime's startup/dev/permission warning intro.
-  # Claude is always launched with --dangerously-load-development-channels (see
-  # build_runtime_command), which shows a blocking "Loading development channels"
-  # warning on every start. So for the Claude runtime the warning-ack defaults ON
-  # unless an agent explicitly excludes it: this covers any Claude agent with no
-  # startup_injection policy (e.g. dasha) and restores the pre-2026-05-20
-  # auto-dismiss. Non-Claude runtimes still require explicit opt-in, so they never
-  # receive a stray Enter. Default key is Enter; an agent whose warning needs a
-  # different key (e.g. "1") sets startup_injection.warning_ack_keys (see schedule).
-  if startup_injection_allows "dangerous_permission_enter" \
-     || { [[ "$RUNTIME" == "claude" ]] && ! startup_injection_excludes "dangerous_permission_enter"; }; then
+  # Stage 1 (warning ack) + Stage 2 (boot lines) are BOTH default-ON for the
+  # Claude runtime via startup_injection_active(): Claude always launches with
+  # --dangerously-load-development-channels (a blocking warning) and is the lane
+  # that wants /color + /rename + startup_slash, so neither needs a per-agent
+  # registry entry — this covers any Claude agent migrated without a
+  # startup_injection policy (e.g. dasha, hansel). Opt out per token via
+  # startup_injection.exclude; non-Claude runtimes still require explicit opt-in,
+  # so they never receive a stray keystroke. Default warning key is Enter; an
+  # agent whose warning needs a different key (e.g. "1") sets
+  # startup_injection.warning_ack_keys (see schedule_warning_ack).
+  if startup_injection_active "dangerous_permission_enter"; then
     schedule_warning_ack "$CLAUDE_WARNING_ACK_DELAY"
   fi
 
-  if startup_injection_allows "startup_lines"; then
+  if startup_injection_active "startup_lines"; then
     read_startup_lines
     if (( ${#STARTUP_LINES[@]} > 0 )); then
       if [[ "$HAS_STARTUP_LINES" == true ]]; then
@@ -596,7 +624,7 @@ fi
 # delivered by keystroke injection (so it lands after the warning-ack), not as a
 # launch argument — otherwise codex/openclaw would receive the command twice.
 STARTUP_VIA_INJECTION=false
-if [[ -n "${TMUX_PANE:-}" ]] && startup_injection_allows "startup_lines"; then
+if [[ -n "${TMUX_PANE:-}" ]] && startup_injection_active "startup_lines"; then
   STARTUP_VIA_INJECTION=true
 fi
 
