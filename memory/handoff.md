@@ -2,27 +2,29 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last working on:** Fixed the `/message-agent` send bug (two-phase tmux submit) and pushed both repos to origin. Opus-Neo, 2026-05-21.
+**Last working on:** Richard surfaced 4 recurring AgentRemote/launcher complaints in one 2026-05-23 session and hit a breaking point ("I quit") over fixes that hardcode per-agent and don't survive sessions. Opus-Neo. Standing contract now: dynamic-not-hardcoded, root-cause durably, use the `tmux-electron-master` specialist — see [[feedback-dynamic-not-hardcoded]].
 
-**State at last pause (2026-05-21T16:46:00-0700):**
-- `/message-agent` SEND BUG FIXED + verified live + pushed: deliveries used to land in the agent's composer but not submit (intermittent). Root cause = delay placed after the submit + a `C-m`+`Enter` double-submit in `agent_bus_listener.py`. Fixed to the HUD's two-phase pattern (paste → 0.15s → single Enter). Commit `3c9509c` in the **message-agent repo** (`~/ai_projects/tools/message-agent`), pushed. 26/26 listener tests pass; proven against a throwaway Claude pane.
-- `agent-launch-scripts` ALL PUSHED to origin (`c3b2050`): startup warning default-on (`80128ea`), "Startup auto-run" toggle v1.4.16 (`76ebc52`), `tmux-masta`→`neo` rename (`acd7d10`), live registry, chores. Both repos now in sync with origin.
-- Toggle: Richard satisfied — default-on is the real win, the toggle is an optional override.
-- CLOSEOUT (16:46): `/done` ran; `session-end-cleanup` stopped Richard's live HUD and he said "don't close my shit" — relaunched immediately, v1.4.16 is up (detached). Neo session left RUNNING (skipped `/done`'s kill-PID per his call). Never close his running apps or kill the session on closeout — see [[feedback_dont_close_richards_running_apps]].
+**State at last pause (2026-05-23):**
+1. **Launcher startup injection — FIXED + COMMITTED (`e124898`), tests green, NOT pushed.** `startup_lines` (/color+/rename+startup_slash) now defaults ON for ALL Claude agents via `startup_injection_active()` — no per-agent `startup_injection.include` needed (the dasha bug). Also fixed: `read_startup_lines` returned 1 on empty `startup_slash` → `set -e` ABORTED the launch before exec, so hansel (empty startup_slash) failed to launch at all — now `return 0`; and Claude null/empty `startup_slash` defaults to `/lead-gogo`. Opt out via `startup_injection.exclude`; non-Claude untouched. Green: launch-agent contract + remote-app 145. Live relaunch of dasha/hansel = approval-gated, not done.
+2. **Codex pane keyboard shortcuts (Option+Delete word-delete) — ROOT-CAUSED; fix is Richard's GUI change.** Not tmux: iTerm profiles have Option Key = Normal. Richard: iTerm → Settings → Profiles → Default → Keys → Left/Right Option Key → **Esc+**. [[reference-codex-keys-iterm-fix]]. Optional code hardening (re-apply tmux binds on Attach) = task #4.
+3. **HUD per-agent inputs don't persist + color never matches — ROOT-CAUSED (auditor); fix pending Richard's design call.** Two color controls write two fields: the settings-panel Color (text input) writes `color` (the Claude `/color` name, used only at next launch); the HUD tile/orb renders ONLY from `theme_color` (set by the Add-form hex picker). So editing the panel Color changes nothing visible — "never matches." Plus a commit gap: settings inputs save on blur/Enter only, and a window-blur teardown can drop an uncommitted edit. Fix: unify panel Color on `theme_color` + re-render after save + flush-on-teardown. DECISION owed: keep the separate Claude `/color` name field or drop/auto-derive it? Task #7 (HUD work needs version bump + 145 green).
+4. **Stale-session / Telegram-poller / MCP cleanup hooks — QUEUED (task #6, NOT started).** Old SessionStart/End cleanup gone; a new session can't use MCP tools held by the prior agent; sessions don't fully shut down. MUST be precise/deterministic — NEVER kill the current session or Richard's running apps/HUD ([[feedback_dont_close_richards_running_apps]]).
 
-**Next verifiable step (NEXT-SESSION PRIMARY):** AgentRemote public-release READINESS — NOT the simplest path; the MVP is buggy/broken and can't ship as-is (Richard would be "bothered non-stop"). Review-first approach: (1) ASK Richard where the MVP lives (`remote-app/` here vs a separate build he has); (2) dispatch a couple of architect reviews (`tmux-electron-master` on Electron/tmux + send/attach; release-readiness/de-Richard-ify; secrets/paths sweep); (3) converge ONE prioritized list (broken → blockers → fix order); (4) he steers, THEN fix. Plus the $10-vs-open-source call. Brainstorm/review FIRST, build only on his green light. Full brief: [[project_agentremote_public_release]]. (Also open: Shift+Enter cross-pane CR.)
+**Next verifiable step:** get Richard's design call on the HUD Color field (keep/drop the `/color` name), then implement the HUD persist+color fix (task #7) per the auditor (index.html settings panel ~5996–6334; main.js `UPDATABLE_FIELDS` ~2261–2282; dock render index.html:4900–4902). Then task #6 (stale-session cleanup, precise).
 
-**If that step fails:** n/a — no in-flight work.
+**If that step fails:** the launcher fix is independently committed + green; not at risk.
 
-**Pending uncommitted diff:** none.
+**Pending uncommitted diff:** `agents.json` (M) — registry reorder (lucius moved below vegeta; vegeta cwd → pod root) from another lane/app, NOT mine. Left for Richard.
 
 ## Open priorities (<=5)
 
-- [NEXT-SESSION PRIMARY] **AgentRemote public release prep + monetization** — prepare `remote-app/` for public release; $10 one-time vs open-source funnel; popular on TikTok. Brainstorm/plan first, Richard decides. See [[project_agentremote_public_release]].
-- [OPEN] **Shift+Enter → extra CRs in all panes** — Richard confirmed it persists; he uses Shift+Enter deliberately to avoid sending. Cause unconfirmed (iTerm broadcast rejected). Needs: agent pane vs HUD composer. Bus double-submit removal quiets one code-side CR source but isn't this mechanism. See [[project_iterm_broadcast_extra_cr]].
-- [REVIEW-PENDING] **ALS-LOCAL-001 image paste** — live check owed; uses `[image:/path]` text ref, NOT OSC 1337.
-- [BLOCKED-SWARMY] **ALS-QUALITY-005 unsupported Codex model worker launches** — Swarmy-owned.
-- [PARTIAL] **ALS-QUALITY-007 live AgentRemote verification** — send/submit verified; paste/attach/voice still need approved live checks.
+- [PRIMARY] **HUD inputs persist + color match** (task #7) — root cause found (color vs theme_color split + commit-event gap); implement after Richard's design call.
+- [QUEUED] **Stale-session/Telegram/MCP cleanup hooks** (task #6) — precise deterministic kill of prior-session leftovers ONLY.
+- [RICHARD-ACTION] **Codex keys** — iTerm Default profile Option Key → Esc+. [[reference-codex-keys-iterm-fix]]
+- [OPTIONAL] **Codex keybind durability** (task #4) — move tmux binds to a sourced conf loaded on Attach too.
+- [APPROVAL-GATED] **Live-relaunch dasha/hansel** to confirm the launcher fix on the real desktop.
+
+Paused/superseded (resume after the 4 above): AgentRemote public-release prep [[project_agentremote_public_release]]; Shift+Enter cross-pane CR [[project_iterm_broadcast_extra_cr]].
 
 ## Cross-session comms
 
