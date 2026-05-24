@@ -18,6 +18,8 @@
 
 **Pending uncommitted diff:** `agents.json` (M) — registry reorder from another lane, NOT mine. Left for Richard.
 
+**Also this session (post-handoff):** Reconciled the push rule to lead-push-by-default in CLAUDE.md + AGENTS.md (`324a1e4`, pushed) — it had contradicted the global git-workflow and caused friction. Ran /claude-md-audit (blind zero-context subagent + filesystem verify): all paths resolve, no stale refs, no split needed (111 lines). New durable rule [[feedback-review-after-tasks]]: review/debug after tasks + give subagents task-matched skills.
+
 **Session-end note:** Did NOT kill the session PID — Richard in distress + standing rule never to close his running session/apps ([[feedback_dont_close_richards_running_apps]]). HUD left running (v1.4.17).
 
 ## Open priorities (<=5)
