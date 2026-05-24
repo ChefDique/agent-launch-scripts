@@ -79,7 +79,7 @@ Precedence: closest `AGENTS.md` wins for scoped instructions.
   parser or policy module. Do not fix a single agent by adding inline
   per-agent/per-model regexes to renderer code.
 - Before AgentRemote implementation work, check `.learnings/LEARNINGS.md` and promote any recurring correction into docs or runtime gates before coding around it again.
-- Commit completed work units with clear messages. Push only when Richard asks.
+- Commit completed work units with clear messages, and push them to origin without asking as the operator/lead lane (per the global git-workflow lead-push default). Still escalate before destructive ops (`reset --hard`, force-push), committing anything secret, or governance/policy changes.
 
 ## Session-End Cleanup
 

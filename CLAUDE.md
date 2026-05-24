@@ -80,7 +80,7 @@ To spawn the local team, use `python3 /Users/richardadair/ai_projects/swarmy/scr
 - Do not validate attach/deploy behavior by mutating Richard's live iTerm desktop unless he explicitly asks for that live mutation. Use static tests, mocked IPC, or isolated throwaway tmux sessions first.
 - For AgentRemote UI, any scrollable modal, picker, popover, overlay, roster, log, or pet window must use the dark HUD scrollbar styling. Native white scrollbars are regressions.
 - Before AgentRemote implementation work, check `.learnings/LEARNINGS.md` and promote any recurring correction into docs or runtime gates before coding around it again.
-- Commit completed work units with clear messages. Push only when Richard asks.
+- Commit completed work units with clear messages, and push them to origin without asking as the operator/lead lane (per the global git-workflow lead-push default). Still escalate before destructive ops (`reset --hard`, force-push), committing anything secret, or governance/policy changes.
 
 ## Critical Patterns
 
