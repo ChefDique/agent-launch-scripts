@@ -2580,6 +2580,33 @@
       border-color: var(--status-on);
       transition: border-color 0.6s var(--ease);
     }
+    /* Theme-color picker — drives the VISIBLE dock tile / orb / glow. Sized to
+       sit left in the row (not stretched) with a soft chip frame matching the
+       glass inputs; the swatch chrome is stripped via the webkit pseudo-els. */
+    .radial-settings .settings-row.settings-row-color { align-items: center; }
+    .radial-settings .settings-row input[type=color] {
+      flex: 0 0 52px;
+      height: 30px;
+      padding: 2px 4px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+    .radial-settings .settings-row input[type=color]:hover { border-color: var(--border-medium); }
+    .radial-settings .settings-row input[type=color]:focus { border-color: var(--accent); }
+    .radial-settings .settings-row input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+    .radial-settings .settings-row input[type=color]::-webkit-color-swatch {
+      border: none;
+      border-radius: 4px;
+    }
+    .radial-settings .settings-row input[type=color].saved {
+      border-color: var(--status-on);
+      box-shadow: 0 0 0 1px var(--status-on) inset;
+      transition: border-color 0.6s var(--ease), box-shadow 0.6s var(--ease);
+    }
 
     /* iOS-style toggle for auto_restart. Solid colors, no transparency, so the
        state reads at a glance against the glass background. */
@@ -4887,6 +4914,25 @@
       return `rgba(${r}, ${g}, ${b}, 0.55)`;
     }
 
+    // Normalize an arbitrary theme_color hex to the strict 6-digit form an
+    // <input type="color"> requires. The registry validator accepts 3-8 digit
+    // hex (main.js UPDATABLE_FIELDS.theme_color), but a color input silently
+    // collapses anything that isn't #rrggbb to #000000. Expand #rgb, truncate
+    // the alpha off #rrggbbaa, and fall back to the AgentRemote cyan default
+    // (matches the Add form's f-color default) for anything unparseable.
+    function toColorInputHex(value) {
+      const fallback = '#00f2ff';
+      if (typeof value !== 'string') return fallback;
+      const h = value.trim().replace(/^#/, '');
+      if (/^[0-9a-fA-F]{3}$/.test(h)) {
+        return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toLowerCase();
+      }
+      if (/^[0-9a-fA-F]{6}$/.test(h) || /^[0-9a-fA-F]{8}$/.test(h)) {
+        return `#${h.slice(0, 6)}`.toLowerCase();
+      }
+      return fallback;
+    }
+
     function renderDock() {
       const dock = document.getElementById('dock');
       dock.innerHTML = '';
@@ -5338,6 +5384,13 @@
 
     let radialOpenForId = null;
     let radialDismissCleanup = null;
+    // Flush hook for the settings panel's text/color inputs. Settings inputs
+    // only commit on blur/Enter, but the radial teardown (window-blur, outside
+    // click, Escape) clears the panel innerHTML ~320ms after close — dropping a
+    // typed-but-uncommitted edit. renderSettingsPanel assigns this to a fn that
+    // reads the live DOM and fires any differing save BEFORE the clear runs.
+    // Reset to null whenever the panel is gone.
+    let settingsPanelFlush = null;
     let radialSettleTimer = null;
     let radialLabelTimer = null;
     // Pre-radial window height — captured at open, restored at close. v2.4:
@@ -5810,6 +5863,14 @@
       const menu = document.getElementById('radial-menu');
       const orbsLayer = document.getElementById('radial-orbs');
       const settingsLayer = document.getElementById('radial-settings');
+      // Commit any pending settings edit BEFORE we start the teardown. The
+      // innerHTML clear below runs on a 320ms timer; window-blur / outside-
+      // click can fire close while the color picker (or a text field) holds an
+      // uncommitted value. Flushing here reads the live DOM synchronously so
+      // the value is captured even though the IPC resolves after the clear.
+      if (settingsPanelFlush) {
+        try { settingsPanelFlush(); } catch (_) { /* never let a flush block close */ }
+      }
       menu.classList.remove('open');
       orbsLayer.classList.remove('settled');
       settingsLayer.classList.remove('visible');
@@ -5828,6 +5889,9 @@
           orbsLayer.innerHTML = '';
           document.getElementById('radial-labels').innerHTML = '';
           settingsLayer.innerHTML = '';
+          // Panel DOM is gone — drop the flush so a stale closure can't fire
+          // against detached inputs on the next unrelated close.
+          settingsPanelFlush = null;
           // Restore the pre-open height. Skip if the add/edit form opened
           // during or immediately after the radial cycle — sending the
           // pre-open (smaller) height clips the form's top harness row for
@@ -5993,10 +6057,10 @@
                  placeholder="${escapeHtml(id)}"
                  autocomplete="off" spellcheck="false" />
         </div>
-        <div class="settings-row">
+        <div class="settings-row settings-row-color">
           <label for="set-color">Color</label>
-          <input type="text" id="set-color" value="${escapeHtml(agent.color || '')}"
-                 placeholder="orange" autocomplete="off" spellcheck="false" />
+          <input type="color" id="set-color" value="${escapeHtml(toColorInputHex(agent.themeColor))}"
+                 title="Pick this agent's theme color — drives the dock tile, orb, and active-state glow" />
         </div>
         <div class="settings-row">
           <label>Avatar</label>
@@ -6288,11 +6352,16 @@
       // `tmux break-pane -d` before opening iTerm so the agent fills its
       // own iTerm window. The flashDetachResult helper was removed too.
 
+      // Collect every input's commit fn here. The teardown path (window-blur,
+      // outside-click, Escape) calls settingsPanelFlush() before clearing the
+      // panel innerHTML, so a typed-but-unblurred edit (the color picker, name,
+      // slash, or startup line) is committed instead of silently dropped.
+      const pendingFlushes = [];
+
       // ---- Wire up the text inputs ----
       // Map renderer-input-id → registry-field name + agent local field name.
       const inputs = [
         { el: layer.querySelector('#set-display-name'), patchKey: 'display_name',  localKey: 'displayName' },
-        { el: layer.querySelector('#set-color'),  patchKey: 'color',         localKey: 'color' },
         { el: layer.querySelector('#set-slash'),  patchKey: 'startup_slash', localKey: 'startupSlash' }
       ];
       inputs.forEach(({ el, patchKey, localKey }) => {
@@ -6336,6 +6405,7 @@
             flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
           }
         };
+        pendingFlushes.push(save);
 
         el.addEventListener('input', validate);
         el.addEventListener('blur', save);
@@ -6358,6 +6428,77 @@
           }
         });
       });
+
+      // ---- Wire up the theme-color picker ----
+      // This is the control the operator reaches for to recolor an agent. It
+      // writes the registry `theme_color` field (NOT the legacy `color` slash
+      // name) because theme_color is the only field the dock tile, radial orb,
+      // and active-state glow actually render from. On save we mutate the live
+      // agents[id].themeColor and repaint the tile + any open orbs immediately,
+      // so the color changes without waiting for a relaunch.
+      const colorInput = layer.querySelector('#set-color');
+      if (colorInput) {
+        colorInput.dataset.savedValue = colorInput.value;
+
+        // Repaint everything that renders from theme_color, in place.
+        const applyThemeColorLive = (hex) => {
+          agent.themeColor = hex;
+          const tileButton = document.getElementById(`btn-${id}`);
+          if (tileButton) {
+            tileButton.style.setProperty('--btn-theme-color', hex);
+            tileButton.style.setProperty('--btn-theme-glow', hexToGlow(hex));
+          }
+          // If this agent's radial is open, recolor its live orbs too so the
+          // gear-menu palette tracks the picker instead of waiting for reopen.
+          // Skip danger/settings orbs — they own a fixed palette via their own
+          // selectors (mirrors the !item.danger && !item.settings guard in
+          // openRadialMenu); recoloring them would tint the kill/gear orbs.
+          if (radialOpenForId === id) {
+            const palette = paletteForAgent(id);
+            document.querySelectorAll('#radial-orbs .radial-orb').forEach(orb => {
+              if (orb.classList.contains('danger') || orb.classList.contains('settings')) return;
+              orb.style.setProperty('--orb-light', palette.light);
+              orb.style.setProperty('--orb-mid', palette.mid);
+              orb.style.setProperty('--orb-deep', palette.deep);
+              orb.style.setProperty('--orb-glow', palette.glow);
+            });
+          }
+        };
+
+        const saveColor = async () => {
+          const hex = colorInput.value;
+          if (hex === colorInput.dataset.savedValue) return;
+          const res = await ipcRenderer.invoke('update-agent', { id, patch: { theme_color: hex } });
+          if (res.ok) {
+            // Trust the persisted value (main coerces/validates theme_color).
+            const returned = (res.entry && res.entry.theme_color) ? res.entry.theme_color : hex;
+            colorInput.dataset.savedValue = colorInput.value;
+            applyThemeColorLive(returned);
+            colorInput.classList.add('saved');
+            setTimeout(() => colorInput.classList.remove('saved'), 700);
+          } else {
+            // Roll back the picker to the last persisted value on failure.
+            colorInput.value = colorInput.dataset.savedValue;
+            flashTileError(document.getElementById(`btn-${id}`), res.error || 'save failed');
+          }
+        };
+        pendingFlushes.push(saveColor);
+
+        // `input` fires continuously while dragging the OS color wheel; paint
+        // the tile live for instant feedback but debounce the registry write so
+        // we don't spam update-agent on every micro-step. `change` (commit /
+        // picker-close) flushes immediately and cancels the pending debounce.
+        let colorSaveTimer = null;
+        colorInput.addEventListener('input', () => {
+          applyThemeColorLive(colorInput.value);
+          if (colorSaveTimer) clearTimeout(colorSaveTimer);
+          colorSaveTimer = setTimeout(() => { colorSaveTimer = null; saveColor(); }, 220);
+        });
+        colorInput.addEventListener('change', () => {
+          if (colorSaveTimer) { clearTimeout(colorSaveTimer); colorSaveTimer = null; }
+          saveColor();
+        });
+      }
 
       // Startup lines are stored as a registry array:
       // one command per line (line 1 + line 2 + line 3).
@@ -6393,6 +6534,7 @@
         });
       };
 
+      pendingFlushes.push(saveStartupLines);
       startupLineInputs.forEach((input) => {
         input.addEventListener('blur', saveStartupLines);
         input.addEventListener('keydown', (ev) => {
@@ -6410,6 +6552,18 @@
           }
         });
       });
+
+      // Expose a single flush that commits any pending edit on teardown. Each
+      // save() no-ops when its value already matches savedValue, so flushing
+      // the whole set is safe and idempotent. closeRadialMenu() calls this
+      // synchronously before the panel innerHTML is cleared, so a typed-but-
+      // unblurred edit can't be lost to the dismiss.
+      settingsPanelFlush = () => {
+        const flushes = pendingFlushes.slice();
+        for (const flush of flushes) {
+          try { flush(); } catch (_) { /* a single bad field must not block the rest */ }
+        }
+      };
     }
 
     // Inline confirm inside a radial orb — used by the destructive "Close

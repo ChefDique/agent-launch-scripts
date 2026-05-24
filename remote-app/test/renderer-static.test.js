@@ -148,6 +148,58 @@ test('submit payload includes startup_lines array and settings patch supports ar
   assert.doesNotMatch(main, /delete entry\.startup_lines;\s*\n\s*if \(cleanPatch\.runtime\)/);
 });
 
+test('settings panel Color control drives the visible theme_color and repaints live', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+
+  // The panel Color control is the VISIBLE recolor: a hex picker prefilled from
+  // the agent's theme_color (not the legacy /color slash name). The old text
+  // input that wrote `color` (placeholder "orange") must be gone — it changed
+  // nothing the dock/orb/glow render from, so the color "never matched".
+  assert.match(
+    html,
+    /<input type="color" id="set-color"[\s\S]*?value="\$\{escapeHtml\(toColorInputHex\(agent\.themeColor\)\)\}"/,
+    'panel Color must be a hex picker prefilled from agent.themeColor'
+  );
+  assert.doesNotMatch(
+    html,
+    /<input type="text" id="set-color"/,
+    'panel Color must no longer be a free-text input'
+  );
+  assert.doesNotMatch(
+    html,
+    /id="set-color"[\s\S]*?placeholder="orange"/,
+    'the old orange-placeholder color text input must be gone'
+  );
+
+  // The picker writes theme_color (the rendered field), never the legacy color.
+  assert.match(html, /update-agent', \{ id, patch: \{ theme_color: hex \} \}/);
+  // It must NOT be re-introduced into the generic inputs[] array as a color write.
+  assert.doesNotMatch(html, /querySelector\('#set-color'\),\s*patchKey: 'color'/);
+
+  // On save it repaints the dock tile live (mirrors renderDock's CSS vars) and
+  // mutates the in-memory themeColor so the change is visible without relaunch.
+  assert.match(html, /const applyThemeColorLive = \(hex\) =>/);
+  assert.match(html, /agent\.themeColor = hex;/);
+  assert.match(html, /setProperty\('--btn-theme-color', hex\)/);
+  assert.match(html, /setProperty\('--btn-theme-glow', hexToGlow\(hex\)\)/);
+  // Open radial orbs recolor too, but the fixed-palette kill/gear orbs are skipped.
+  assert.match(html, /orb\.classList\.contains\('danger'\) \|\| orb\.classList\.contains\('settings'\)\) return/);
+
+  // theme_color normalization helper for the strict 6-digit picker requirement.
+  assert.match(html, /function toColorInputHex\(value\)/);
+
+  // The commit-event gap is closed: a pending edit is flushed on teardown
+  // BEFORE the panel innerHTML is cleared, so a typed-but-unblurred edit lands.
+  assert.match(html, /settingsPanelFlush = \(\) =>/);
+  assert.match(html, /pendingFlushes\.push\(saveColor\)/);
+  // closeRadialMenu flushes before tearing down the panel DOM.
+  assert.match(html, /if \(settingsPanelFlush\) \{[\s\S]*?settingsPanelFlush\(\)/);
+
+  // The write path is real: theme_color is a whitelisted, hex-validated field.
+  assert.match(main, /theme_color:\s+v => \(\/\^#\[0-9a-fA-F\]\{3,8\}\$\/\.test/);
+  assert.match(main, /themeColor: a\.theme_color \|\| null/);
+});
+
 test('agent pets are per-agent and use the Codex pet roster instead of a hard-coded companion', () => {
   assert.match(html, /id="agent-pet-layer"/);
   assert.match(html, /id="f-pet"/);
