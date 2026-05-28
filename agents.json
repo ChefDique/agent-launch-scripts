@@ -190,7 +190,7 @@
       "runtime": "claude",
       "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CMO",
       "color": "cyan",
-      "startup_slash": "",
+      "startup_slash": "/lead-gogo",
       "model": "claude-opus-4-7[1m]",
       "reasoning_effort": "max",
       "theme_color": "#00f2ff",
@@ -220,38 +220,10 @@
       "allow_claude_runtime": true
     },
     {
-      "id": "lucius",
-      "display_name": "LUCIUS",
-      "runtime": "claude",
-      "cwd": "~/ai_projects/research-and-development",
-      "color": "purple",
-      "theme_color": "#4c00ff",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "startup_slash": "/lead-gogo",
-      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
-      "env": {
-        "KOKORO_VOICE": "am_michael"
-      },
-      "rename_to": "LUCIUS",
-      "model": "claude-opus-4-7[1m]",
-      "reasoning_effort": "medium",
-      "avatar": "lucius.png",
-      "allow_claude_runtime": true,
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
       "id": "vegeta",
       "display_name": "VEGETA",
       "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod/team/08_asset-producer",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
@@ -280,6 +252,35 @@
           "startup_lines"
         ]
       }
+    },
+    {
+      "id": "lucius",
+      "display_name": "LUCIUS",
+      "runtime": "claude",
+      "cwd": "~/ai_projects/research-and-development",
+      "color": "purple",
+      "theme_color": "#4c00ff",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "startup_slash": "/lead-gogo",
+      "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
+      "env": {
+        "KOKORO_VOICE": "am_michael"
+      },
+      "rename_to": "LUCIUS",
+      "model": "claude-opus-4-7[1m]",
+      "reasoning_effort": "max",
+      "avatar": "lucius.png",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      },
+      "auto_restart": false
     },
     {
       "id": "neo",
