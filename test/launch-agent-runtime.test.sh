@@ -519,10 +519,21 @@ first_exclude_send_key="$(awk '/^send-keys/ { print; exit }' "$TMUX_CALLS")"
 
 launch_override_claude_output="$(SWARMY_RUNTIME_OVERRIDE=claude run_agent codex 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$launch_override_claude_output"
-grep -qx 'ARG:claude-opus-4-7\[1m\]' <<< "$launch_override_claude_output"
+# The Codex agent's gpt model is stripped for the Claude runtime -> "default" ->
+# launcher omits --model so Claude Code resolves its own recommended default.
+# The bare word "default" is not a valid --model alias, so neither the flag nor
+# the literal "default" may appear in argv.
+! grep -qx 'ARG:--model' <<< "$launch_override_claude_output"
+! grep -qx 'ARG:default' <<< "$launch_override_claude_output"
 grep -qx 'ARG:max' <<< "$launch_override_claude_output"
 ! grep -qx 'ARG:gpt-5.5' <<< "$launch_override_claude_output"
 ! grep -qx 'ARG:danger-full-access' <<< "$launch_override_claude_output"
+
+# An explicit Claude model is still passed through verbatim as --model <value>.
+launch_explicit_claude_output="$(SWARMY_RUNTIME_OVERRIDE=claude SWARMY_MODEL_OVERRIDE='claude-opus-4-8[1m]' run_agent codex 2>&1)"
+grep -qx 'COMMAND:claude' <<< "$launch_explicit_claude_output"
+grep -qx 'ARG:--model' <<< "$launch_explicit_claude_output"
+grep -qx 'ARG:claude-opus-4-8\[1m\]' <<< "$launch_explicit_claude_output"
 
 launch_override_codex_output="$(SWARMY_RUNTIME_OVERRIDE=codex run_agent codex 2>&1)"
 grep -qx 'COMMAND:codex' <<< "$launch_override_codex_output"
@@ -566,7 +577,8 @@ grep -q "unsupported Codex model 'gpt-5.1'" <<< "$unsupported_codex_model_output
 
 contaminated_claude_output="$(run_agent contaminated-claude-runtime 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$contaminated_claude_output"
-grep -qx 'ARG:claude-opus-4-7\[1m\]' <<< "$contaminated_claude_output"
+# Contaminating gpt model is stripped -> "default" -> launcher omits --model.
+! grep -qx 'ARG:--model' <<< "$contaminated_claude_output"
 grep -qx 'ARG:max' <<< "$contaminated_claude_output"
 ! grep -qx 'ARG:gpt-5.5' <<< "$contaminated_claude_output"
 ! grep -qx 'ARG:high' <<< "$contaminated_claude_output"

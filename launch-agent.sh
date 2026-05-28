@@ -488,7 +488,7 @@ build_runtime_command() {
   local runtime="$1"
   case "$runtime" in
     claude)
-      local claude_model="${MODEL:-claude-opus-4-7[1m]}"
+      local claude_model="${MODEL:-default}"
       local claude_effort="${REASONING_EFFORT:-max}"
       RUNTIME_CMD=(
         claude
@@ -496,10 +496,17 @@ build_runtime_command() {
         --dangerously-skip-permissions
         --dangerously-load-development-channels "server:claude-peers"
         --exclude-dynamic-system-prompt-sections
-        --model "$claude_model"
         --effort "$claude_effort"
         -n "$DISPLAY_NAME"
       )
+      # "default" (or empty) => omit --model so Claude Code resolves its own
+      # recommended default (Opus 4.8 1M ctx today; auto-tracks future bumps,
+      # matching Richard's `/model default`). The bare word "default" is NOT a
+      # valid `claude --model` alias, so we drop the flag rather than pass it.
+      # Mirrors the Hermes "default" sentinel handling below.
+      if [[ -n "$claude_model" && "$claude_model" != "default" ]]; then
+        RUNTIME_CMD+=(--model "$claude_model")
+      fi
       ;;
     codex)
       local codex_model="${MODEL:-$(codex_default_model)}"

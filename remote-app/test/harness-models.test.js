@@ -9,10 +9,12 @@ const {
   isModelSupportedForHarness
 } = require('../harness-models');
 
-test('claude harness has Opus 4.7 + Sonnet 4.6 as available models', () => {
+test('claude harness offers a default sentinel plus explicit Opus 4.8/4.7 + Sonnet 4.6', () => {
   const models = getModelsForHarness('claude');
   assert.ok(models.length >= 2, `expected >=2 claude models, got ${models.length}`);
-  assert.ok(models.some(m => m.id === 'claude-opus-4-7[1m]'), 'expected Opus 1M ctx');
+  assert.strictEqual(models[0].id, 'default', 'expected the "default" sentinel listed first');
+  assert.ok(models.some(m => m.id === 'claude-opus-4-8[1m]'), 'expected Opus 4.8 1M ctx');
+  assert.ok(models.some(m => m.id === 'claude-opus-4-7[1m]'), 'expected Opus 4.7 1M ctx still selectable');
   assert.ok(models.some(m => m.id === 'claude-sonnet-4-6'), 'expected Sonnet 4.6');
 });
 
@@ -43,8 +45,11 @@ test('codex harness exposes the current local GPT catalog with gpt-5.5 as defaul
   }
 });
 
-test('claude default is the 1M-ctx Opus to match registry expectation', () => {
-  assert.strictEqual(getDefaultModelForHarness('claude'), 'claude-opus-4-7[1m]');
+test('claude default is the "default" sentinel so the launcher tracks the CC default', () => {
+  // Registry "default" => launch-agent.sh omits --model => Claude Code resolves
+  // its own recommended default (Opus 4.8 1M ctx today; auto-tracks future bumps).
+  assert.strictEqual(getDefaultModelForHarness('claude'), 'default');
+  assert.strictEqual(isModelSupportedForHarness('claude', 'default'), true);
 });
 
 test('codex default is the coding model', () => {

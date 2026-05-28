@@ -123,7 +123,7 @@ Runtime is normalized via `normalizeRuntime` to one of `codex | claude | hermes 
 | Runtime | Default model | Models offered | Reasoning label | Default reasoning | Reasoning levels |
 |---|---|---|---|---|---|
 | **codex** | `gpt-5.5` | gpt-5.5, gpt-5.4, gpt-5.4-mini, gpt-5.3-codex, gpt-5.3-codex-spark, gpt-5.2 | thinking level | `xhigh` | low, medium, high, xhigh |
-| **claude** | `claude-opus-4-7[1m]` | Opus 4.7 (1M), Opus 4.7, Sonnet 4.6, Haiku 4.5 | effort | `max` | low, medium, high, xhigh, max |
+| **claude** | `default` | default, Opus 4.8 (1M), Opus 4.8, Opus 4.7 (1M), Opus 4.7, Sonnet 4.6, Haiku 4.5 | effort | `max` | low, medium, high, xhigh, max |
 | **hermes** | `default` | default, anthropic/claude-sonnet-4, anthropic/claude-opus-4 | reasoning | `policy-only` | policy-only |
 | **openclaw** | `local` | local | thinking | `high` | low, medium, high, xhigh, max |
 

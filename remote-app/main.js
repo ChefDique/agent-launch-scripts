@@ -2288,7 +2288,7 @@ function applyRuntimePolicy(entry, runtime) {
     delete entry.sandbox;
     delete entry.approval_policy;
     if (!entry.model || entry.model.startsWith('gpt-') || entry.model.includes('codex')) {
-      entry.model = getDefaultModelForHarness('claude') || 'claude-opus-4-7[1m]';
+      entry.model = getDefaultModelForHarness('claude') || 'default';
     }
     if (!entry.reasoning_effort || entry.reasoning_effort === 'policy-only') {
       entry.reasoning_effort = getDefaultReasoningForHarness('claude') || 'max';
