@@ -287,6 +287,15 @@ expand_startup_line() {
   printf '%s\n' "$line"
 }
 
+startup_lines_contains() {
+  local needle="$1" item
+  (( ${#STARTUP_LINES[@]} )) || return 1
+  for item in "${STARTUP_LINES[@]}"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 read_startup_lines() {
   STARTUP_LINES=()
   if jq -e '.startup_lines != null' <<< "$ENTRY" >/dev/null; then
@@ -303,7 +312,22 @@ read_startup_lines() {
       startup_line="$(expand_startup_line "$startup_line")"
       [[ -n "$startup_line" ]] && STARTUP_LINES+=("$startup_line")
     done < <(jq -r '.startup_lines[:3][]' <<< "$ENTRY")
-    return
+    # An explicit startup_lines array used to BE the complete boot sequence — it
+    # silently dropped the declarative /rename + startup_slash fields. So hansel
+    # (startup_lines ["/color pink"], startup_slash "/lead-gogo") never ran
+    # /lead-gogo, while xavier only worked because it duplicated /lead-gogo into
+    # its array. That per-agent divergence is the "works for some, not others, as
+    # if hardcoded" bug. Augment instead of replace: re-add /rename (Claude) and
+    # startup_slash unless the array already lists them (dedup avoids doubles).
+    # /color stays the array author's to override (hansel: cyan field -> pink).
+    if [[ "$RUNTIME" == "claude" ]] && [[ -n "$RENAME_TO" ]] \
+        && ! startup_lines_contains "/rename $RENAME_TO"; then
+      STARTUP_LINES+=("/rename $RENAME_TO")
+    fi
+    if [[ -n "$STARTUP" ]] && ! startup_lines_contains "$STARTUP"; then
+      STARTUP_LINES+=("$STARTUP")
+    fi
+    return 0
   fi
   HAS_STARTUP_LINES=false
 

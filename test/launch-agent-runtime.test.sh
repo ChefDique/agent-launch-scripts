@@ -367,6 +367,11 @@ grep -Fxq 'send-keys -t %testpane Enter' "$TMUX_CALLS"
 grep -Fxq 'send-keys -t %testpane -l -- /color purple' "$TMUX_CALLS"
 grep -Fxq 'send-keys -t %testpane -l -- -literal-starts-with-dash' "$TMUX_CALLS"
 grep -Fxq 'send-keys -t %testpane -l -- /rename INTENTIONAL' "$TMUX_CALLS"
+# Regression: {{startup_slash}} was this fixture's 4th startup_lines entry, cut
+# by the [:3] cap, and an array used to REPLACE (not augment) the startup_slash
+# field. The launcher must recover /lead-gogo exactly once (appended, no double).
+grep -Fxq 'send-keys -t %testpane -l -- /lead-gogo' "$TMUX_CALLS"
+[[ "$(grep -Fc 'send-keys -t %testpane -l -- /lead-gogo' "$TMUX_CALLS")" -eq 1 ]]
 
 TMUX_CALLS="$TMP_DIR/codex-policy-tmux-calls.log"
 rm -f "$TMUX_CALLS"
@@ -516,6 +521,12 @@ grep -qx 'COMMAND:claude' <<< "$exclude_enter_output"
 sleep 1
 first_exclude_send_key="$(awk '/^send-keys/ { print; exit }' "$TMUX_CALLS")"
 [[ "$first_exclude_send_key" == 'send-keys -t %exclude -l -- /rename EXCLUDE-ENTER' ]]
+# Regression: exclude-enter-runtime sets startup_slash=/lead-gogo with a
+# startup_lines array (["/rename {{rename_to}}"]) that omits it. The array must
+# AUGMENT, not replace, so /lead-gogo still fires exactly once — it was silently
+# dropped before (the "works for some agents, not others, as if hardcoded" bug).
+grep -Fxq 'send-keys -t %exclude -l -- /lead-gogo' "$TMUX_CALLS"
+[[ "$(grep -Fc 'send-keys -t %exclude -l -- /lead-gogo' "$TMUX_CALLS")" -eq 1 ]]
 
 launch_override_claude_output="$(SWARMY_RUNTIME_OVERRIDE=claude run_agent codex 2>&1)"
 grep -qx 'COMMAND:claude' <<< "$launch_override_claude_output"
