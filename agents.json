@@ -182,7 +182,11 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "startup_lines": [
+        "/color red",
+        "{{startup_slash}}"
+      ]
     },
     {
       "id": "hansel",
@@ -193,11 +197,11 @@
       "startup_slash": "/lead-gogo",
       "model": "default",
       "reasoning_effort": "max",
-      "theme_color": "#00f2ff",
+      "theme_color": "#fbff00",
       "avatar": "hansel.png",
       "allow_claude_runtime": true,
       "startup_lines": [
-        "/color pink"
+        "/color yellow"
       ],
       "startup_injection": {
         "include": [
@@ -217,7 +221,40 @@
       "avatar": "acrm-builder.png",
       "model": "default",
       "reasoning_effort": "max",
-      "allow_claude_runtime": true
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color pink",
+        "{{startup_slash}}"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
+      "id": "kenpachi",
+      "display_name": "KENPACHI",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/ecom-os",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "default",
+      "reasoning_effort": "max",
+      "theme_color": "#00f2ff",
+      "avatar": "kenpachi.png",
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color cyan",
+        "{{startup_slash}}"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
     },
     {
       "id": "vegeta",
@@ -232,7 +269,10 @@
       "avatar": "vegeta.png",
       "auto_restart": false,
       "sandbox": "danger-full-access",
-      "approval_policy": "never"
+      "approval_policy": "never",
+      "startup_lines": [
+        "/color blue"
+      ]
     },
     {
       "id": "zoolander",
@@ -251,7 +291,11 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "startup_lines": [
+        "/color purple",
+        "{{startup_slash}}"
+      ]
     },
     {
       "id": "lucius",
@@ -280,7 +324,12 @@
           "startup_lines"
         ]
       },
-      "auto_restart": false
+      "auto_restart": false,
+      "startup_lines": [
+        "/color purple",
+        "/rename {{rename_to}}",
+        "{{startup_slash}}"
+      ]
     },
     {
       "id": "neo",
@@ -304,7 +353,11 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "startup_lines": [
+        "/color green",
+        "{{startup_slash}}"
+      ]
     },
     {
       "id": "xavier",
@@ -405,20 +458,6 @@
       "theme_color": "#ffa200",
       "avatar": "ballstein.png",
       "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never"
-    },
-    {
-      "id": "kenpachi",
-      "display_name": "KENPACHI",
-      "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/pods/08_creative-production-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "model": "gpt-5.5",
-      "reasoning_effort": "xhigh",
-      "theme_color": "#00f2ff",
-      "avatar": "kenpachi.png",
       "sandbox": "danger-full-access",
       "approval_policy": "never"
     },
