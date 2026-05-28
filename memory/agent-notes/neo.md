@@ -96,6 +96,18 @@ Any code delivering text into a raw-mode TUI pane (Claude/Codex) via `tmux send-
 **Why:** the same text+CR-as-paste bug surfaced in THREE independent send paths — the HUD (`remote-app/tmux-send-path.js`), the launcher (`launch-agent.sh` `send_tmux_literal_line`), and the message-agent bus (`agent_bus_listener.py`). The bus had the delay in the wrong place (after a `C-m`) plus a `C-m`+`Enter` double-submit, so messages landed in the composer unsent, intermittently (fixed 2026-05-21, message-agent `3c9509c`). The TUI folds paste-then-immediate-Enter into one block and absorbs the Enter as a newline.
 **How to apply:** when you see "text appears but doesn't send," "intermittent submit," or "stray extra carriage return" on a tmux send path, check: (a) a delay BETWEEN paste and Enter (~0.15s), (b) a SINGLE Enter (no `C-m`+`Enter`), (c) no trailing newline in the literal block. Make the delay env-overridable. Verify live against a throwaway TUI pane, not just unit tests.
 
+### 2026-05-28 — a registry array/override must AUGMENT declarative fields, not silently replace them
+
+`read_startup_lines()` returned early when an agent had a `startup_lines` array, sending ONLY those lines and silently dropping the declarative `startup_slash` (+ `/rename`). hansel (`startup_lines: ["/color pink"]`, `startup_slash: "/lead-gogo"`) never ran `/lead-gogo`; xavier only worked because `/lead-gogo` was hand-duplicated into its array; the 7 array-less agents were fine. That per-agent divergence is exactly what Richard meant by "the /command fields work for some agents, not others, as if hardcoded."
+**Why:** an array authored to override ONE thing (e.g. color) silently nuked the whole declarative startup contract. Fixed by appending `/rename` (Claude) + `startup_slash` unless already present (exact-match dedup), proven via a stubbed-tmux dry-run before claiming it worked. Commit `ac66f1c`.
+**How to apply:** when a registry array/override "wins" over a declarative field, check whether it REPLACES or AUGMENTS — replacing silently drops sibling fields. Prefer augment-with-dedup. For "works for some agents, not others," diff the per-agent config path; don't assert the mechanism is fine. Pairs with [[feedback_dynamic_not_hardcoded]].
+
+### 2026-05-28 — reproduce / operator-confirm before asserting "it works"; settings-reset is a phantom-bug confounder
+
+I told Richard the slash-command mechanism "works, `/color` is just the wrong lever" from static reading. He pushed back ("are you telling me it works? it doesn't for all agents, as if hardcoded"). Investigating per-agent surfaced the real bug above. Separately, his original `/color` symptom turned out to be **his own settings getting reset** ("I might be mistaken… it's working"), not a code bug.
+**Why:** asserting "it works" from static analysis — twice — eroded trust; the operator was seeing real inconsistency I'd dismissed. A settings/config reset produces a convincing "it stopped working" symptom indistinguishable from a code regression.
+**How to apply:** when the operator reports inconsistent behavior, REPRODUCE per-agent (stubbed dry-run / isolated session) before claiming the mechanism is fine. Keep "settings/config reset" on the candidate list for phantom regressions. Pairs with [[feedback_diagnose_before_build_gate]].
+
 ## Failed approaches
 
 <!-- Example shape (delete after first real entry):
