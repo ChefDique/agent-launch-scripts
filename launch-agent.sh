@@ -169,6 +169,7 @@ CWD="${PROJECT_ROOT:-${RAW_CWD/#\~/$HOME}}"
 [[ -d "$CWD" ]] || { echo "launch-agent: cwd does not exist: $CWD" >&2; exit 1; }
 
 COLOR="$(field color)"
+THEME_COLOR="$(field theme_color)"
 ENTRY_RUNTIME="$(field runtime)"
 PRESET_RUNTIME="$(preset_field runtime)"
 REGISTRY_RUNTIME="$ENTRY_RUNTIME"
@@ -481,6 +482,13 @@ while IFS=$'\t' read -r k v; do
   [[ -z "$k" ]] && continue
   export "$k=$v"
 done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)\t\(.value)"' <<< "$ENTRY")
+
+# Per-agent statusline color. The global statusline script reads
+# AGENT_STATUSLINE_COLOR (a #RRGGBB hex) and paints its banner with it so each
+# agent's terminal matches its AgentRemote HUD tile (both driven by theme_color).
+# /color can't recolor a custom statusline, so this is the lever that does.
+# Unset for non-launcher/interactive sessions => statusline keeps its default.
+[[ -n "$THEME_COLOR" ]] && export AGENT_STATUSLINE_COLOR="$THEME_COLOR"
 
 MESSAGE_AGENT_SLUG="$(field message_agent_slug)"
 [[ -z "$MESSAGE_AGENT_SLUG" ]] && MESSAGE_AGENT_SLUG="$(canonical_agent_slug "$AGENT_ID")"
