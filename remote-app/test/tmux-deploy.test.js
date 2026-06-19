@@ -12,6 +12,7 @@ const {
   paneDiedHookArgs,
   setSessionLayoutArgs,
   setOwnershipArgs,
+  deploySingleWindow,
   sidecarEntryFromDisplay,
   OWNERSHIP_OPTION,
   LEGACY_OWNERSHIP_OPTION,
@@ -114,6 +115,33 @@ test('setOwnershipArgs stamps the AgentRemote ownership sentinel', () => {
   // Legacy swarmy option is still honored on read so existing sessions keep working.
   assert.equal(LEGACY_OWNERSHIP_OPTION, '@swarmy_runtime');
   assert.equal(OWNERSHIP_VALUE, 'agentremote');
+});
+
+test('deploySingleWindow stamps BOTH ownership tags so swarmy-delegated Stop/Attach still own a freshly native-created session', () => {
+  const calls = [];
+  let paneSeq = 0;
+  const runTmux = (args) => {
+    calls.push(args);
+    if (args[0] === 'has-session') return { status: 1, stdout: '', stderr: '' }; // fresh session
+    if (args[0] === 'new-session' || args[0] === 'split-window') return { status: 0, stdout: `%${++paneSeq}`, stderr: '' };
+    if (args[0] === 'display-message') return { status: 0, stdout: '0', stderr: '' };
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const res = deploySingleWindow({
+    session: 'test_deploy_own',
+    agents: [{ id: 'xavier', cwd: '/tmp' }, { id: 'gekko', cwd: '/tmp' }],
+    sidecarPath: null,
+    commandForAgent: () => 'true',
+    runTmux,
+    readSidecar: () => ({}),
+    writeSidecar: () => {}
+  });
+  assert.equal(res.ok, true);
+  const setOpts = calls.filter(a => a[0] === 'set-option');
+  const hasNative = setOpts.some(a => a.includes('@agentremote_runtime') && a.includes(OWNERSHIP_VALUE));
+  const hasLegacy = setOpts.some(a => a.includes(LEGACY_OWNERSHIP_OPTION) && a.includes(OWNERSHIP_VALUE));
+  assert.ok(hasNative, 'native ownership tag @agentremote_runtime must be set');
+  assert.ok(hasLegacy, 'legacy @swarmy_runtime must be set so swarmy Stop/Attach accept the native session');
 });
 
 // ---------------------------------------------------------------------------

@@ -105,6 +105,15 @@ function setOwnershipArgs(session) {
   return ['set-option', '-t', String(session), '-q', OWNERSHIP_OPTION, OWNERSHIP_VALUE];
 }
 
+// Bridge: also stamp the legacy @swarmy_runtime (same value). Stop/Attach still
+// delegate to swarmy python, which gates on require_owned_session reading
+// @swarmy_runtime; without this a freshly native-created session would be
+// refused by those paths (and the deploy's own viewer-attach would fail).
+// Remove once attach/stop are also native.
+function setLegacyOwnershipArgs(session) {
+  return ['set-option', '-t', String(session), '-q', LEGACY_OWNERSHIP_OPTION, OWNERSHIP_VALUE];
+}
+
 function hasSessionArgs(session) {
   return ['has-session', '-t', String(session)];
 }
@@ -363,8 +372,11 @@ function deploySingleWindow(opts = {}) {
     runTmux(selectLayoutTiledArgs(windowTarget));
   }
 
-  // Stamp session ownership + layout (idempotent on repeat deploys).
+  // Stamp session ownership + layout (idempotent on repeat deploys). Write BOTH
+  // the native tag and the legacy @swarmy_runtime so swarmy-delegated Stop/Attach
+  // still recognize the session until those paths are also native.
   runTmux(setOwnershipArgs(session));
+  runTmux(setLegacyOwnershipArgs(session));
   runTmux(setSessionLayoutArgs(session, SINGLE_WINDOW_LAYOUT));
 
   // Write the sidecar in swarmy shape for each created pane.
@@ -420,6 +432,7 @@ module.exports = {
   paneDiedHookArgs,
   setSessionLayoutArgs,
   setOwnershipArgs,
+  setLegacyOwnershipArgs,
   hasSessionArgs,
   displayMessageArgs,
   listPaneIdentitiesArgs,
