@@ -620,27 +620,28 @@ test('floating pet chat bubble adapts above or below based on window bounds', ()
   assert.match(main, /PET_WORKAREA_SAFETY/);
 });
 
-test('deploy surface exposes team, separate-tabs, and even-panes operator paths', () => {
-  assert.match(html, /data-layout="teams"/);
-  assert.match(html, /data-layout="ittab"/);
-  assert.match(html, /data-layout="panes"/);
-  assert.match(html, />Teams<\/button>/);
-  assert.match(html, />Tabs<\/button>/);
-  assert.match(html, />Panes<\/button>/);
-  assert.match(html, /id="layout-pills".*role="radiogroup"/s);
-  assert.match(html, /data-layout="teams"[^>]*role="radio"[^>]*aria-checked="true"/);
-  assert.match(html, /data-layout="ittab"[^>]*role="radio"[^>]*aria-checked="false"/);
-  assert.match(html, /data-layout="panes"[^>]*role="radio"[^>]*aria-checked="false"/);
-  assert.match(html, /class="deploy-layout-card" data-layout="teams" role="radio" aria-checked="true"/);
-  assert.match(html, /balanced team windows/);
-  assert.match(html, /Separate tabs/);
-  assert.match(html, /Even panes/);
-  assert.match(html, /solo tmux window/);
-  assert.match(html, /joined in one balanced window/);
+test('deploy surface collapses to a single-window model — no multi-window layout picker', () => {
+  // Native deploy always makes ONE window, so the renderer must not offer the
+  // multi-window layout choices that confused the user ("they do the same thing").
+  // The 3 interactive layout pills + 3 deploy-overlay layout cards are gone.
+  assert.doesNotMatch(html, /class="layout-pill"/);
+  assert.doesNotMatch(html, /class="deploy-layout-card"/);
+  assert.doesNotMatch(html, /data-layout="teams"/);
+  assert.doesNotMatch(html, /data-layout="ittab"/);
+  assert.doesNotMatch(html, /data-layout="panes"/);
+  assert.doesNotMatch(html, /data-layout="windows"/);
+  // A single clear "One window" indicator communicates the outcome.
+  assert.match(html, /One window/);
+  // The renderer still spawns via invoke (never the removed .send duplicate).
   assert.match(html, /ipcRenderer\.invoke\('spawn-agents'/);
   assert.match(html, /Deploy failed/);
   assert.doesNotMatch(html, /ipcRenderer\.send\('spawn-agents'/);
-  assert.doesNotMatch(html, /data-layout="windows"/);
+});
+
+test('renderer sends the single-window layout to spawn-agents', () => {
+  // layoutMode is a constant 'single'; confirmDeploy passes that layout through.
+  assert.match(html, /const layoutMode = 'single'/);
+  assert.match(html, /ipcRenderer\.invoke\('spawn-agents', \{ agents: ids, layout, runtimeOverrides \}\)/);
 });
 
 test('agent registry exposes swarm preset templates with runtime posture', () => {

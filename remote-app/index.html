@@ -1122,61 +1122,35 @@
        cluster, sits to the LEFT of the Edit/All/Deploy buttons so it reads
        as a deploy-flow modifier rather than a generic util.
     */
-    .layout-pills {
-      display: flex;
-      gap: 0;
+    /* Single-window indicator — non-interactive badge in the meta row. Replaced
+       the old TEAMS/TABS/PANES pill chooser: native deploy always makes one
+       window, so this just communicates the outcome (not a control). */
+    .layout-indicator {
+      display: inline-flex;
+      gap: 5px;
       align-items: center;
       border: 1px solid var(--border-soft);
       border-radius: 8px;
-      overflow: hidden;
+      padding: 4px 9px;
       -webkit-app-region: no-drag;
       margin-right: 6px;
-    }
-    .layout-pill {
-      background: transparent;
-      border: 0;
       color: var(--text-muted);
       font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
       font-size: 9px;
       letter-spacing: 0.6px;
       text-transform: uppercase;
-      padding: 4px 8px;
-      cursor: pointer;
-      /* Polish: scoped + tightened. Pill hover is a snap (130ms color +
-         bg); active state uses a 220ms box-shadow to bloom in the inset
-         outline. */
-      transition:
-        color 0.13s var(--ease),
-        background 0.13s var(--ease),
-        box-shadow 0.22s var(--ease);
-      border-right: 1px solid var(--border-soft);
       line-height: 1.1;
+      cursor: default;
     }
-    .layout-pill:last-child { border-right: 0; }
-    .layout-pill:hover { color: var(--text-primary); background: rgba(255, 255, 255, 0.04); }
-    .layout-pill.active {
-      color: var(--accent);
-      background: rgba(224, 124, 76, 0.12);
-      box-shadow: inset 0 0 0 1px rgba(224, 124, 76, 0.35);
+    .layout-indicator .li-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent-glow, rgba(224, 124, 76, 0.55));
+      flex: 0 0 auto;
     }
-
-    /* Layout mismatch — applied to .layout-pills when chq is running AND the
-       active pill differs from the session's stashed @chq_layout. Telegraphs
-       "your pill choice won't take effect until you tear down the session".
-       Subtle: tinted amber border + a small dot on the active pill, plus a
-       tooltip on the wrapper. NOT a loud red — this isn't an error, it's a
-       hint that explains why the pill seems to do nothing. */
-    .layout-pills.mismatch {
-      border-color: rgba(255, 170, 0, 0.55);
-      box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.18);
-    }
-    .layout-pills.mismatch .layout-pill.active {
-      /* Swap the orange selection tint for the amber hint color so the active
-         pill itself reads as "different from what's running". */
-      color: #ffaa00;
-      background: rgba(255, 170, 0, 0.12);
-      box-shadow: inset 0 0 0 1px rgba(255, 170, 0, 0.45);
-    }
+    .layout-indicator .li-label { white-space: nowrap; }
 
     /* Stop-session button — small ✕ next to the layout pills. Only meaningful
        when chq is running; visually muted otherwise (no point clicking when
@@ -1962,58 +1936,27 @@
     }
 
     /* Section label that sits above the layout grid + the actions row. */
-    .deploy-section-label {
-      font-size: 10px;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
-
-    /* Layout choice grid — compact cards with the tmux wrap pattern visible.
-       Clicking keeps
-       data-layout on the card; the JS reads aria-checked=true at confirm
-       time. Hover lifts; selected has the accent border + glow. */
-    .deploy-layout-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-    .deploy-layout-card {
+    /* Single-window note — a non-interactive info row in the deploy overlay that
+       replaced the old 2x2 layout-choice grid. Communicates "one window" with
+       the same visual language (icon tile + name + hint), no selection state. */
+    .deploy-layout-note {
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 6px;
-      padding: 10px 10px 9px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-soft);
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      background: rgba(224, 124, 76, 0.06);
+      border: 1px solid var(--accent);
       border-radius: 12px;
-      cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(224, 124, 76, 0.25);
       color: var(--text-primary);
       text-align: left;
-      transition:
-        background 0.16s var(--ease),
-        border-color 0.16s var(--ease),
-        transform 0.16s var(--ease),
-        box-shadow 0.16s var(--ease);
-      -webkit-app-region: no-drag;
     }
-    .deploy-layout-card:hover {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: var(--border-medium);
-      transform: translateY(-1px);
-    }
-    .deploy-layout-card:active { transform: translateY(0); }
-    .deploy-layout-card[aria-checked="true"] {
-      background: rgba(224, 124, 76, 0.08);
-      border-color: var(--accent);
-      box-shadow: 0 0 18px var(--accent-glow), inset 0 0 0 1px rgba(224, 124, 76, 0.4);
-    }
-    .deploy-layout-card .dl-icon {
-      width: 100%;
+    .deploy-layout-note .dl-icon {
+      width: 48px;
       height: 36px;
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2021,42 +1964,24 @@
       border-radius: 8px;
       border: 1px solid var(--border-soft);
     }
-    .deploy-layout-card .dl-icon svg {
+    .deploy-layout-note .dl-icon svg {
       width: 38px;
       height: 26px;
       fill: none;
-      stroke: var(--text-muted);
+      stroke: var(--accent);
       stroke-width: 1.4;
       stroke-linecap: round;
-      transition: stroke 0.16s var(--ease);
     }
-    .deploy-layout-card .dl-icon svg .bg {
-      fill: rgba(255, 255, 255, 0.04);
-      stroke: var(--text-muted);
-    }
-    .deploy-layout-card .dl-icon svg .tab {
-      fill: rgba(255, 255, 255, 0.06);
-      stroke: var(--text-muted);
-      stroke-width: 1.2;
-    }
-    .deploy-layout-card .dl-icon svg .tab.active {
-      fill: rgba(224, 124, 76, 0.22);
-      stroke: var(--accent);
-    }
-    .deploy-layout-card[aria-checked="true"] .dl-icon svg,
-    .deploy-layout-card[aria-checked="true"] .dl-icon svg .bg {
-      stroke: var(--accent);
-    }
-    .deploy-layout-card[aria-checked="true"] .dl-icon svg .tab {
-      stroke: var(--accent);
-    }
-    .deploy-layout-card .dl-name {
+    .deploy-layout-note .dl-icon svg .bg { fill: rgba(255, 255, 255, 0.04); stroke: var(--accent); }
+    .deploy-layout-note .dl-icon svg .tab { fill: rgba(224, 124, 76, 0.22); stroke: var(--accent); stroke-width: 1.2; }
+    .deploy-layout-note .dl-meta { display: flex; flex-direction: column; gap: 2px; }
+    .deploy-layout-note .dl-name {
       font-size: 11.5px;
       font-weight: 600;
       letter-spacing: 0.2px;
       color: var(--text-primary);
     }
-    .deploy-layout-card .dl-hint {
+    .deploy-layout-note .dl-hint {
       font-size: 9.5px;
       color: var(--text-muted);
       letter-spacing: 0.2px;
@@ -3997,14 +3922,14 @@
           <span class="glyph">✕</span>
           <span class="confirm"><span class="ok">✓</span><span class="no">✗</span></span>
         </button>
-        <!-- Deploy layout modes preserve the operator shapes Richard uses:
-             TEAMS groups selected agents by team into balanced manipulable
-             iTerm control-mode windows; TABS keeps each agent as a solo tmux
-             window; PANES joins agents into one balanced tmux window. -->
-        <div class="layout-pills" id="layout-pills" role="radiogroup" aria-label="Spawn layout mode">
-          <button class="layout-pill active" data-layout="teams" role="radio" aria-checked="true" data-base-title="Teams: agent processes -> balanced team windows -> iTerm control-mode surfaces." title="Teams: agent processes -> balanced team windows -> iTerm control-mode surfaces.">Teams</button>
-          <button class="layout-pill" data-layout="ittab" role="radio" aria-checked="false" data-base-title="Separate tabs: agent process -> tmux pane -> solo tmux window -> iTerm control-mode surface." title="Separate tabs: agent process -> tmux pane -> solo tmux window -> iTerm control-mode surface.">Tabs</button>
-          <button class="layout-pill" data-layout="panes" role="radio" aria-checked="false" data-base-title="Even panes: agent processes -> tmux panes joined in one chq window -> balanced tmux layout." title="Even panes: agent processes -> tmux panes joined in one chq window -> balanced tmux layout.">Panes</button>
+        <!-- Single-window model: native deploy always lands every selected agent
+             as a tiled pane in ONE tmux window surfaced through iTerm control
+             mode. The old TEAMS/TABS/PANES picker was removed — they all produced
+             one window now, which was confusing. This is a non-interactive
+             indicator, not a chooser. -->
+        <div class="layout-indicator" id="layout-indicator" title="All selected agents open as tiled panes in one window.">
+          <span class="li-dot" aria-hidden="true"></span>
+          <span class="li-label">One window</span>
         </div>
         <button class="util-btn" id="edit-btn" title="Edit mode — show × badges to remove agents from registry">Edit</button>
         <button class="util-btn" id="select-all-btn" title="Select all / clear all">All</button>
@@ -4110,35 +4035,17 @@
         <div class="deploy-title" id="deploy-title">Spawn <span id="deploy-count">0</span> agent<span id="deploy-plural"></span></div>
       </div>
       <div class="deploy-roster" id="deploy-roster"></div>
-      <div class="deploy-section-label">Layout</div>
-      <div class="deploy-layout-grid" id="deploy-layout-grid" role="radiogroup" aria-label="Spawn layout">
-        <button class="deploy-layout-card" data-layout="teams" role="radio" aria-checked="true">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="2" y="3" width="12" height="16" rx="3"/><path class="tab" d="M8 3v16M2 11h12"/><rect class="tab active" x="18" y="3" width="12" height="16" rx="3"/><path class="tab active" d="M24 3v16"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Teams</div>
-            <div class="dl-hint">balanced team windows surfaced through iTerm control mode</div>
-          </div>
-        </button>
-        <button class="deploy-layout-card" data-layout="ittab" role="radio" aria-checked="false">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="2" y="5" width="18" height="14" rx="3"/><rect class="tab" x="12" y="1" width="18" height="14" rx="3"/><rect class="tab active" x="7" y="3" width="18" height="14" rx="3"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Separate tabs</div>
-            <div class="dl-hint">process -> pane -> solo window -> iTerm control mode</div>
-          </div>
-        </button>
-        <button class="deploy-layout-card" data-layout="panes" role="radio" aria-checked="false">
-          <div class="dl-icon" aria-hidden="true">
-            <svg viewBox="0 0 32 22"><rect class="bg" x="3" y="3" width="26" height="16" rx="3"/><path class="tab" d="M12 3v16M20 3v16"/><rect class="tab active" x="3" y="3" width="26" height="16" rx="3"/></svg>
-          </div>
-          <div class="dl-meta">
-            <div class="dl-name">Even panes</div>
-            <div class="dl-hint">processes -> tmux panes joined in one balanced window</div>
-          </div>
-        </button>
+      <!-- Single-window model: no layout chooser. Every selected agent opens as
+           a tiled pane in one window. This info row replaces the old 3-card
+           TEAMS/TABS/PANES picker. -->
+      <div class="deploy-layout-note" id="deploy-layout-note">
+        <div class="dl-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 22"><rect class="bg" x="3" y="3" width="26" height="16" rx="3"/><path class="tab" d="M12 3v16M20 3v16"/><rect class="tab active" x="3" y="3" width="26" height="16" rx="3"/></svg>
+        </div>
+        <div class="dl-meta">
+          <div class="dl-name">One window</div>
+          <div class="dl-hint">all selected agents open as tiled panes in a single window</div>
+        </div>
       </div>
       <div class="deploy-actions">
         <button class="deploy-cancel" id="deploy-cancel">Cancel</button>
@@ -4198,11 +4105,6 @@
 
   <script>
     const { ipcRenderer } = require('electron');
-    const {
-      DEPLOY_LAYOUTS,
-      LAYOUT_MODES,
-      layoutModeToDeployLayout
-    } = require('./layout-policy');
     const {
       HARNESS_OPTIONS,
       harnessOptionFor,
@@ -4327,20 +4229,11 @@
     let selectedPets = {};
     let petMoodAgentId = null;
 
-    // Spawn-layout mode — affects the Deploy button. AgentRemote exposes three
-    // operator paths:
-    //   teams: agent processes -> balanced team windows -> iTerm control mode
-    //   ittab: agent process -> tmux pane -> solo tmux window -> iTerm control mode
-    //   panes: agent processes -> tmux panes joined in one balanced chq window
-    // Persisted to localStorage as `agentRemoteLayoutMode` so the choice sticks.
-    // Whitelisted on read; stale/corrupt values fall back to 'teams'.
-    // Default is teams: grouped, balanced, iTerm-control-mode surfaces that
-    // stay manipulable while avoiding one giant undifferentiated pane stack.
-    let layoutMode = 'teams';
-    try {
-      const stored = localStorage.getItem('agentRemoteLayoutMode');
-      if (stored && LAYOUT_MODES.includes(stored)) layoutMode = stored;
-    } catch { /* localStorage may be disabled in sandboxed contexts */ }
+    // Spawn-layout mode. The native deploy (tmux-deploy.js) always lands every
+    // selected agent as a tiled pane in ONE tmux window, so there is no longer a
+    // multi-window choice to make — the TEAMS/TABS/PANES picker was removed
+    // ("they do the same thing"). The renderer always sends 'single'.
+    const layoutMode = 'single';
 
     // ---------------------------------------------------------------------
     // Layout: measure DOM, ask main to resize the BrowserWindow
@@ -6865,25 +6758,18 @@
     // Dismiss: Escape, outside click, ✕ button, or Cancel. Confirm fires
     // spawn-agents and closes immediately.
     let deployPendingIds = null;       // ids the overlay is currently confirming
-    let deployPreviewLayout = null;    // user's choice in the overlay (defaults to layoutMode)
     let deployRuntimeOverrides = {};   // per-agent launch-time runtime choice
-
-    function pillLayoutToOverlayLayout(m) {
-      return layoutModeToDeployLayout(m);
-    }
 
     function openDeployPreview(ids) {
       const overlay = document.getElementById('deploy-overlay');
       if (!overlay || !ids || ids.length === 0) return;
       deployPendingIds = ids.slice();
-      deployPreviewLayout = pillLayoutToOverlayLayout(layoutMode);
       deployRuntimeOverrides = {};
       deployPendingIds.forEach(id => {
         const agent = agents[id];
         if (agent) deployRuntimeOverrides[id] = { runtime: normalizeRuntime(agent.runtime || 'codex') };
       });
       renderDeployRoster(deployPendingIds);
-      renderDeployLayoutGrid();
       // Update count + pluralization in the title.
       const countEl = document.getElementById('deploy-count');
       const pluralEl = document.getElementById('deploy-plural');
@@ -6971,36 +6857,11 @@
       });
     }
 
-    function setLayoutMode(nextLayout, { persist = true } = {}) {
-      if (!LAYOUT_MODES.includes(nextLayout)) return;
-      layoutMode = nextLayout;
-      if (persist) {
-        try { localStorage.setItem('agentRemoteLayoutMode', nextLayout); } catch { /* sandboxed */ }
-      }
-      const pills = document.querySelectorAll('.layout-pill');
-      pills.forEach(p => {
-        const active = p.dataset.layout === nextLayout;
-        p.classList.toggle('active', active);
-        p.setAttribute('aria-checked', active ? 'true' : 'false');
-      });
-      applyLayoutMismatchHint();
-    }
-
-    function renderDeployLayoutGrid() {
-      const grid = document.getElementById('deploy-layout-grid');
-      if (!grid) return;
-      grid.querySelectorAll('.deploy-layout-card').forEach(card => {
-        const isActive = card.dataset.layout === deployPreviewLayout;
-        card.setAttribute('aria-checked', isActive ? 'true' : 'false');
-      });
-    }
-
     function wireDeployPreview() {
       const overlay = document.getElementById('deploy-overlay');
       const cancel = document.getElementById('deploy-cancel');
       const confirm = document.getElementById('deploy-confirm');
       const close = document.getElementById('deploy-close');
-      const grid = document.getElementById('deploy-layout-grid');
       if (!overlay) return;
 
       // Outside click → close. Click on the card itself shouldn't close,
@@ -7012,20 +6873,7 @@
       if (cancel) cancel.addEventListener('click', closeDeployPreview);
       if (confirm) confirm.addEventListener('click', confirmDeploy);
 
-      // Layout-card clicks. Sync the overlay's choice AND the meta-row
-      // segmented pills so the next Deploy without reopening overlay also
-      // remembers it.
-      if (grid) {
-        grid.addEventListener('click', (e) => {
-          const card = e.target.closest('.deploy-layout-card');
-          if (!card) return;
-          const next = card.dataset.layout;
-          if (!DEPLOY_LAYOUTS.includes(next)) return;
-          deployPreviewLayout = next;
-          renderDeployLayoutGrid();
-          setLayoutMode(next);
-        });
-      }
+      // No layout-card clicks — the single-window model has no layout chooser.
 
       // Escape closes — but only when the overlay is actually open. Keeps
       // the existing chat-overlay / radial-menu Escape paths unaffected.
@@ -7045,7 +6893,7 @@
         return;
       }
       const ids = deployPendingIds.slice();
-      const layout = deployPreviewLayout || pillLayoutToOverlayLayout(layoutMode);
+      const layout = layoutMode;   // always 'single' — native deploy makes one window
       const runtimeOverrides = {};
       ids.forEach(id => {
         const runtime = deployRuntimeOverrides[id] && deployRuntimeOverrides[id].runtime;
@@ -7085,28 +6933,10 @@
       }
     }
 
-    // Wire the layout-mode segmented control. Click → set as active, persist,
-    // and update layoutMode for the next Deploy. No IPC fired here — the value
-    // is only consumed when Deploy runs. After a click we also re-evaluate the
-    // mismatch hint so the visual feedback updates immediately (without waiting
-    // for the next 3s poll).
+    // Single-window model: there is no layout chooser to wire. Just prime the
+    // Deploy-button tooltip at boot (so a hover before the first status poll
+    // still reads cleanly). Kept under the original name for the boot call site.
     function wireLayoutPills() {
-      const pills = document.querySelectorAll('.layout-pill');
-      // Initial render: mark the persisted layoutMode as active.
-      pills.forEach(p => {
-        const active = p.dataset.layout === layoutMode;
-        p.classList.toggle('active', active);
-        p.setAttribute('aria-checked', active ? 'true' : 'false');
-      });
-      pills.forEach(p => {
-        p.addEventListener('click', () => {
-          const next = p.dataset.layout;
-          setLayoutMode(next);
-        });
-      });
-      // v2.7: prime per-pill / Deploy tooltips at boot so a hover during
-      // the first 3s (before pollSessionLayoutOnce returns) still shows the
-      // base explainer with no stale text.
       applyLayoutMismatchHint();
     }
 
@@ -7139,69 +6969,16 @@
       applyStopButtonState();
     }
 
-    // Toggle the .mismatch class on .layout-pills when chq is running AND the
-    // active pill differs from the session's stashed layout. When that's true,
-    // also set a tooltip on the wrapper explaining why the pill choice isn't
-    // taking effect. When chq isn't running or the layouts agree, strip both.
-    // Special case: sessionLayout === 'unknown' means the session exists but
-    // its layout wasn't stashed (legacy or external session) — we can't tell
-    // if there's a mismatch, so don't show the hint.
-    //
-    // v2.7: ALSO refresh per-pill tooltips here (they live in data-base-title)
-    // so each pill keeps its own explainer + a running-state suffix when
-    // applicable. Same poll tick that flips the .mismatch class also rewrites
-    // the per-pill .title — Richard hovers EACH and sees the active attach
-    // shape plus a running-session suffix when it applies.
+    // Single-window model: there is no layout mismatch to surface (deploy always
+    // makes one window). This now only refreshes the Deploy-button tooltip to note
+    // whether a session is already running. Name kept for existing call sites.
     function applyLayoutMismatchHint() {
-      const pills = document.getElementById('layout-pills');
-      if (!pills) return;
       const running = sessionLayout && sessionLayout.length > 0;
-      const known = running && sessionLayout !== 'unknown';
-      const mismatch = known && sessionLayout !== layoutMode;
-      pills.classList.toggle('mismatch', mismatch);
-      if (mismatch) {
-        pills.title = `Session running in ${sessionLayout.toUpperCase()} mode. Stop the session and redeploy to apply ${layoutMode.toUpperCase()}.`;
-      } else if (known) {
-        pills.title = `Session running in ${sessionLayout.toUpperCase()} mode.`;
-      } else if (running) {
-        pills.title = 'Session running (layout unknown — started outside AgentRemote).';
-      } else {
-        pills.title = '';
-      }
-
-      // Per-pill tooltips. Suffix added only when chq is running so the
-      // base explainer reads cleanly when there's no session yet. Spec
-      // wording: "${baseTooltip} | Session running in ${runningLayout} mode
-      // — stop and redeploy to apply." Only the active pill gets the
-      // "stop and redeploy" hint when there's a mismatch — the inactive
-      // pills get a simpler "Session running in X mode" suffix.
-      const pillEls = pills.querySelectorAll('.layout-pill');
-      pillEls.forEach(p => {
-        const base = p.dataset.baseTitle || p.title || '';
-        let suffix = '';
-        if (known) {
-          if (mismatch && p.classList.contains('active')) {
-            suffix = ` | Session running in ${sessionLayout.toUpperCase()} mode — stop and redeploy to apply.`;
-          } else {
-            suffix = ` | Session running in ${sessionLayout.toUpperCase()} mode.`;
-          }
-        } else if (running) {
-          suffix = ' | Session running (layout unknown — started outside AgentRemote).';
-        }
-        p.title = base + suffix;
-      });
-
-      // Also refresh the Deploy button — its tooltip surfaces the current
-      // layout mode so Richard knows what'll spawn before clicking. When a
-      // running session exists, the suffix mirrors the pills so the same
-      // "stop and redeploy" hint surfaces here too.
       const deployBtn = document.getElementById('deploy-btn');
       if (deployBtn) {
-        let t = `Spawn selected agents in tmux (current layout: ${layoutMode.toUpperCase()})`;
-        if (mismatch) {
-          t += ` — session is in ${sessionLayout.toUpperCase()}; stop and redeploy to apply.`;
-        }
-        deployBtn.title = t;
+        deployBtn.title = running
+          ? 'Spawn selected agents — they join the running session as panes in one window'
+          : 'Spawn selected agents as tiled panes in one window';
       }
     }
 
