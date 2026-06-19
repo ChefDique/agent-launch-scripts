@@ -980,7 +980,7 @@ function prunePaneSidecarForLiveSessions(panes) {
 }
 
 async function resolveLiveAgentPanes(agent) {
-  const panes = await listPanes();
+  const panes = filterLivePanes(await listPanes());
   return resolveAgentPanes({ agent, panes, sidecar: readPaneSidecar() });
 }
 
@@ -1678,7 +1678,7 @@ function listPanes() {
     // when panes shift). Both are needed: coord for tmux subcommands keyed by
     // position, pane_id for matching against $TMUX_PANE-keyed PIDFILEs that
     // launch-agent.sh writes to /tmp.
-    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}\t#{@agent-identity}';
+    const fmt = '#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_title}\t#{@agent-identity}\t#{pane_dead}';
     execFile('tmux', ['list-panes', '-a', '-F', fmt], (err, stdout, stderr) => {
       if (err) {
         // No tmux server running is a benign "no targets" — return empty.
@@ -1688,11 +1688,21 @@ function listPanes() {
       const out = stdout.split('\n').filter(Boolean).map(line => {
         const parts = line.split('\t');
         if (parts.length < 3) return null;
-        return { coord: parts[0], paneId: parts[1], title: parts[2], agentIdentity: parts[3] || '' };
+        // pane_dead is '1' for a dead remain-on-exit pane (crashed/unrespawned
+        // agent). Callers that mean "running" must filter these out (H3).
+        return { coord: parts[0], paneId: parts[1], title: parts[2], agentIdentity: parts[3] || '', dead: parts[4] === '1' };
       }).filter(Boolean);
       resolve(out);
     });
   });
+}
+
+// Drop dead remain-on-exit panes. A dead pane is a crashed/unrespawned agent —
+// it must not count as "running" for the dock dot poller, broadcast targeting,
+// or kill resolution (H3). Defensive: a pane without an explicit dead flag
+// (older callers) is treated as live.
+function filterLivePanes(panes) {
+  return (Array.isArray(panes) ? panes : []).filter(p => p && p.dead !== true);
 }
 
 function safeTmuxWindowLabel(agent, fallbackId) {
@@ -1762,11 +1772,14 @@ ipcMain.handle('pane-status', async () => {
   prunePaneSidecarForLiveSessions(panes);
 
   const sidecar = readPaneSidecar();
+  // H3: a dead remain-on-exit pane is a crashed agent, not a running one — drop
+  // dead panes before resolving so the dock dot does not show a dead agent green.
+  const livePanes = filterLivePanes(panes);
 
   // Match each agent → its pane (if any), then derive the session.
   // Strategy 1: stable pane_id via sidecar. Strategy 2: pane-title fallback.
   const matches = agents.map(a => {
-    const pane = resolveAgentPanes({ agent: a, panes, sidecar })[0];
+    const pane = resolveAgentPanes({ agent: a, panes: livePanes, sidecar })[0];
     if (!pane) return { id: a.id, running: false, session: null };
     const session = pane.coord.split(':')[0];
     return { id: a.id, running: true, session };

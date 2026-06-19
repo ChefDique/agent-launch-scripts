@@ -675,6 +675,16 @@ test('Armory Import surfaces a failure state even if the IPC itself rejects', ()
   assert.match(armoryBlock, /Armory unavailable/);
 });
 
+test('H3: listPanes reads pane_dead and live-pane resolution filters dead panes', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  // listPanes format must include #{pane_dead} so callers can tell live from dead.
+  assert.match(main, /#\{pane_dead\}/);
+  // A dead pane must not be treated as a running agent: there is an explicit
+  // dead-pane filter feeding pane-status / resolveLiveAgentPanes.
+  assert.match(main, /filterLivePanes|\.dead|pane_dead/);
+  assert.match(main, /function filterLivePanes/);
+});
+
 test('agent registry exposes swarm preset templates with runtime posture', () => {
   assert.equal(registry._profile_presets.length, 3);
   assert.equal(registry._team_preset_templates.length, 3);
