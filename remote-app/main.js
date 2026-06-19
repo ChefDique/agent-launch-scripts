@@ -884,9 +884,6 @@ function readPaneSidecar() {
   }
 }
 
-// IPC: renderer can request the sidecar directly (e.g. for diagnostic display).
-ipcMain.handle('get-pane-sidecar', () => readPaneSidecar());
-
 function writePaneSidecar(data) {
   const tmp = `${SIDECAR_PATH}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data || {}, null, 2) + '\n', 'utf8');
@@ -1243,14 +1240,6 @@ ipcMain.handle('list-codex-pets', () => {
     return { ok: true, pets: loadCodexPetRoster() };
   } catch (err) {
     return { ok: false, error: err.message, pets: [] };
-  }
-});
-
-ipcMain.handle('agent-pet-state', () => {
-  try {
-    return { ok: true, state: readPetState() };
-  } catch (err) {
-    return { ok: false, error: err.message, state: emptyPetState() };
   }
 });
 
@@ -1657,11 +1646,6 @@ async function broadcastMessage({ message, selectedAgents, isAll } = {}) {
 }
 
 ipcMain.handle('broadcast-message', async (_event, payload) => broadcastMessage(payload));
-
-ipcMain.on('broadcast-message', async (event, payload) => {
-  const result = await broadcastMessage(payload);
-  try { event.reply('broadcast-message-result', result); } catch { /* legacy fire-and-forget */ }
-});
 
 ipcMain.handle('save-pasted-image', async (_event, payload = {}) => {
   const mimeType = String(payload.mimeType || 'image/png').toLowerCase();
@@ -2107,10 +2091,6 @@ async function spawnAgents(payload) {
 // cause of the "Deploy doesn't work after first deploy" bug — clicking an
 // agent button once chq existed was a silent no-op.
 ipcMain.handle('spawn-agents', async (_event, payload) => spawnAgents(payload));
-ipcMain.on('spawn-agents', async (event, payload) => {
-  const result = await spawnAgents(payload);
-  try { event.reply('spawn-agents-result', result); } catch { /* legacy fire-and-forget */ }
-});
 
 // ---------------------------------------------------------------------------
 // Add-agent IPC — append a registry entry + copy an optional avatar image into assets/

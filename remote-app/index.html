@@ -7371,7 +7371,14 @@
       panel.innerHTML = '<div class="armory-status">Loading Armory roster…</div>';
       syncWindowSize();
 
-      const result = await ipcRenderer.invoke('list-armory-agents');
+      let result;
+      try {
+        result = await ipcRenderer.invoke('list-armory-agents');
+      } catch (err) {
+        // IPC channel itself rejected (handler threw / channel gone). Without
+        // this guard the panel would stay stuck on "Loading…" forever.
+        result = { ok: false, error: (err && err.message) ? err.message : 'request failed', localAgents: [], armoryAgents: [] };
+      }
       armoryLastPayload = result;
       if (!armoryPanelOpen) return;
 

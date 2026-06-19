@@ -644,6 +644,37 @@ test('renderer sends the single-window layout to spawn-agents', () => {
   assert.match(html, /ipcRenderer\.invoke\('spawn-agents', \{ agents: ids, layout, runtimeOverrides \}\)/);
 });
 
+test('dead IPC handlers are removed (no caller anywhere)', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  // get-pane-sidecar: orphan handler, never invoked.
+  assert.doesNotMatch(main, /ipcMain\.handle\('get-pane-sidecar'/);
+  // agent-pet-state: superseded by load-agent-pet-state (the push channel
+  // agent-pet-state-changed is a different, live channel and must remain).
+  assert.doesNotMatch(main, /ipcMain\.handle\('agent-pet-state'/);
+  assert.match(main, /ipcMain\.handle\('load-agent-pet-state'/);
+  assert.match(main, /agent-pet-state-changed/);
+});
+
+test('dual-registered IPC channels keep only the handle path (renderer uses invoke)', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  // handle stays for both.
+  assert.match(main, /ipcMain\.handle\('broadcast-message'/);
+  assert.match(main, /ipcMain\.handle\('spawn-agents'/);
+  // legacy fire-and-forget .on duplicates are gone.
+  assert.doesNotMatch(main, /ipcMain\.on\('broadcast-message'/);
+  assert.doesNotMatch(main, /ipcMain\.on\('spawn-agents'/);
+  // and the now-orphan reply channel.
+  assert.doesNotMatch(main, /spawn-agents-result/);
+});
+
+test('Armory Import surfaces a failure state even if the IPC itself rejects', () => {
+  // The handler already returns {ok:false,error}; this guards the IPC-reject
+  // path so the panel never stays stuck on "Loading…".
+  const armoryBlock = html.slice(html.indexOf('Loading Armory roster'), html.indexOf('Loading Armory roster') + 1400);
+  assert.match(armoryBlock, /catch/);
+  assert.match(armoryBlock, /Armory unavailable/);
+});
+
 test('agent registry exposes swarm preset templates with runtime posture', () => {
   assert.equal(registry._profile_presets.length, 3);
   assert.equal(registry._team_preset_templates.length, 3);
