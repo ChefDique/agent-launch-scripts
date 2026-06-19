@@ -3,8 +3,16 @@
   "_project": "agent-launch-scripts",
   "_owner": "neo",
   "_purpose": "Canonical AgentRemote task board. Root tasks.json is only a compatibility pointer.",
-  "_updated_at": "2026-05-20T01:12:10-0700",
-  "_status_order": ["inbox", "assigned", "in_progress", "review_pending", "review", "done", "blocked"],
+  "_updated_at": "2026-06-19T07:38:01-0700",
+  "_status_order": [
+    "inbox",
+    "assigned",
+    "in_progress",
+    "review_pending",
+    "review",
+    "done",
+    "blocked"
+  ],
   "rules": [
     "Stay inside /Users/richardadair/ai_projects/agent-launch-scripts unless Richard explicitly authorizes another repo.",
     "Do not mutate Richard's live iTerm/tmux/AgentRemote desktop unless he explicitly asks for that exact live action in the current turn.",
@@ -19,7 +27,9 @@
       "status": "done",
       "priority": "critical",
       "owner": "neo-orchestrator",
-      "artifacts": ["docs/product/agentremote-feature-index.md"],
+      "artifacts": [
+        "docs/product/agentremote-feature-index.md"
+      ],
       "acceptance": [
         "Every visible AgentRemote feature and launcher/runtime feature has a named entry.",
         "Each entry includes source files, expected behavior, tests, and live-safe verification notes.",
@@ -32,7 +42,10 @@
       "status": "done",
       "priority": "critical",
       "owner": "prd-worker",
-      "artifacts": ["docs/product/agentremote-prd.md", "docs/README.md"],
+      "artifacts": [
+        "docs/product/agentremote-prd.md",
+        "docs/README.md"
+      ],
       "acceptance": [
         "PRD explains the purpose of the app in plain English.",
         "PRD links to the operator contract, design system, launch docs, feature index, and quality gates.",
@@ -45,7 +58,9 @@
       "status": "done",
       "priority": "critical",
       "owner": "qa-worker",
-      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "artifacts": [
+        "docs/operations/agentremote-quality-gates.md"
+      ],
       "acceptance": [
         "Every high-risk surface lists likely blast radius and required tests.",
         "Matrix distinguishes static tests, isolated tmux tests, and live-desktop checks that require Richard's approval.",
@@ -58,7 +73,10 @@
       "status": "done",
       "priority": "critical",
       "owner": "neo-orchestrator",
-      "artifacts": ["memory/tasks/tasks.json", "docs/operations/agentremote-completion-audit.md"],
+      "artifacts": [
+        "memory/tasks/tasks.json",
+        "docs/operations/agentremote-completion-audit.md"
+      ],
       "acceptance": [
         "PreToolUse hook is installed and audit passes with warnings=0.",
         "Model/thinking picker tests pass.",
@@ -74,7 +92,9 @@
       "priority": "critical",
       "owner": "swarmy",
       "blocked_by": "Outside this repo",
-      "artifacts": ["message-agent thread overlord-swarmy-codex"],
+      "artifacts": [
+        "message-agent thread overlord-swarmy-codex"
+      ],
       "acceptance": [
         "Swarmy stops selecting unsupported gpt-5.1 for Codex workers on this machine/account.",
         "Swarmy proves worker completion, not just run-folder creation.",
@@ -87,7 +107,9 @@
       "status": "done",
       "priority": "critical",
       "owner": "review-worker",
-      "artifacts": ["docs/operations/agentremote-completion-audit.md"],
+      "artifacts": [
+        "docs/operations/agentremote-completion-audit.md"
+      ],
       "acceptance": [
         "Dirty files are classified by task.",
         "No unrelated or unsafe changes are included silently.",
@@ -101,7 +123,9 @@
       "priority": "critical",
       "owner": "neo-orchestrator",
       "blocked_by": "Richard approval for live AgentRemote/iTerm/tmux mutation",
-      "artifacts": ["docs/operations/agentremote-quality-gates.md"],
+      "artifacts": [
+        "docs/operations/agentremote-quality-gates.md"
+      ],
       "acceptance": [
         "Canonical AgentRemote launches from this checkout.",
         "Image paste, Option-key navigation, model/thinking selection, Claude startup injection, attach/viewer, and pane naming are verified against approved live targets.",
@@ -117,7 +141,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": "Richard live UI verification",
-      "tags": ["agentremote", "paste", "image", "tmux"],
+      "tags": [
+        "agentremote",
+        "paste",
+        "image",
+        "tmux"
+      ],
       "notes": "Code shipped earlier; needs live paste check after canonical AgentRemote relaunch.",
       "created_at": "2026-05-18T19:34:14-0700",
       "updated_at": "2026-05-20T01:05:24-0700"
@@ -131,7 +160,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["agentremote", "startup", "ui", "registry"],
+      "tags": [
+        "agentremote",
+        "startup",
+        "ui",
+        "registry"
+      ],
       "notes": "Implemented earlier. Add/edit and settings expose three startup_lines inputs; renderer/main persistence is covered by static tests.",
       "created_at": "2026-05-18T19:34:14-0700",
       "updated_at": "2026-05-20T01:05:24-0700"
@@ -145,7 +179,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["launcher", "startup", "tmux", "registry"],
+      "tags": [
+        "launcher",
+        "startup",
+        "tmux",
+        "registry"
+      ],
       "notes": "Implemented earlier for Claude tmux startup only. Non-Claude runtimes ignore startup_lines and startup_injection.",
       "created_at": "2026-05-18T19:34:14-0700",
       "updated_at": "2026-05-20T01:05:24-0700"
@@ -159,7 +198,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["review", "tests", "merge", "agentremote"],
+      "tags": [
+        "review",
+        "tests",
+        "merge",
+        "agentremote"
+      ],
       "notes": "Earlier lane completed. Future sessions should create specific new rows rather than reopening this catch-all.",
       "created_at": "2026-05-18T19:34:14-0700",
       "updated_at": "2026-05-20T01:05:24-0700"
@@ -173,7 +217,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["agentremote", "codex", "reasoning", "registry"],
+      "tags": [
+        "agentremote",
+        "codex",
+        "reasoning",
+        "registry"
+      ],
       "acceptance": [
         "Codex harness default reasoning is xhigh.",
         "AgentRemote does not render '(no reasoning levels registered)' for Codex.",
@@ -193,7 +242,12 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["agentremote", "tmux", "keyboard", "startup-injection"],
+      "tags": [
+        "agentremote",
+        "tmux",
+        "keyboard",
+        "startup-injection"
+      ],
       "acceptance": [
         "No simultaneous/timed Enter is sent into non-target panes.",
         "Image paste still works in AgentRemote chat and embedded terminal paths.",
@@ -213,7 +267,11 @@
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["tasks", "memory", "chores"],
+      "tags": [
+        "tasks",
+        "memory",
+        "chores"
+      ],
       "acceptance": [
         "memory/tasks/tasks.json contains the canonical merged board.",
         "root tasks.json points to the canonical memory board instead of carrying a second task list.",
@@ -226,13 +284,18 @@
     {
       "id": "ALS-LOCAL-008",
       "title": "Find why tmux fallback messages do not send all the way through",
-      "description": "Diagnose the AgentRemote/message-agent fallback path where `tmux send-keys` put text into Swarmy's Codex input/queued-message area but did not submit it to the agent. Future work must explain which key sequence or terminal focus/state is required to turn queued text into an actual delivered prompt. ANSWERED: Codex's raw-mode input layer treats literal text and a trailing CR arriving in one read() as a paste (newline in composer), not a submit. Required sequence is text first, THEN Enter as a separate keypress in its own read() — achieved by a delay between the two sends. Same root cause as ALS-LOCAL-006.",
+      "description": "Diagnose the AgentRemote/message-agent fallback path where `tmux send-keys` put text into Swarmy's Codex input/queued-message area but did not submit it to the agent. Future work must explain which key sequence or terminal focus/state is required to turn queued text into an actual delivered prompt. ANSWERED: Codex's raw-mode input layer treats literal text and a trailing CR arriving in one read() as a paste (newline in composer), not a submit. Required sequence is text first, THEN Enter as a separate keypress in its own read() \u2014 achieved by a delay between the two sends. Same root cause as ALS-LOCAL-006.",
       "status": "done",
       "priority": "critical",
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
-      "tags": ["message-agent", "tmux", "codex-input", "operator-trust"],
+      "tags": [
+        "message-agent",
+        "tmux",
+        "codex-input",
+        "operator-trust"
+      ],
       "acceptance": [
         "A failed message-agent send is not reported as delivered.",
         "Tmux fallback proves the message was submitted, not merely queued in the input box.",
@@ -241,6 +304,78 @@
       "created_at": "2026-05-20T01:48:15-0700",
       "notes": "Created after a report to Swarmy failed via message-agent and the tmux fallback visibly landed as queued input instead of being submitted. Do not conflate this with Swarmy's separate launch-runtime bug. 2026-05-21: same fix as ALS-LOCAL-006 (two-phase text+delayed Enter, v1.4.15). Broadcast/composer send (sendKeysToCoord) now resolves only after the Enter actually lands, so 'sent' is not optimistic. LIVE-VERIFIED by Richard after HUD relaunch.",
       "updated_at": "2026-05-21T11:30:00-0700"
+    },
+    {
+      "id": "ALS-LOCAL-009",
+      "title": "BUG A: Close releases the emptied-window iTerm viewer",
+      "status": "done",
+      "priority": "high",
+      "department": "agent-launch-scripts",
+      "assignee": "neo",
+      "blocked_by": null,
+      "tags": [
+        "agentremote",
+        "kill-pane",
+        "iterm",
+        "bug"
+      ],
+      "notes": "pane-control.js killPaneReleasingEmptyWindow: read window_panes before kill; release marked viewer only when the kill empties the window (count==1 gate). Wired into main.js kill-pane. Tests: pane-control.test.js. Branch reliability-single-window.",
+      "created_at": "2026-06-19T07:38:01-0700",
+      "updated_at": "2026-06-19T07:38:01-0700"
+    },
+    {
+      "id": "ALS-LOCAL-010",
+      "title": "BUG B: native single-window spawn (swarmy off the spawn path)",
+      "status": "review_pending",
+      "priority": "critical",
+      "department": "agent-launch-scripts",
+      "assignee": "neo",
+      "blocked_by": "Richard live cutover + boundary diagnostic",
+      "tags": [
+        "agentremote",
+        "spawn",
+        "tmux",
+        "single-window",
+        "swarmy"
+      ],
+      "notes": "tmux-deploy.js: native deploy = all agents as tiled panes in ONE window; default path (swarmy behind AGENTREMOTE_SPAWN=swarmy). Writes @agent-identity + legacy @swarmy_runtime bridge + sidecar + restart loop. Tests: tmux-deploy(.integration).test.js. attach/stop still bridge swarmy. Live-verify gated on Richard.",
+      "created_at": "2026-06-19T07:38:01-0700",
+      "updated_at": "2026-06-19T07:38:01-0700"
+    },
+    {
+      "id": "ALS-LOCAL-011",
+      "title": "Collapse 3-layout UI to single-window + button/IPC cleanup",
+      "status": "done",
+      "priority": "high",
+      "department": "agent-launch-scripts",
+      "assignee": "neo",
+      "blocked_by": null,
+      "tags": [
+        "agentremote",
+        "ui",
+        "ipc",
+        "cleanup"
+      ],
+      "notes": "index.html: 3 layout pills/cards -> 'One window' indicator; layoutMode const 'single'. main.js: removed dead get-pane-sidecar/agent-pet-state + duplicate .on broadcast-message/spawn-agents; armory reject guard. atlas:get-event-log retained (live bus). Tests: renderer-static.test.js.",
+      "created_at": "2026-06-19T07:38:01-0700",
+      "updated_at": "2026-06-19T07:38:01-0700"
+    },
+    {
+      "id": "ALS-LOCAL-012",
+      "title": "Docs updated to native single-window model",
+      "status": "done",
+      "priority": "medium",
+      "department": "agent-launch-scripts",
+      "assignee": "neo",
+      "blocked_by": null,
+      "tags": [
+        "docs",
+        "contract",
+        "handoff"
+      ],
+      "notes": "operator-contract + AGENTS.md + CLAUDE.md + launch-scripts.md + spec + next-session PM kickoff prompt. docs-integrity green.",
+      "created_at": "2026-06-19T07:38:01-0700",
+      "updated_at": "2026-06-19T07:38:01-0700"
     }
   ]
 }
