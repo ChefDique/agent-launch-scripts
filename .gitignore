@@ -7,3 +7,4 @@ output/
 graphify-out/
 **/.DS_Store
 agents.json
+.worktrees/
