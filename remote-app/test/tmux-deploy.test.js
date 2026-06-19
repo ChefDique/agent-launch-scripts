@@ -93,8 +93,10 @@ test('remainOnExitArgs keeps the dead pane so the restart hook can fire', () => 
 test('paneDiedHookArgs wires the auto-restart respawn hook on the pane', () => {
   const restartShell = 'bash /tmp/loop.sh --agentremote-should-restart && tmux respawn-pane -k -t %5';
   assert.deepEqual(
+    // run-shell value must be a single double-quoted token, else tmux set-hook
+    // re-tokenizes it and stores no hook (BUG B1).
     paneDiedHookArgs('%5', restartShell),
-    ['set-hook', '-p', '-t', '%5', 'pane-died', `run-shell ${restartShell}`]
+    ['set-hook', '-p', '-t', '%5', 'pane-died', `run-shell "${restartShell}"`]
   );
 });
 
@@ -124,7 +126,9 @@ test('deploySingleWindow stamps BOTH ownership tags so swarmy-delegated Stop/Att
     calls.push(args);
     if (args[0] === 'has-session') return { status: 1, stdout: '', stderr: '' }; // fresh session
     if (args[0] === 'new-session' || args[0] === 'split-window') return { status: 0, stdout: `%${++paneSeq}`, stderr: '' };
-    if (args[0] === 'display-message') return { status: 0, stdout: '0', stderr: '' };
+    // Liveness probe is `#{pane_dead}\t#{session_name}\t#{window_index}\t#{pane_index}`
+    // — a LIVE pane: not dead, real session name.
+    if (args[0] === 'display-message') return { status: 0, stdout: `0\ttest_deploy_own\t0\t${paneSeq}`, stderr: '' };
     return { status: 0, stdout: '', stderr: '' };
   };
   const res = deploySingleWindow({

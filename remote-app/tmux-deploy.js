@@ -94,7 +94,11 @@ function remainOnExitArgs(paneId) {
 }
 
 function paneDiedHookArgs(paneId, restartShell) {
-  return ['set-hook', '-p', '-t', String(paneId), 'pane-died', `run-shell ${restartShell}`];
+  // The run-shell arg must be ONE token. tmux set-hook re-tokenizes the hook
+  // value, so an unquoted `run-shell <cmd with spaces>` is rejected ("too many
+  // arguments") and no hook installs. Double-quote the whole command; the inner
+  // paths are single-quoted via shlexQuote, so embedding inside "..." is safe.
+  return ['set-hook', '-p', '-t', String(paneId), 'pane-died', `run-shell "${restartShell}"`];
 }
 
 function setSessionLayoutArgs(session, layout = SINGLE_WINDOW_LAYOUT) {
@@ -360,9 +364,35 @@ function deploySingleWindow(opts = {}) {
     runTmux(setPaneTitleArgs(paneId, label));
     runTmux(remainOnExitArgs(paneId));
     if (scriptPath) {
-      runTmux(paneDiedHookArgs(paneId, restartShellFor(scriptPath, paneId)));
+      // B1: surface a hook-install failure instead of silently dropping the
+      // restart loop. tmux rejects a malformed run-shell value non-zero.
+      const hookRes = runTmux(paneDiedHookArgs(paneId, restartShellFor(scriptPath, paneId)));
+      if (hookRes.status !== 0) {
+        return {
+          ok: false,
+          error: `failed to install auto-restart hook for ${agent.id}: ${(hookRes.stderr || 'set-hook failed').trim()}`,
+          session,
+          panes: created
+        };
+      }
     }
-    created.push({ id: agent.id, paneId, scriptPath });
+
+    // H2: probe liveness in ONE display-message (also collapses the old 3-call
+    // sidecar query). An agent whose command exited instantly leaves a dead
+    // remain-on-exit pane with an empty session_name — that is a failed launch,
+    // not a deployed agent. Do NOT push it to `created` (no ghost identity/hook
+    // entry) and do NOT claim ok:true.
+    const probe = runTmux(displayMessageArgs(paneId, '#{pane_dead}\t#{session_name}\t#{window_index}\t#{pane_index}'));
+    const [deadFlag = '', sName = '', wIndex = '', pIndex = ''] = (probe.status === 0 ? (probe.stdout || '') : '').trim().split('\t');
+    if (probe.status !== 0 || deadFlag === '1' || sName === '') {
+      return {
+        ok: false,
+        error: `agent ${agent.id} exited immediately (pane did not stay live)`,
+        session,
+        panes: created
+      };
+    }
+    created.push({ id: agent.id, paneId, scriptPath, session: sName, window: wIndex, pane: pIndex });
   }
 
   // Re-tile so N panes stay balanced in the single window (only when we added
@@ -379,23 +409,19 @@ function deploySingleWindow(opts = {}) {
   runTmux(setLegacyOwnershipArgs(session));
   runTmux(setSessionLayoutArgs(session, SINGLE_WINDOW_LAYOUT));
 
-  // Write the sidecar in swarmy shape for each created pane.
+  // Write the sidecar in swarmy shape for each created pane. session/window/pane
+  // were captured by the liveness probe above (one display-message per pane), so
+  // every entry here is from a pane proven live — no empty-session corruption.
   const sidecar = readSidecar(sidecarPath);
   for (const pane of created) {
-    const vals = {};
-    for (const [key, fmt] of [['session', '#{session_name}'], ['window', '#{window_index}'], ['pane', '#{pane_index}']]) {
-      const r = runTmux(displayMessageArgs(pane.paneId, fmt));
-      if (r.status !== 0) { vals[key] = undefined; continue; }
-      vals[key] = (r.stdout || '').trim();
-    }
     const meta = typeof runtimeMetadataForAgent === 'function' ? runtimeMetadataForAgent(pane.id) : undefined;
     sidecar[pane.id] = {
       ...(sidecar[pane.id] || {}),
       ...sidecarEntryFromDisplay({
         paneId: pane.paneId,
-        session: vals.session != null ? vals.session : session,
-        window: vals.window,
-        pane: vals.pane,
+        session: pane.session || session,
+        window: pane.window,
+        pane: pane.pane,
         runtimeMetadata: meta
       })
     };

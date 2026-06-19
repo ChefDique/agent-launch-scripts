@@ -175,3 +175,75 @@ test('re-deploying an already-running agent does NOT create a duplicate pane (sw
   const panes = tmux(['list-panes', '-t', session, '-F', '#{@agent-identity}']).split('\n').filter(Boolean).map(s => s.trim());
   assert.deepEqual([...panes].sort(), ['fake0', 'fake1'], `re-deploy must not duplicate panes; got ${panes.join(',')}`);
 });
+
+// B1 — the pane-died auto-restart hook must actually install. The buggy form
+// `run-shell <restartShell>` (unquoted) is re-tokenized by tmux set-hook and
+// rejected ("too many arguments") because restartShell contains spaces, so no
+// hook is stored. This runs the REAL loop-wrapper path (real scriptPath) and
+// asserts tmux actually holds a pane-died hook afterwards.
+test('B1: native deploy installs a real pane-died respawn hook on each pane', (t) => {
+  if (!hasTmux()) { t.skip('tmux is not installed'); return; }
+  const session = throwawaySession('hook');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-hook-'));
+  t.after(() => { killSession(session); try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+
+  // Minimal registry + launch-agent stub so the generated loop wrapper is valid.
+  const registryPath = path.join(tmpDir, 'agents.json');
+  fs.writeFileSync(registryPath, JSON.stringify({ agents: [{ id: 'fake0', display_name: 'Fake 0', auto_restart: true }] }));
+  const launchAgentPath = path.join(tmpDir, 'launch-agent.sh');
+  fs.writeFileSync(launchAgentPath, '#!/usr/bin/env bash\nexec sleep 30\n');
+  fs.chmodSync(launchAgentPath, 0o755);
+
+  // NOTE: no commandForAgent — exercise the real loop-wrapper + hook install path.
+  const result = deploySingleWindow({
+    session,
+    agents: [{ id: 'fake0', displayName: 'Fake 0', cwd: os.tmpdir(), overrides: {} }],
+    registryPath,
+    launchAgentPath,
+    sidecarPath: path.join(tmpDir, 'sidecar.json'),
+    scriptDir: tmpDir
+  });
+
+  assert.equal(result.ok, true, `deploy failed: ${result.error || ''}`);
+  const paneId = result.panes[0].paneId;
+  // show-hooks for the pane must contain a pane-died run-shell hook.
+  const hooks = tmux(['show-hooks', '-p', '-t', paneId]);
+  assert.match(hooks, /pane-died/, `pane-died hook missing — show-hooks:\n${hooks}`);
+  assert.match(hooks, /--agentremote-should-restart/, `restart shell missing from hook — show-hooks:\n${hooks}`);
+});
+
+// H2 — an agent whose command exits instantly must not yield ok:true with a
+// ghost pane + corrupt sidecar. With remain-on-exit the pane lingers dead;
+// display-message then returns empty session_name, and the buggy fallback
+// (`vals.session != null ? vals.session : session`) keeps '' since '' != null.
+test('H2: instant-exit agent does not produce ok:true with a corrupt sidecar entry', (t) => {
+  if (!hasTmux()) { t.skip('tmux is not installed'); return; }
+  const session = throwawaySession('instantexit');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-ie-'));
+  const sidecarPath = path.join(tmpDir, 'sidecar.json');
+  t.after(() => { killSession(session); try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+
+  // `true` exits 0 immediately; with remain-on-exit the pane stays as a dead pane.
+  const result = deploySingleWindow({
+    session,
+    agents: [{ id: 'flash', displayName: 'Flash', cwd: os.tmpdir(), command: 'true' }],
+    registryPath: path.join(tmpDir, 'agents.json'),
+    launchAgentPath: path.join(tmpDir, 'launch-agent.sh'),
+    sidecarPath,
+    scriptDir: tmpDir,
+    commandForAgent: (agent) => agent.command
+  });
+
+  // Must NOT claim success for an agent that never came up.
+  assert.equal(result.ok, false, `expected failure for instant-exit agent, got: ${JSON.stringify(result)}`);
+
+  // And must not have written a corrupt sidecar entry (empty session / no window).
+  if (fs.existsSync(sidecarPath)) {
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+    const entry = sidecar.flash;
+    if (entry) {
+      assert.notEqual(entry.session, '', `sidecar entry has empty session: ${JSON.stringify(entry)}`);
+      assert.equal(typeof entry.window, 'number', `sidecar entry window not a number: ${JSON.stringify(entry)}`);
+    }
+  }
+});
