@@ -31,7 +31,8 @@ one of the fleet panes.
 
 | Path | Purpose |
 |---|---|
-| `/Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py` | Primary AgentRemote deploy/attach/stop/layout runtime. |
+| `remote-app/tmux-deploy.js` | Native single-window deploy (default spawn path). |
+| `/Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py` | Optional fallback runtime (`AGENTREMOTE_SPAWN=swarmy`); still bridges attach/stop. |
 | `chq-tmux.sh`, `rnd-tmux.sh`, `trading-tmux.sh` | Compatibility/manual tmux wrappers and project-specific sessions. |
 | `launch-agent.sh`, agent wrapper scripts | Per-agent foreground launchers and auto-inject startup flow. |
 | `agents.json` | Canonical local fleet registry consumed by scripts and AgentRemote. |
@@ -41,7 +42,7 @@ one of the fleet panes.
 
 ## Current Work
 
-- Treat AgentRemote as the lightweight local operator HUD, not ACRM or Atlas. Swarmy owns the app runtime path for deploy/attach/stop/layout.
+- Treat AgentRemote as the lightweight local operator HUD, not ACRM or Atlas. As of 2026-06-19 AgentRemote owns its **native** spawn path (`remote-app/tmux-deploy.js`, single window); swarmy is an optional `AGENTREMOTE_SPAWN=swarmy` fallback (attach/stop still bridge through it for now — see the operator contract).
 - Core value is fast communication with agents: select targets, type or hold-to-talk, send instantly, and trust delivery feedback.
 - `docs/operations/agentremote-operator-contract.md` is the canonical AgentRemote behavior contract. Do not claim an AgentRemote, launch, runtime, tmux/iTerm, or pet-chat task is complete if it violates that contract.
 - Next product thread is the Codex pet runtime: read `~/.codex/pets/*/pet.json`, load the fixed Codex pet spritesheet, and map voice/send/status events to animation rows.
@@ -52,7 +53,7 @@ one of the fleet panes.
 
 ## Claude-Specific Role
 
-- Maintain launch infrastructure: `launch-agent.sh`, Swarmy's AgentRemote runtime adapter, project tmux wrappers, `agents.json`, and restart-loop reliability.
+- Maintain launch infrastructure: `launch-agent.sh`, the native `tmux-deploy.js` deploy path (the swarmy adapter is now an optional fallback), project tmux wrappers, `agents.json`, and restart-loop reliability.
 - Maintain AgentRemote in `remote-app/`, especially Electron IPC, local process control, hold-to-talk flow, delivery feedback, and tmux targeting.
 - Use `.claude/agents/tmux-electron-master.md` as the local specialist reference for UI precision, motion, Electron internals, and orchestration integrity.
 - Use `claude-peers` for live peer communication when available. Match peers by cwd; messages are self-contained because peer messages do not carry this conversation context.
@@ -86,12 +87,12 @@ To spawn the local team, use `python3 /Users/richardadair/ai_projects/swarmy/scr
 
 - Agent display names, tmux pane titles, and registry `tmux_target` values are load-bearing for process detection and targeting. Claude uses `-n <Name>`; Codex/Hermes/OpenClaw rely on the tmux title set by the launcher.
 - `launch-agent.sh` must build argv arrays per runtime; never assemble tmux, Codex, Claude, Hermes, or OpenClaw commands as shell strings.
-- Restart loops live in Swarmy's AgentRemote runtime or compatibility tmux orchestrators, not inside per-agent launchers.
-- Tmux layout choices can be locked into a live session via `@chq_layout`; stop/redeploy when changing layout semantics. Default AgentRemote deploy is Swarmy's `teams` layout: balanced tmux/iTerm control-mode windows grouped by `agents.json` team metadata.
-- AgentRemote's intended pane style is one agent process in one tmux pane,
-  isolated into its own tmux window, then surfaced by iTerm control mode. Do not
-  use a normal `tmux attach` viewer or merged split-pane window as a workaround
-  for paste, Shift+Enter, or Attach bugs.
+- Restart loops live in the native deploy path (`tmux-deploy.js`: per-pane `remain-on-exit on` + a `pane-died` respawn hook) or compatibility tmux orchestrators, not inside per-agent launchers.
+- AgentRemote deploys all selected agents as tiled panes in ONE tmux window (`@chq_layout=single`), surfaced through one marked iTerm control-mode viewer. The legacy multi-window layouts (teams/tabs/panes) are collapsed into this single-window model; launching N agents yields one window, never N.
+- AgentRemote's pane style is one agent process in one tmux pane; all agents
+  share ONE tmux window (tiled panes), surfaced by iTerm control mode. Do not use
+  a normal `tmux attach` viewer or a merged shell as a workaround for paste,
+  Shift+Enter, or Attach bugs — the single window uses real tmux panes.
 - Status, kill, restart, attach, broadcast, and voice send paths must verify the actual target pane/result instead of showing optimistic success.
 - Docs follow progressive disclosure: this file is the Claude supplement, `AGENTS.md` is the model-agnostic map, `docs/` is the system of record, and `.claude/memory/handoff.md` is the live continuation point.
 

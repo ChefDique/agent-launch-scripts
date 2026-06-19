@@ -1,16 +1,24 @@
 # Launch Scripts And Runtime Notes
 
+> **2026-06-19 update — native single-window spawn.** AgentRemote now owns its
+> spawn path natively (`remote-app/tmux-deploy.js`): all selected agents land as
+> tiled panes in ONE tmux window. Swarmy is an optional `AGENTREMOTE_SPAWN=swarmy`
+> fallback (and still bridges attach/stop for now). The canonical behavior source
+> is `docs/operations/agentremote-operator-contract.md`; any section below that
+> still describes the swarmy-owned multi-window model is superseded by it.
+
 ## Runtime Shape
 
 The root repo is a set of Bash launchers plus a current Electron HUD under `remote-app/`. There is no root build system. The canonical registry is `agents.json`.
 
 ## Ownership Boundary
 
-Swarmy is the live runtime authority. It owns spawn, attach/reveal, kill,
-relaunch, status, layout, runtime choice, and tmux identity. AgentRemote is a
-local HUD over Swarmy state and commands. Neo/`neo` should not manually
-repair live iTerm/tmux state, detach clients, open viewers, or spawn live agents
-unless Richard explicitly asks for that live mutation in the current turn.
+AgentRemote owns its native spawn path (`tmux-deploy.js`): one tmux session, one
+window, agents as tiled panes. Swarmy is an optional fallback
+(`AGENTREMOTE_SPAWN=swarmy`) and still bridges attach/stop until those are also
+native. Neo/`neo` should not manually repair live iTerm/tmux state, detach
+clients, open viewers, or spawn live agents unless Richard explicitly asks for
+that live mutation in the current turn.
 If the canonical checkout already has unrelated dirty AgentRemote/runtime state,
 open an isolated worktree for the new fix before editing so title/runtime
 patches do not get mixed into shared live evidence.

@@ -61,7 +61,7 @@ Per the diagnostic, all primary controls map to live handlers. Cleanups:
 - `iterm-viewer.js` — find/create/release the one marked viewer (consumes `iterm-attach.js`). **(BUG A + BUG B viewer logic.)**
 - `tmux-session.js` — kill-session, layout query, has-session, ownership sentinel.
 - `pane-pipe.js`, `agent-registry.js`, `pet-windows.js`, `council.js`, `ipc-registry.js` (wires handlers; drops the dead/duplicate channels).
-- `tmux-deploy.js` — **scaffold + document only this session** (the future swarmy-free in-app deploy path). Not cut over.
+- `tmux-deploy.js` — **implemented this session** (Richard greenlit native-default): the swarmy-free in-app single-window deploy, wired as the **default** spawn path (swarmy behind `AGENTREMOTE_SPAWN=swarmy`). Supersedes the earlier "scaffold only" framing. `attach`/`kill-session` still delegate to swarmy and are bridged via the legacy `@swarmy_runtime` tag; native attach/stop are the next increment.
 
 Each unit: one responsibility, a small public interface, unit-testable in isolation. No renderer decomposition this session.
 
