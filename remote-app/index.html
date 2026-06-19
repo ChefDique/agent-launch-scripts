@@ -6746,14 +6746,9 @@
     // The overlay is a glass card with three things:
     //   1. Roster — one row per agent about to spawn (avatar + name + cwd
     //      + running-or-not chip).
-    //   2. Layout picker — TEAMS maps to CHQ_LAYOUT=teams; TABS maps to
-    //      CHQ_LAYOUT=ittab; PANES maps to CHQ_LAYOUT=panes.
+    //   2. A "One window" info note — all agents deploy as tiled panes in one
+    //      tmux window (single-window model; no layout choice to make).
     //   3. Cancel + Deploy actions. Confirm fires spawn-agents.
-    //
-    // Defaults the picker to the segmented-pill choice in the meta row
-    // (layoutMode), so Richard's persisted choice carries over. Selecting
-    // a different layout in the overlay updates layoutMode AND the meta-row
-    // pills so the choice sticks for next time.
     //
     // Dismiss: Escape, outside click, ✕ button, or Cancel. Confirm fires
     // spawn-agents and closes immediately.
@@ -7723,8 +7718,8 @@
     document.getElementById('f-submit').addEventListener('click', submitAdd);
     setAddHarnessRuntime('codex');
 
-    // v2.5: wire the layout-mode segmented control. Reads localStorage on
-    // boot for the persisted choice; clicks update layoutMode and persist.
+    // Single-window model: no layout control. wireLayoutPills() now only
+    // primes the Deploy-button tooltip.
     wireLayoutPills();
     // v2.6: wire the tear-down session button (✕ next to layout pills).
     wireStopSessionButton();
