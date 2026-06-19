@@ -15,10 +15,12 @@ Richard wants a direct local operator surface:
 5. Leave the machine without stale windows, phantom sessions, or wrong-runtime
    panes being left behind.
 
-AgentRemote is the lightweight desktop HUD for this. Swarmy owns the live
-runtime adapter. ACRM/Armory owns durable registry/task/profile management.
-AgentRemote must not become a full browser command center, and Swarmy must not
-hide runtime failures behind optimistic UI state.
+AgentRemote is the lightweight desktop HUD for this and owns its own local
+spawn/attach/stop/restart/layout path (in-app, via tmux). ACRM/Armory owns
+durable registry/task/profile management. AgentRemote must not become a full
+browser command center. (Historical note: Swarmy previously owned the runtime
+adapter; as of 2026-06-19 the spawn path is native and swarmy is an optional
+fallback only — see Runtime Ownership.)
 
 ## Non-Negotiable Outcomes
 
@@ -39,16 +41,20 @@ hide runtime failures behind optimistic UI state.
 
 ## Runtime Ownership
 
-- Swarmy is authoritative for spawn, attach/reveal, kill, relaunch, status,
-  layout, runtime choice, and tmux identity.
-- AgentRemote is a HUD over Swarmy state and commands. It can request actions
-  and display proof; it should not reimplement a competing runtime path.
-- `launch-agent.sh` is the per-agent launcher called by the runtime adapter. It
-  must build argv arrays and must not assemble Codex, Claude, Hermes, OpenClaw,
-  tmux, or iTerm commands as shell strings.
-- Compatibility launchers such as `chq-tmux.sh` are fallback/manual surfaces.
-  They must not be revived as the default app runtime unless this contract is
-  intentionally changed.
+- **AgentRemote owns the local runtime path**: spawn, attach/reveal, kill,
+  relaunch, restart-loop, status, layout, and tmux identity. As of 2026-06-19
+  (Richard greenlit) it spawns agents **natively** via the in-app
+  `remote-app/tmux-deploy.js` + tmux control; it does **not** require the swarmy
+  python runtime.
+- **Swarmy is an optional fallback only**, selected by `AGENTREMOTE_SPAWN=swarmy`
+  (default is native). It stays available for Richard's other orchestration
+  needs but is off the default spawn path. The app must not silently depend on
+  swarmy being installed.
+- `launch-agent.sh` remains the per-agent launcher; the native deploy path calls
+  it per pane. It must build argv arrays and must not assemble Codex, Claude,
+  Hermes, OpenClaw, tmux, or iTerm commands as shell strings.
+- Compatibility launchers such as `chq-tmux.sh` are manual fallback surfaces.
+  They must not be revived as the default app runtime.
 
 ## Pane And Layout Contract
 
@@ -72,27 +78,27 @@ Resolver order (most → least authoritative):
 2. `/tmp/agent-remote-panes.json` sidecar lookup → `source=registry` or `source=suffix`
 3. Registry coord fallback
 
-Supported materializations:
+Materialization (single-window model, as of 2026-06-19):
 
-- `teams`: one balanced tmux window per team, surfaced through iTerm control
-  mode. This is the default operator layout for grouped work.
-- `tabs` / `ittab` / `separate`: each agent pane is isolated in its own tmux
-  window, then surfaced through iTerm control mode. This is the movable,
-  pull-apart layout Richard wants available.
-- `panes` / `joined`: the same separate agent panes can be intentionally joined
-  into one balanced tmux grid for laptop or monitor use.
+- **All selected agents land as tiled panes in ONE tmux window** in session
+  `chq`, surfaced through a single marked iTerm viewer window. This is the
+  default and only automatic layout — launching N agents yields exactly one
+  window, never N.
+- The legacy multi-window layouts (`teams` one-window-per-team, `tabs`/`ittab`
+  one-window-per-agent, `panes`/`joined` grid) are collapsed into this single
+  model. They did the same thing except for window count, which confused
+  operators and produced stray windows.
+- A deliberate "break a pane into its own window" may exist as an explicit,
+  secondary operator action, but it is never the result of a normal launch.
 
 Forbidden materializations:
 
 - Do not merge multiple agents into one ordinary terminal as a workaround for
-  input bugs.
+  input bugs (the single-window model uses real tmux panes, not a merged shell).
 - Do not open a normal `tmux attach -t chq` viewer to fake success.
 - Do not split the current unrelated iTerm session to display AgentRemote panes.
 - Do not target iTerm's `first window` or `current session`; create or reuse one
   marked AgentRemote viewer window only.
-
-Layout controls must explain the tmux pattern underneath the label, so future
-operators can distinguish separate tabs/windows from joined panes.
 
 ## Window Hygiene
 
@@ -102,6 +108,10 @@ operators can distinguish separate tabs/windows from joined panes.
 - Stale control-mode windows, detached viewers, helper shells, and Default
   windows with old attach commands are failures. They must be cleaned or
   reported as blockers before claiming done.
+- **Closing an agent fully closes its surface.** Closing kills the agent's pane;
+  if it was the last pane in its window, the window and its iTerm viewer are
+  released. A `[tmux detached]` window left lingering after Close is a failure
+  (this is BUG A; fixed in the native single-window model).
 - Closeout must not leave visible junk windows, hidden respawn loops, stale
   Electron worktree apps, or ambiguous dirty state.
 - Richard must be able to open a normal terminal without it becoming an agent
