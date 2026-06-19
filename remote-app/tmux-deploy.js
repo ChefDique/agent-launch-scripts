@@ -106,6 +106,19 @@ function setSessionLayoutArgs(session, layout = SINGLE_WINDOW_LAYOUT) {
   return ['set-option', '-t', String(session), '-q', LAYOUT_OPTION, String(layout)];
 }
 
+// M1 — swarmy configure_session parity. In the single tiled window the pane
+// BORDER is the only per-agent label (the core "select target" value), and pane
+// titles must be protected from the running TUI. Returns the argv list for each
+// session option.
+function sessionDisplayOptionArgsList(session) {
+  const s = String(session);
+  return [
+    ['set-option', '-t', s, 'pane-border-status', 'top'],
+    ['set-option', '-t', s, 'pane-border-format', ' #T '],
+    ['set-option', '-t', s, '-q', 'allow-set-title', 'off']
+  ];
+}
+
 function setOwnershipArgs(session) {
   return ['set-option', '-t', String(session), '-q', OWNERSHIP_OPTION, OWNERSHIP_VALUE];
 }
@@ -414,6 +427,12 @@ function deploySingleWindow(opts = {}) {
   runTmux(setLegacyOwnershipArgs(session));
   runTmux(setSessionLayoutArgs(session, SINGLE_WINDOW_LAYOUT));
 
+  // M1: swarmy configure_session parity — pane border shows the per-agent title
+  // (the "select target" label in a single tiled window) and titles are protected.
+  for (const optArgs of sessionDisplayOptionArgsList(session)) {
+    runTmux(optArgs);
+  }
+
   // Write the sidecar in swarmy shape for each created pane. session/window/pane
   // were captured by the liveness probe above (one display-message per pane), so
   // every entry here is from a pane proven live — no empty-session corruption.
@@ -462,6 +481,7 @@ module.exports = {
   remainOnExitArgs,
   paneDiedHookArgs,
   setSessionLayoutArgs,
+  sessionDisplayOptionArgsList,
   setOwnershipArgs,
   setLegacyOwnershipArgs,
   hasSessionArgs,

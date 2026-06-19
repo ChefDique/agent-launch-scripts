@@ -6,7 +6,7 @@ const fsp = require('fs/promises');
 const os = require('os');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { normalizeSpawnLayout } = require('./layout-policy');
+const { normalizeSpawnLayout, swarmyLayoutFor } = require('./layout-policy');
 const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
@@ -29,6 +29,7 @@ const {
   isModelSupportedForHarness
 } = require('./harness-models');
 const {
+  CONTROL_MODE_LAYOUTS,
   hasRequiredTmuxClient,
   parseTmuxClientLines,
   parseTmuxSessionGroupLines,
@@ -1973,9 +1974,10 @@ async function spawnAgents(payload) {
     }
   }
 
-  // Whitelist layout — passed through to Swarmy's AgentRemote runtime adapter.
-  // Fallback is teams, because the operator default is grouped iTerm
-  // control-mode team windows rather than one crowded split-pane tmux window.
+  // Normalize the requested layout. The renderer sends 'single' (the only mode
+  // after the layout-pill collapse); legacy values still normalize safely. The
+  // native path treats every layout as one window; the swarmy fallback maps it
+  // via swarmyLayoutFor below.
   const layout = normalizeSpawnLayout(layoutRaw);
 
   // Emit agent_spawn_requested for each agent before launch.
@@ -1991,13 +1993,16 @@ async function spawnAgents(payload) {
   let stdout = '';
   if (useSwarmy) {
     try {
-      const runtimeArgs = ['add', '--layout', layout];
+      // H5: swarmy argparse only accepts ittab|panes|teams; `single` would exit 2.
+      // Map to a swarmy-accepted layout for the fallback path.
+      const swarmyLayout = swarmyLayoutFor(layout);
+      const runtimeArgs = ['add', '--layout', swarmyLayout];
       if (Object.keys(runtimeOverrides).length > 0) {
         runtimeArgs.push('--runtime-overrides-json', JSON.stringify(runtimeOverrides));
       }
       runtimeArgs.push(...safeAgents);
       const result = await execFileP('python3', swarmyRuntimeArgs(...runtimeArgs), {
-        env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
+        env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: swarmyLayout }
       });
       stdout = result.stdout || '';
     } catch (err) {
@@ -2031,7 +2036,12 @@ async function spawnAgents(payload) {
       launchAgentPath,
       sidecarPath: SIDECAR_PATH,
       scriptDir,
-      runtimeMetadataForAgent: (id) => runtimeOverrides[id] || undefined
+      runtimeMetadataForAgent: (id) => runtimeOverrides[id] || undefined,
+      // Use main.js's single sidecar reader/writer so there is ONE writer for
+      // /tmp/agent-remote-panes.json (writePaneSidecar adds the trailing newline
+      // that defaultWriteSidecar omits). sidecarPath is the same SIDECAR_PATH.
+      readSidecar: () => readPaneSidecar(),
+      writeSidecar: (_path, data) => writePaneSidecar(data)
     });
     if (!deployResult.ok) {
       const msg = deployResult.error || 'native deploy failed';
@@ -2085,7 +2095,9 @@ async function spawnAgents(payload) {
     return { ok: false, error: viewerError, agents: safeAgents, layout, clients, sessions, needsViewerCleanup: true, stdout };
   }
   if (!hasRequiredTmuxClient(layout, clients)) {
-    const error = ['teams', 'ittab'].includes(layout)
+    // M3: single-window is a control-mode layout too — reuse the shared list so
+    // a single-window attach failure reports the control-mode message correctly.
+    const error = CONTROL_MODE_LAYOUTS.includes(layout)
       ? 'deploy created chq panes but no iTerm control-mode client attached'
       : 'deploy created chq panes but no tmux client attached';
     logToOutLog(`[spawn] ${error}; clients=${JSON.stringify(clients)}`);

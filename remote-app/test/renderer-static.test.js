@@ -709,7 +709,10 @@ test('AgentRemote deploy routes through Swarmy runtime adapter in ai_projects', 
   assert.match(main, /function swarmyRuntimeArgs\(\.\.\.args\)\s*\{\s*return \[\s*SWARMY_RUNTIME_SCRIPT,\s*'--session',\s*RUNTIME_SESSION,\s*'--registry',\s*REGISTRY_PATH,\s*'--sidecar',\s*SIDECAR_PATH,/s);
   assert.match(main, /function shellQuoteArg\(value\)/);
   assert.match(main, /function shellQuoteCommand\(args\)/);
-  assert.match(main, /const runtimeArgs = \['add', '--layout', layout\]/);
+  // H5: the swarmy fallback must map 'single' to a swarmy-accepted layout
+  // (argparse rejects 'single'); it no longer passes the raw `layout` through.
+  assert.match(main, /const swarmyLayout = swarmyLayoutFor\(layout\)/);
+  assert.match(main, /const runtimeArgs = \['add', '--layout', swarmyLayout\]/);
   assert.match(main, /runtimeArgs\.push\('--runtime-overrides-json', JSON\.stringify\(runtimeOverrides\)\)/);
   assert.match(main, /runtimeArgs\.push\(\.\.\.safeAgents\)/);
   assert.match(main, /swarmyRuntimeArgs\('layout'\)/);

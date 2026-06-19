@@ -315,3 +315,29 @@ test('H4: re-deploy skips an agent already live under a runtime-suffixed identit
     .split('\n').filter(Boolean).map(s => s.trim()).filter(Boolean);
   assert.equal(ids.length, 1, `no duplicate pane; identities=${ids.join(',')}`);
 });
+
+// M1 — native deploy must set the swarmy configure_session display options so
+// the per-agent pane border (the "select target" label in a single tiled window)
+// shows. Asserts pane-border-status is enabled on the session after deploy.
+test('M1: native deploy sets pane-border-status/format on the session (per-agent labels)', (t) => {
+  if (!hasTmux()) { t.skip('tmux is not installed'); return; }
+  const session = throwawaySession('border');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-border-'));
+  t.after(() => { killSession(session); try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+
+  const result = deploySingleWindow({
+    session,
+    agents: makeAgents(2),
+    registryPath: path.join(tmpDir, 'agents.json'),
+    launchAgentPath: path.join(tmpDir, 'launch-agent.sh'),
+    sidecarPath: path.join(tmpDir, 'sidecar.json'),
+    scriptDir: tmpDir,
+    commandForAgent: (agent) => agent.command
+  });
+  assert.equal(result.ok, true, result.error || '');
+
+  const borderStatus = tmux(['show-options', '-t', session, '-v', 'pane-border-status']).trim();
+  assert.equal(borderStatus, 'top', `pane-border-status should be 'top', got '${borderStatus}'`);
+  const borderFormat = tmux(['show-options', '-t', session, '-v', 'pane-border-format']).trim();
+  assert.match(borderFormat, /#T/, `pane-border-format should reference the pane title, got '${borderFormat}'`);
+});

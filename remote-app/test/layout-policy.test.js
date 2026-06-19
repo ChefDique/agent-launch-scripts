@@ -6,9 +6,20 @@ const {
   LAYOUT_MODES,
   layoutModeToDeployLayout,
   normalizeSpawnLayout,
+  swarmyLayoutFor,
   tmuxAttachCommand,
   tmuxFocusedAttachCommand
 } = require('../layout-policy');
+
+test('H5: swarmyLayoutFor maps single -> a swarmy-accepted layout (argparse choices)', () => {
+  // swarmy agentremote_runtime.py only accepts ittab|panes|teams; `single` would
+  // exit 2. Map single -> panes (one balanced grid window) for the fallback path.
+  assert.equal(swarmyLayoutFor('single'), 'panes');
+  // Layouts swarmy already accepts pass through unchanged.
+  assert.equal(swarmyLayoutFor('teams'), 'teams');
+  assert.equal(swarmyLayoutFor('ittab'), 'ittab');
+  assert.equal(swarmyLayoutFor('panes'), 'panes');
+});
 
 test('EACH/ittab remains the deploy layout instead of degrading to plain windows', () => {
   assert.equal(layoutModeToDeployLayout('ittab'), 'ittab');
