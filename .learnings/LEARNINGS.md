@@ -1,5 +1,32 @@
 # Learnings
 
+## [LRN-20260619-001] correction
+
+**Logged**: 2026-06-19
+**Priority**: critical
+**Status**: open
+**Area**: agentremote / runtime-truth
+
+### Summary
+AgentRemote's user-visible window bugs (multiple windows on deploy; Close not fully closing) live in the iTerm control-mode (`tmux -CC`) layer, NOT the tmux topology. Fixes verified only against tmux/isolated tests can be "green" while the real bugs persist.
+
+### Details
+2026-06-19: shipped a native single-window tmux spawn + kill-pane viewer-release, verified at the tmux layer (one tmux window) + isolated throwaway-session tests + integration 10/10. Claimed "both bugs fixed." On the live eyeball Richard reported "the same issues are still present — starting up and shutting down." Root cause: iTerm `tmux -CC attach` opens a gateway/dashboard window PLUS a window/tab per tmux window (`OpenTmuxWindowsIn=1`); collapsing tmux to one window does not remove iTerm's gateway/extra windows, and osascript viewer-release does not reliably close them. The operator contract requires proving the "iTerm/viewer materialization" — only tmux topology was proven.
+
+### Suggested Action
+Treat the in-app embedded terminal (replacing iTerm control-mode) as the REQUIRED fix for both window bugs — not a deferred nicety. NEVER claim a window/close bug fixed from tmux/isolated tests alone; prove against the real iTerm materialization (window count + actual close behavior) per Proof-Before-PASS.
+
+### Metadata
+- Source: user_feedback
+- Tags: agentremote, iterm, control-mode, one-window, close, runtime-truth, over-claim
+- Pattern-Key: agentremote.iterm_control_mode_is_the_window_ux
+- Control Surface: docs/operations/agentremote-operator-contract.md (Proof Before PASS)
+
+### Resolution
+- **Status**: OPEN — fix is the embedded terminal (next session #1 priority).
+
+---
+
 ## [LRN-20260508-001] correction
 
 **Logged**: 2026-05-08T01:45:00-07:00

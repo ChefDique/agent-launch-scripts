@@ -392,7 +392,6 @@
       "local_attach": "iterm_control_mode",
       "avatar": "neo.gif",
       "allow_claude_runtime": true,
-      "auto_restart": false,
       "startup_injection": {
         "include": [
           "dangerous_permission_enter",
