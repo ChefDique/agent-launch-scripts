@@ -98,6 +98,7 @@ function pruneSidecarToLiveSessions(sidecar = {}, liveSessions = new Set(), live
 }
 
 module.exports = {
+  canonicalAgentBase,
   pruneSidecarToLiveSessions,
   removeSidecarIds,
   removeSidecarSession,

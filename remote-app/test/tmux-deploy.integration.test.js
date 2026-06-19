@@ -247,3 +247,71 @@ test('H2: instant-exit agent does not produce ok:true with a corrupt sidecar ent
     }
   }
 });
+
+// H1 — re-deploy de-dup must see panes in OTHER windows of the session. The
+// Attach button breaks a pane into its own window; with `list-panes -t` (current
+// window only) a subsequent re-deploy can't see it and spawns a duplicate.
+test('H1: re-deploy does not duplicate an agent whose pane was broken into its own window', (t) => {
+  if (!hasTmux()) { t.skip('tmux is not installed'); return; }
+  const session = throwawaySession('breakwin');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-bw-'));
+  t.after(() => { killSession(session); try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+
+  const base = {
+    session,
+    registryPath: path.join(tmpDir, 'agents.json'),
+    launchAgentPath: path.join(tmpDir, 'launch-agent.sh'),
+    sidecarPath: path.join(tmpDir, 'sidecar.json'),
+    scriptDir: tmpDir,
+    commandForAgent: (agent) => agent.command
+  };
+  const first = deploySingleWindow({ ...base, agents: makeAgents(2) }); // fake0, fake1 in window 0
+  assert.equal(first.ok, true, first.error || '');
+
+  // Simulate Attach: break fake1's pane into its own window (like main.js does).
+  const fake1Pane = first.panes.find(p => p.id === 'fake1').paneId;
+  tmux(['break-pane', '-d', '-s', fake1Pane, '-t', `${session}:`]);
+  // fake1 is now in a different window than the original.
+
+  // Re-deploy fake1 — it is still live (in another window), so NO new pane.
+  const second = deploySingleWindow({ ...base, agents: [{ id: 'fake1', displayName: 'Fake 1', cwd: os.tmpdir(), command: 'sleep 30' }] });
+  assert.equal(second.ok, true, second.error || '');
+
+  const ids = tmux(['list-panes', '-s', '-t', session, '-F', '#{@agent-identity}'])
+    .split('\n').filter(Boolean).map(s => s.trim()).filter(Boolean);
+  const fake1Count = ids.filter(id => id === 'fake1').length;
+  assert.equal(fake1Count, 1, `fake1 must not be duplicated across windows; identities=${ids.join(',')}`);
+});
+
+// H4 — swarmy tags panes `<id>-<runtime>` (e.g. kenpachi-claude); a native
+// re-deploy comparing the RAW id would miss it and spawn a duplicate. De-dup
+// must canonicalize (strip the trailing -runtime) on both sides.
+test('H4: re-deploy skips an agent already live under a runtime-suffixed identity', (t) => {
+  if (!hasTmux()) { t.skip('tmux is not installed'); return; }
+  const session = throwawaySession('runtimesuffix');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentremote-rs-'));
+  t.after(() => { killSession(session); try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {} });
+
+  const base = {
+    session,
+    registryPath: path.join(tmpDir, 'agents.json'),
+    launchAgentPath: path.join(tmpDir, 'launch-agent.sh'),
+    sidecarPath: path.join(tmpDir, 'sidecar.json'),
+    scriptDir: tmpDir,
+    commandForAgent: (agent) => agent.command
+  };
+  // First deploy creates the session/window via the real path; then re-tag the
+  // pane to a swarmy-style `kenpachi-claude` identity (suffixed runtime).
+  const first = deploySingleWindow({ ...base, agents: [{ id: 'kenpachi', displayName: 'Kenpachi', cwd: os.tmpdir(), command: 'sleep 30' }] });
+  assert.equal(first.ok, true, first.error || '');
+  tmux(['set-option', '-p', '-t', first.panes[0].paneId, '@agent-identity', 'kenpachi-claude']);
+
+  // Native re-deploy of `kenpachi` (raw id) — already live under kenpachi-claude.
+  const result = deploySingleWindow({ ...base, agents: [{ id: 'kenpachi', displayName: 'Kenpachi', cwd: os.tmpdir(), command: 'sleep 30' }] });
+
+  assert.equal(result.ok, true, result.error || '');
+  assert.deepEqual(result.skipped, ['kenpachi'], `kenpachi should be skipped (already live); result=${JSON.stringify(result)}`);
+  const ids = tmux(['list-panes', '-s', '-t', session, '-F', '#{@agent-identity}'])
+    .split('\n').filter(Boolean).map(s => s.trim()).filter(Boolean);
+  assert.equal(ids.length, 1, `no duplicate pane; identities=${ids.join(',')}`);
+});

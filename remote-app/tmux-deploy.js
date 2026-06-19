@@ -21,6 +21,7 @@
 const path = require('path');
 const fs = require('fs');
 const childProcess = require('child_process');
+const { canonicalAgentBase } = require('./pane-resolver');
 
 const SINGLE_WINDOW_LAYOUT = 'single';
 const OWNERSHIP_OPTION = '@agentremote_runtime';
@@ -128,8 +129,10 @@ function displayMessageArgs(paneTarget, format) {
 
 // List @agent-identity for every pane in the session — used to skip agents that
 // are already live so a re-deploy does not create duplicate panes (swarmy parity).
+// `-s` scopes to ALL windows in the session: the Attach button breaks a pane into
+// its own window, so a current-window-only list would miss it and duplicate it.
 function listPaneIdentitiesArgs(session) {
-  return ['list-panes', '-t', String(session), '-F', '#{@agent-identity}'];
+  return ['list-panes', '-s', '-t', String(session), '-F', '#{@agent-identity}'];
 }
 
 // The respawn shell wired into the pane-died hook (faithful to swarmy
@@ -325,20 +328,22 @@ function deploySingleWindow(opts = {}) {
 
   // Agents already live in the session (by @agent-identity) are skipped so a
   // re-deploy never duplicates a pane (faithful to swarmy cmd_add, which skips
-  // agents with a resolvable live pane).
+  // agents with a resolvable live pane). Identities are CANONICALIZED (trailing
+  // -runtime stripped, same as the resolver) so a swarmy-tagged `kenpachi-claude`
+  // pane is recognized when re-deploying the raw `kenpachi` id (H4).
   const liveIdentities = new Set();
   if (sessionExists) {
     const idRes = runTmux(listPaneIdentitiesArgs(session));
     if (idRes.status === 0) {
       for (const line of (idRes.stdout || '').split('\n')) {
-        const id = line.trim();
+        const id = canonicalAgentBase(line.trim());
         if (id) liveIdentities.add(id);
       }
     }
   }
 
   for (const agent of deployable) {
-    if (liveIdentities.has(agent.id)) {
+    if (liveIdentities.has(canonicalAgentBase(agent.id))) {
       // Already running — leave its pane untouched, just refresh the sidecar.
       skipped.push(agent.id);
       continue;
