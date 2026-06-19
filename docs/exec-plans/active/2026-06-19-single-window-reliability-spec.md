@@ -11,13 +11,13 @@ Richard's directive: get AgentRemote's **code in order + docs updated** so it is
 
 ### In scope (this session)
 1. **BUG A** — right-click "Close" leaves a `[tmux detached]` window.
-2. **BUG B** — launching agents opens multiple windows; target is one self-contained window.
+2. **BUG B + native spawn** — replace the swarmy shell-out with an **in-app spawn** (Richard greenlit 2026-06-19: "adjust it to operate the same way without swarmy") that puts all selected agents into one tmux session / one window as tiled panes; **collapse the 3 layout pills** (Richard: they "do the same thing") to the single-window model.
 3. **Button/IPC audit** — every control works; remove dead/duplicate handlers.
 4. **Architecture in order** — decompose the `main.js` IPC backend into focused, testable modules (build on existing extracted modules).
 5. **Docs** — rewrite the operator contract's layout/runtime sections for the single-window default; update `launch-scripts.md`; this spec.
 
 ### Deferred (future public-extraction / PM session)
-- Full in-app runtime that **removes the swarmy dependency** so a stranger runs it with zero deps (embedded-terminal, no iTerm control-mode). High blast radius on Richard's daily driver — documented as the target, not cut over here.
+- **Embedded-terminal** rendering that replaces iTerm control-mode entirely (zero macOS/iTerm coupling). This session removes the *swarmy* dependency from spawn; replacing the iTerm viewer with an in-app xterm surface is the next increment.
 - Renderer (`index.html`, 9,947 lines) decomposition.
 - Packaging, signing/notarization, naming, license, README/landing, repo extraction.
 - Codex **custom pet creation** feature (bonus) — only if core lands with time to spare.
@@ -70,8 +70,13 @@ Each unit: one responsibility, a small public interface, unit-testable in isolat
 - `docs/operations/launch-scripts.md` — layout vocabulary + the one-window default.
 - `memory/tasks/tasks.json` — add rows for BUG A, BUG B, the audit, and the decomposition; close on verification.
 
-## 7. Contract change to greenlight (modest, this session)
-Today the contract makes **swarmy authoritative** and lists multi-window layouts as intended defaults. This session changes only: **(a)** single-window becomes the **default** operator layout (multi-window demoted to clearly-labeled advanced modes); **(b)** "Close" releases the viewer of an emptied window. The larger "AgentRemote owns an in-app runtime; swarmy becomes optional" is recorded as the **future** direction, not executed now.
+## 7. Contract change (greenlit by Richard 2026-06-19)
+Today the contract makes **swarmy authoritative** for spawn and lists multi-window layouts as intended defaults. Richard greenlit changing this:
+- **(a) Native spawn.** AgentRemote spawns agents itself via an in-app `tmux-deploy.js`; the swarmy python runtime leaves the spawn path. Swarmy is kept only as a hidden `AGENTREMOTE_SPAWN=swarmy` fallback during transition, default native.
+- **(b) Single window, one model.** The 3 layout pills collapse to the single-window model (Richard: they "do the same thing"). All selected agents land as tiled panes in one tmux window.
+- **(c) Clean close.** "Close" releases the viewer of an emptied window.
+
+The operator contract's Runtime Ownership + Pane/Layout sections are rewritten to match. Embedded-terminal (replacing iTerm control-mode) remains the documented next increment.
 
 ## 8. Testing & verification gates
 - Static/unit tests run via Node's built-in runner (`cd remote-app && node --test test/<file>.test.js`); full suite `npm test`.
