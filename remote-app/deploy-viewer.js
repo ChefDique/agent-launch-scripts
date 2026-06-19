@@ -46,7 +46,7 @@ function plainTmuxClients(clients) {
   });
 }
 
-function viewerSafetyError({ sessionName = 'chq', layout = 'ittab', sessions = [], clients = [] } = {}) {
+function viewerSafetyError({ sessionName = 'agentremote', layout = 'ittab', sessions = [], clients = [] } = {}) {
   const grouped = noncanonicalGroupedSessions(sessionName, sessions);
   if (grouped.length > 0) {
     return `refusing to open AgentRemote viewer while noncanonical grouped tmux sessions exist: ${grouped.map(s => s.name).join(', ')}`;

@@ -81,7 +81,8 @@ Resolver order (most → least authoritative):
 Materialization (single-window model, as of 2026-06-19):
 
 - **All selected agents land as tiled panes in ONE tmux window** in session
-  `chq`, surfaced through a single marked iTerm viewer window. This is the
+  `agentremote` (the default; override with `AGENTREMOTE_TMUX_SESSION`), surfaced
+  through a single marked iTerm viewer window. This is the
   default and only automatic layout — launching N agents yields exactly one
   window, never N.
 - The legacy multi-window layouts (`teams` one-window-per-team, `tabs`/`ittab`
@@ -95,7 +96,7 @@ Forbidden materializations:
 
 - Do not merge multiple agents into one ordinary terminal as a workaround for
   input bugs (the single-window model uses real tmux panes, not a merged shell).
-- Do not open a normal `tmux attach -t chq` viewer to fake success.
+- Do not open a normal `tmux attach -t agentremote` viewer to fake success.
 - Do not split the current unrelated iTerm session to display AgentRemote panes.
 - Do not target iTerm's `first window` or `current session`; create or reuse one
   marked AgentRemote viewer window only.

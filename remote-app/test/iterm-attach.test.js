@@ -12,8 +12,8 @@ const {
 test('iTerm attach script creates or reuses only the marked AgentRemote viewer window', () => {
   const script = buildITermAttachScript('python3 /Users/richardadair/ai_projects/swarmy/scripts/agentremote_runtime.py attach');
 
-  assert.equal(AGENTREMOTE_ITERM_VIEWER_MARKER, 'AgentRemote CHQ Viewer');
-  assert.match(script, /set markerName to "AgentRemote CHQ Viewer"/);
+  assert.equal(AGENTREMOTE_ITERM_VIEWER_MARKER, 'AgentRemote Viewer');
+  assert.match(script, /set markerName to "AgentRemote Viewer"/);
   assert.match(script, /repeat with candidateWindow in windows/);
   assert.match(script, /set targetSession to missing value/);
   assert.match(script, /if \(name of candidateSession as text\) contains markerName then/);
@@ -42,7 +42,7 @@ test('iTerm attach script rejects plain tmux attach viewers', () => {
 test('marked iTerm helper can be hidden without touching unrelated windows', () => {
   const script = buildITermHideMarkedViewerScript();
 
-  assert.match(script, /set markerName to "AgentRemote CHQ Viewer"/);
+  assert.match(script, /set markerName to "AgentRemote Viewer"/);
   assert.match(script, /set miniaturized of candidateWindow to true/);
   assert.doesNotMatch(script, /close window|delete window|killall|tell application "Terminal"/i);
 });

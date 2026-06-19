@@ -57,7 +57,7 @@ const REGISTRY_PATH = path.join(REPO_ROOT, 'agents.json');
 const SWARMY_ROOT = process.env.SWARMY_ROOT || path.join(os.homedir(), 'ai_projects', 'swarmy');
 const SWARMY_RUNTIME_SCRIPT = process.env.AGENTREMOTE_SWARMY_RUNTIME
   || path.join(SWARMY_ROOT, 'scripts', 'agentremote_runtime.py');
-const RUNTIME_SESSION = process.env.AGENTREMOTE_TMUX_SESSION || 'chq';
+const RUNTIME_SESSION = process.env.AGENTREMOTE_TMUX_SESSION || 'agentremote';
 const DEFAULT_LEAD_STARTUP_SLASH = '/lead-gogo';
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
@@ -875,7 +875,7 @@ function writeRegistry(mutator) {
 // ---------------------------------------------------------------------------
 // readPaneSidecar() — parse /tmp/agent-remote-panes.json written by Swarmy's runtime adapter.
 // Returns an object keyed by agent id, or {} if the file is missing / unreadable.
-// Shape: { "xavier": { pane_id: "%5", session: "chq", window: 0, pane: 2, updated_at: "..." }, ... }
+// Shape: { "xavier": { pane_id: "%5", session: "agentremote", window: 0, pane: 2, updated_at: "..." }, ... }
 function readPaneSidecar() {
   try {
     const raw = fs.readFileSync(SIDECAR_PATH, 'utf8');
@@ -1859,7 +1859,7 @@ function delay(ms) {
 // BUG A — release the marked AgentRemote iTerm control-mode viewer. Called when
 // a kill-pane empties a tmux window: that window's control-mode client would
 // otherwise linger showing `[tmux detached]`. Fire-and-forget osascript that
-// miniaturizes only the marked `AgentRemote CHQ Viewer` window (never a
+// miniaturizes only the marked `AgentRemote Viewer` window (never a
 // first/current window — see iterm-attach.js); errors are logged, not thrown,
 // so closing an agent never fails on a viewer-hide hiccup.
 function releaseMarkedItermViewer() {

@@ -2,7 +2,7 @@ function quoteAppleScriptString(value) {
   return `"${String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
-const AGENTREMOTE_ITERM_VIEWER_MARKER = 'AgentRemote CHQ Viewer';
+const AGENTREMOTE_ITERM_VIEWER_MARKER = 'AgentRemote Viewer';
 
 function rejectPlainTmuxAttachCommand(command) {
   if (/\btmux\s+attach\b/.test(command) && !/\btmux\s+-CC\s+attach\b/.test(command)) {
