@@ -165,11 +165,33 @@
   ],
   "agents": [
     {
+      "id": "kenpachi",
+      "display_name": "KENPACHI",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/career-portfolio",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "default",
+      "reasoning_effort": "max",
+      "theme_color": "#00f2ff",
+      "avatar": "kenpachi.png",
+      "allow_claude_runtime": true,
+      "startup_lines": [
+        "/color cyan"
+      ],
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      }
+    },
+    {
       "id": "mugatu",
       "display_name": "MUGATU",
       "runtime": "claude",
       "tmux_target": "mugatu",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "default",
@@ -184,15 +206,15 @@
         ]
       },
       "startup_lines": [
-        "/color red",
-        "{{startup_slash}}"
-      ]
+        "/color red"
+      ],
+      "auto_restart": false
     },
     {
       "id": "hansel",
       "display_name": "HANSEL",
       "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER/team/CMO",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/CMO",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "default",
@@ -208,7 +230,8 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "auto_restart": false
     },
     {
       "id": "dasha",
@@ -223,56 +246,80 @@
       "reasoning_effort": "max",
       "allow_claude_runtime": true,
       "startup_lines": [
-        "/color pink",
-        "{{startup_slash}}"
+        "/color pink"
       ],
       "startup_injection": {
         "include": [
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "auto_restart": false
     },
     {
-      "id": "kenpachi",
-      "display_name": "KENPACHI",
+      "id": "dasha-couch-kingdom",
+      "display_name": "DASHA-CK",
       "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/ecom-os",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/dasha-storefront",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
-      "model": "default",
-      "reasoning_effort": "max",
-      "theme_color": "#00f2ff",
-      "avatar": "kenpachi.png",
-      "allow_claude_runtime": true,
       "startup_lines": [
-        "/color cyan",
-        "{{startup_slash}}"
+        "/color purple"
       ],
       "startup_injection": {
         "include": [
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "model": "default",
+      "reasoning_effort": "max",
+      "allow_claude_runtime": true,
+      "theme_color": "#00f2ff"
     },
     {
-      "id": "vegeta",
+      "id": "08_creative",
+      "display_name": "08_GOKU",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "theme_color": "#00fffb",
+      "avatar": "goku.gif",
+      "model": "default",
+      "reasoning_effort": "max",
+      "workspace_mode": "repo_root",
+      "worktree_strategy": "shared_cwd",
+      "local_mode": "visible_tmux",
+      "local_attach": "iterm_control_mode",
+      "allow_claude_runtime": true,
+      "startup_injection": {
+        "include": [
+          "dangerous_permission_enter",
+          "startup_lines"
+        ]
+      },
+      "startup_lines": [
+        "Do not write any changes to anything. do not begin any tasks. We are in planning mode."
+      ],
+      "auto_restart": false
+    },
+    {
+      "id": "01_product-discovery_vegeta",
       "display_name": "VEGETA",
       "runtime": "codex",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod",
+      "cwd": "/Users/richardadair/ai_projects/ecommerce/01_product-discovery-pod",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "theme_color": "#007bff",
       "avatar": "vegeta.png",
-      "auto_restart": false,
-      "sandbox": "danger-full-access",
-      "approval_policy": "never",
       "startup_lines": [
         "/color blue"
-      ]
+      ],
+      "sandbox": "danger-full-access",
+      "approval_policy": "never"
     },
     {
       "id": "zoolander",
@@ -308,7 +355,7 @@
       "worktree_strategy": "shared_cwd",
       "local_mode": "visible_tmux",
       "local_attach": "iterm_control_mode",
-      "startup_slash": "/lead-gogo",
+      "startup_slash": "",
       "pre_launch": "~/ai_projects/CorporateHQ/hooks/telegram-cleanup.sh --pre-launch Lucius",
       "env": {
         "KOKORO_VOICE": "am_michael"
@@ -326,9 +373,7 @@
       },
       "auto_restart": false,
       "startup_lines": [
-        "/color purple",
-        "/rename {{rename_to}}",
-        "{{startup_slash}}"
+        "/color purple"
       ]
     },
     {
@@ -381,29 +426,6 @@
         "/color yellow",
         "/lead-gogo"
       ],
-      "startup_injection": {
-        "include": [
-          "dangerous_permission_enter",
-          "startup_lines"
-        ]
-      }
-    },
-    {
-      "id": "08_creative",
-      "display_name": "08_GOKU",
-      "runtime": "claude",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/08_creative-production-pod",
-      "color": "cyan",
-      "startup_slash": "/lead-gogo",
-      "theme_color": "#00fffb",
-      "avatar": "goku.gif",
-      "model": "default",
-      "reasoning_effort": "max",
-      "workspace_mode": "repo_root",
-      "worktree_strategy": "shared_cwd",
-      "local_mode": "visible_tmux",
-      "local_attach": "iterm_control_mode",
-      "allow_claude_runtime": true,
       "startup_injection": {
         "include": [
           "dangerous_permission_enter",
@@ -558,7 +580,21 @@
       "color": "cyan",
       "startup_slash": "",
       "theme_color": "#eeff00",
-      "auto_restart": false
+      "auto_restart": false,
+      "model": "default",
+      "reasoning_effort": "policy-only"
+    },
+    {
+      "id": "kirito",
+      "display_name": "Alana",
+      "runtime": "claude",
+      "cwd": "/Users/richardadair/ai_projects/AgentRemote_AtlasIslands",
+      "color": "cyan",
+      "startup_slash": "/lead-gogo",
+      "model": "default",
+      "reasoning_effort": "max",
+      "allow_claude_runtime": true,
+      "theme_color": "#00f2ff"
     }
   ]
 }
