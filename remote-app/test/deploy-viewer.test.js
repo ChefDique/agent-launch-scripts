@@ -29,6 +29,11 @@ test('non-ittab deploy only requires any tmux client', () => {
   assert.equal(hasRequiredTmuxClient('panes', [{ name: 'plain', controlMode: '0' }]), true);
 });
 
+test('single-window deploy requires a control-mode tmux client (movable viewer)', () => {
+  assert.equal(hasRequiredTmuxClient('single', [{ name: 'plain', controlMode: '0' }]), false);
+  assert.equal(hasRequiredTmuxClient('single', [{ name: 'control', controlMode: '1' }]), true);
+});
+
 test('viewer safety catches grouped session aliases before opening iTerm', () => {
   const sessions = parseTmuxSessionGroupLines('chq\tchq\nchq-swarmy\tchq\nsession1\t\n');
 

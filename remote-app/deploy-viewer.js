@@ -9,9 +9,13 @@ function parseTmuxClientLines(output) {
     });
 }
 
+// 'single' is the native one-window layout; like ittab/teams it is surfaced
+// through iTerm control mode, so it requires a control-mode client.
+const CONTROL_MODE_LAYOUTS = ['ittab', 'teams', 'single'];
+
 function hasRequiredTmuxClient(layout, clients) {
   const list = Array.isArray(clients) ? clients : [];
-  if (['ittab', 'teams'].includes(String(layout || ''))) {
+  if (CONTROL_MODE_LAYOUTS.includes(String(layout || ''))) {
     return list.some(client => String(client.controlMode) === '1');
   }
   return list.length > 0;
@@ -47,7 +51,7 @@ function viewerSafetyError({ sessionName = 'chq', layout = 'ittab', sessions = [
   if (grouped.length > 0) {
     return `refusing to open AgentRemote viewer while noncanonical grouped tmux sessions exist: ${grouped.map(s => s.name).join(', ')}`;
   }
-  if (['ittab', 'teams'].includes(String(layout || ''))) {
+  if (CONTROL_MODE_LAYOUTS.includes(String(layout || ''))) {
     const plain = plainTmuxClients(clients);
     if (plain.length > 0) {
       return `refusing to open AgentRemote control-mode viewer while plain tmux clients are attached: ${plain.map(c => c.name).join(', ')}`;
@@ -57,6 +61,7 @@ function viewerSafetyError({ sessionName = 'chq', layout = 'ittab', sessions = [
 }
 
 module.exports = {
+  CONTROL_MODE_LAYOUTS,
   hasRequiredTmuxClient,
   noncanonicalGroupedSessions,
   parseTmuxClientLines,

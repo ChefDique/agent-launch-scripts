@@ -10,7 +10,9 @@ const { normalizeSpawnLayout } = require('./layout-policy');
 const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
-const { buildITermAttachScript } = require('./iterm-attach');
+const { buildITermAttachScript, buildITermHideMarkedViewerScript } = require('./iterm-attach');
+const { killPaneReleasingEmptyWindow } = require('./pane-control');
+const { deploySingleWindow } = require('./tmux-deploy');
 const {
   tmuxSendLiteralArgs,
   tmuxSendEnterArgs,
@@ -1856,6 +1858,25 @@ function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// BUG A — release the marked AgentRemote iTerm control-mode viewer. Called when
+// a kill-pane empties a tmux window: that window's control-mode client would
+// otherwise linger showing `[tmux detached]`. Fire-and-forget osascript that
+// miniaturizes only the marked `AgentRemote CHQ Viewer` window (never a
+// first/current window — see iterm-attach.js); errors are logged, not thrown,
+// so closing an agent never fails on a viewer-hide hiccup.
+function releaseMarkedItermViewer() {
+  let apple;
+  try {
+    apple = buildITermHideMarkedViewerScript();
+  } catch (err) {
+    logToOutLog(`[kill-pane] viewer-release script build failed: ${err.message}`);
+    return;
+  }
+  execFile('osascript', ['-e', apple], (err) => {
+    if (err) logToOutLog(`[kill-pane] viewer release osascript failed: ${err.message}`);
+  });
+}
+
 async function listTmuxClients(sessionName) {
   try {
     const { stdout } = await execFileP('tmux', ['list-clients', '-t', sessionName, '-F', '#{client_name}\t#{client_control_mode}']);
@@ -1965,22 +1986,63 @@ async function spawnAgents(payload) {
     atlasBus.emit('agent_spawn_requested', { role: agentId, mode: layout }, { agentId });
   }
 
+  // Spawn path selection. Default is the native, swarmy-free single-window
+  // deploy (tmux-deploy.js): ONE tmux session + ONE window, all selected agents
+  // as tiled panes. Swarmy's python runtime is kept ONLY as a hidden fallback
+  // behind AGENTREMOTE_SPAWN=swarmy during the transition (spec §7a).
+  const useSwarmy = String(process.env.AGENTREMOTE_SPAWN || '').trim().toLowerCase() === 'swarmy';
   let stdout = '';
-  try {
-    const runtimeArgs = ['add', '--layout', layout];
-    if (Object.keys(runtimeOverrides).length > 0) {
-      runtimeArgs.push('--runtime-overrides-json', JSON.stringify(runtimeOverrides));
+  if (useSwarmy) {
+    try {
+      const runtimeArgs = ['add', '--layout', layout];
+      if (Object.keys(runtimeOverrides).length > 0) {
+        runtimeArgs.push('--runtime-overrides-json', JSON.stringify(runtimeOverrides));
+      }
+      runtimeArgs.push(...safeAgents);
+      const result = await execFileP('python3', swarmyRuntimeArgs(...runtimeArgs), {
+        env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
+      });
+      stdout = result.stdout || '';
+    } catch (err) {
+      const msg = err.stderr || err.message || 'swarmy runtime add failed';
+      console.error(`[spawn] swarmy runtime add failed: ${msg}`);
+      logToOutLog(`[spawn] swarmy runtime add failed: ${msg}`);
+      return { ok: false, error: msg.trim(), agents: safeAgents, layout };
     }
-    runtimeArgs.push(...safeAgents);
-    const result = await execFileP('python3', swarmyRuntimeArgs(...runtimeArgs), {
-      env: { ...process.env, TMUX_AUTO_ATTACH: '0', CHQ_LAYOUT: layout }
+  } else {
+    // Native single-window deploy. Build the agent objects (id + cwd) and pass
+    // the per-agent runtime overrides through to the loop wrapper, which exports
+    // them as the SWARMY_*_OVERRIDE env vars launch-agent.sh reads.
+    const registryAgents = loadAgents();
+    const byId = Object.fromEntries(registryAgents.map(a => [a.id, a]));
+    const deployAgents = safeAgents.map(id => {
+      const a = byId[id] || {};
+      return {
+        id,
+        displayName: a.displayName || id,
+        cwd: a.cwd || os.homedir(),
+        overrides: runtimeOverrides[id] || {}
+      };
     });
-    stdout = result.stdout || '';
-  } catch (err) {
-    const msg = err.stderr || err.message || 'swarmy runtime add failed';
-    console.error(`[spawn] swarmy runtime add failed: ${msg}`);
-    logToOutLog(`[spawn] swarmy runtime add failed: ${msg}`);
-    return { ok: false, error: msg.trim(), agents: safeAgents, layout };
+    const scriptDir = path.join(os.tmpdir(), 'agentremote-deploy-scripts');
+    try { fs.mkdirSync(scriptDir, { recursive: true }); } catch { /* exists */ }
+    const launchAgentPath = path.join(REPO_ROOT, 'launch-agent.sh');
+    const deployResult = deploySingleWindow({
+      session: RUNTIME_SESSION,
+      agents: deployAgents,
+      registryPath: REGISTRY_PATH,
+      launchAgentPath,
+      sidecarPath: SIDECAR_PATH,
+      scriptDir,
+      runtimeMetadataForAgent: (id) => runtimeOverrides[id] || undefined
+    });
+    if (!deployResult.ok) {
+      const msg = deployResult.error || 'native deploy failed';
+      console.error(`[spawn] native deploy failed: ${msg}`);
+      logToOutLog(`[spawn] native deploy failed: ${msg}`);
+      return { ok: false, error: msg, agents: safeAgents, layout };
+    }
+    stdout = `native deploy: ${deployResult.panes.map(p => `${p.id}:${p.paneId}`).join(' ')}`;
   }
   console.log(`[spawn] ${stdout.trim()}`);
 
@@ -2605,20 +2667,28 @@ ipcMain.handle('kill-pane', async (event, id) => {
     if (matches.length === 0) throw new Error(`${agent.displayName || safeId} isn't running in chq — Deploy it first`);
 
     // Kill all matching panes (in case there are multiple — e.g. if the same
-    // agent ended up duplicated across windows). Each kill-pane is its own
-    // execFile call, no shell. Reap bg pids BEFORE killing the pane.
+    // agent ended up duplicated across windows). Reap bg pids BEFORE killing.
+    //
+    // BUG A: if a kill empties its tmux window, the iTerm control-mode native
+    // window is otherwise left showing `[tmux detached]`. killPaneReleasingEmptyWindow
+    // reads the window's pane count BEFORE the kill and releases that window's
+    // marked iTerm viewer only when the kill empties the window — so a
+    // multi-agent single-window layout keeps the shared viewer for the panes
+    // that remain. The release is fire-and-forget osascript (logged, not thrown).
     await teardownPipePaneForAgent(safeId);
+    let releasedViewer = false;
     for (const m of matches) {
       await reapAgentBgPids(safeId, m.paneId);
-      await new Promise((resolve, reject) => {
-        execFile('tmux', ['kill-pane', '-t', m.coord], (err, _o, ser) => {
-          if (err) return reject(new Error(ser || err.message));
-          resolve();
-        });
+      const outcome = killPaneReleasingEmptyWindow({
+        paneId: m.paneId,
+        coord: m.coord,
+        releaseViewer: () => { releaseMarkedItermViewer(); }
       });
+      if (!outcome.ok) throw new Error(outcome.error || 'kill-pane failed');
+      if (outcome.releasedViewer) releasedViewer = true;
     }
     removePaneSidecarIds([safeId]);
-    return { ok: true, killed: matches.map(m => m.coord) };
+    return { ok: true, killed: matches.map(m => m.coord), releasedViewer };
   } catch (err) {
     return { ok: false, error: err.message };
   }

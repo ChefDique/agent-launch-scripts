@@ -31,6 +31,18 @@ test('renderer layout modes match the spawn whitelist', () => {
   assert.deepEqual(LAYOUT_MODES, ['teams', 'ittab', 'panes']);
 });
 
+// Single-window is the native deploy's canonical layout. It must be recognized
+// (not coerced to teams) so @chq_layout / viewer-mode logic can reason about it.
+// Legacy teams/panes still normalize to themselves for back-compat with the
+// not-yet-updated renderer; `single` passes through.
+test('single-window layout is recognized and passes through normalizeSpawnLayout', () => {
+  assert.equal(normalizeSpawnLayout('single'), 'single');
+});
+
+test('single-window layout uses iTerm control mode (movable, like teams/ittab)', () => {
+  assert.equal(tmuxAttachCommand('chq', 'single'), 'tmux -CC attach -t chq');
+});
+
 test('attach uses iTerm control mode for movable window layouts and break-outs', () => {
   assert.equal(tmuxAttachCommand('chq', 'teams'), 'tmux -CC attach -t chq');
   assert.equal(tmuxAttachCommand('chq', 'ittab'), 'tmux -CC attach -t chq');
