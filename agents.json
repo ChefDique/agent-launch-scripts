@@ -170,7 +170,7 @@
       "runtime": "claude",
       "cwd": "/Users/richardadair/ai_projects/career-portfolio",
       "color": "cyan",
-      "startup_slash": "/lead-gogo",
+      "startup_slash": "",
       "model": "default",
       "reasoning_effort": "max",
       "theme_color": "#00f2ff",
