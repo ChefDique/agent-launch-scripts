@@ -1056,6 +1056,93 @@
     .send-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
     /* ---------------------------------------------------------------------
+       Hover tooltip system — [data-tooltip]
+       One clean, on-brand tooltip for any control so the HUD never falls back
+       to a white native OS tooltip. Dark glass, soft hairline, fade + a 4px
+       lift on the shared --ease. Default position is above; set
+       data-tooltip-pos="bottom" to flip, data-tooltip-wrap for multi-line copy.
+       --------------------------------------------------------------------- */
+    [data-tooltip] { position: relative; }
+    [data-tooltip]::after,
+    [data-tooltip]::before {
+      position: absolute;
+      left: 50%;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
+      z-index: 90;
+    }
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      bottom: calc(100% + 8px);
+      transform: translate(-50%, 4px);
+      white-space: nowrap;
+      padding: 5px 9px;
+      font-size: 11px;
+      letter-spacing: 0.2px;
+      line-height: 1.15;
+      color: var(--text-primary);
+      background: rgba(18, 20, 26, 0.94);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+    }
+    [data-tooltip]::before {
+      content: "";
+      bottom: calc(100% + 3px);
+      transform: translate(-50%, 4px);
+      border: 5px solid transparent;
+      border-top-color: rgba(18, 20, 26, 0.94);
+    }
+    [data-tooltip]:hover::after,
+    [data-tooltip]:hover::before {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    [data-tooltip][data-tooltip-wrap]::after { white-space: normal; width: 220px; text-align: center; }
+    [data-tooltip][data-tooltip-pos="bottom"]::after { bottom: auto; top: calc(100% + 8px); }
+    [data-tooltip][data-tooltip-pos="bottom"]::before {
+      bottom: auto; top: calc(100% + 3px);
+      border-top-color: transparent;
+      border-bottom-color: rgba(18, 20, 26, 0.94);
+    }
+
+    /* Composer paste hint — small, subtle line just above the chat input.
+       Teaches screenshot paste without nagging: ~0.5 opacity, brightening on
+       hover or when the composer is focused (:has). Hovering it reveals the
+       fuller explanation via the [data-tooltip] system above. */
+    .composer-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 0 6px 6px;
+      font-size: 10px;
+      letter-spacing: 0.3px;
+      color: var(--text-muted);
+      opacity: 0.5;
+      transition: opacity 0.2s var(--ease), color 0.2s var(--ease);
+      -webkit-app-region: no-drag;
+      user-select: none;
+      cursor: default;
+    }
+    .composer-hint:hover { opacity: 0.85; }
+    body:has(#chat-input:focus) .composer-hint { opacity: 0.9; color: var(--text-primary); }
+    .composer-hint svg { width: 12px; height: 12px; opacity: 0.8; flex: none; }
+    .composer-hint kbd {
+      font-family: inherit;
+      font-size: 9px;
+      line-height: 1;
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-soft);
+      color: var(--text-primary);
+    }
+
+    /* ---------------------------------------------------------------------
        Bottom: recipient summary + utility buttons
        --------------------------------------------------------------------- */
     .meta-row {
@@ -3897,6 +3984,12 @@
     </div>
 
     <!-- Row 2: chat input -->
+    <!-- Subtle paste hint above the composer. Short copy inline; the fuller
+         explanation surfaces on hover via the [data-tooltip] system. -->
+    <div class="composer-hint" data-tooltip="Paste an image from your clipboard — it's sent as a file reference to the selected agents" data-tooltip-wrap>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L6 21"></path></svg>
+      <span><kbd>⌘V</kbd> / <kbd>Ctrl+V</kbd> to paste a screenshot</span>
+    </div>
     <div class="chat-row">
       <div class="chat-wrap">
         <input id="chat-input" placeholder="Type to selected agents — or select all to broadcast" autocomplete="off" />

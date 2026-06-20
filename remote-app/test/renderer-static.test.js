@@ -781,3 +781,19 @@ test('model and reasoning selectors are catalog-backed for all harnesses', () =>
   assert.match(html, /patch: \{ reasoning_effort: next \}/);
   assert.doesNotMatch(html, /model: useProfile \? '' :/);
 });
+
+test('composer paste hint + reusable [data-tooltip] system are present and dark-themed', () => {
+  // Subtle paste hint above the chat composer (Richard's request).
+  assert.match(html, /class="composer-hint"/);
+  assert.match(html, /to paste a screenshot/);
+  assert.match(html, /<kbd>⌘V<\/kbd>/);
+  assert.match(html, /<kbd>Ctrl\+V<\/kbd>/);
+  // Reusable hover-tooltip system, on-brand dark glass (never a white native OS tooltip).
+  assert.match(html, /\[data-tooltip\]::after/);
+  assert.match(html, /content: attr\(data-tooltip\)/);
+  assert.match(html, /backdrop-filter: blur/);
+  // The hint showcases the system: hovering it reveals the fuller explanation.
+  assert.match(html, /class="composer-hint"[^>]*data-tooltip=/);
+  // Tooltip surface must be dark, not white.
+  assert.doesNotMatch(html, /\[data-tooltip\]::after[\s\S]{0,200}background:\s*#fff/i);
+});
