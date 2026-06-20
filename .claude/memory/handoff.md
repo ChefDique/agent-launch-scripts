@@ -2,91 +2,78 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last worked: 2026-06-19.** The embedded-terminal drift is DEAD. The native fix
-shipped: **BUG B (Deploy opens multiple iTerm windows) is FIXED via plain
-`tmux attach` and PROVEN live.** On `main` @ `2fbb2ec`, **v1.6.2**, HUD relaunched
-from the canonical checkout.
+**Last worked: 2026-06-19.** Shipped on `main`: BUG B (deploy multi-window) fixed
+via plain `tmux attach`, the kenpachi kill/status identity-leak fixed, and a
+tooltip system. **Richard live-confirmed:** deployed kenpachi → one window, and
+menu force-kill "worked great." HUD running canonical **v1.6.2**.
+
+**MANDATE for next session (Richard, verbatim intent):** *"you are doing the bare
+minimum for improvement instead of just making this a badass app. take a broader
+approach... completely improve the design and utilize electron skills... there
+should be chains of skills planned for each task in advance."* So next session is
+design-led and ambitious — **headline task = `ALS-DESIGN-001`** — not a list of
+small fixes. See memory `feedback_broader_approach_badass_app`.
+
+### ▶ THE PLAN LIVES IN THE TASK BOARD — `memory/tasks/tasks.json`
+Do NOT re-derive the plan here. Read the board: the **inbox** tasks are the
+next-session work and **each carries a planned `skill_chain`**. Execute them
+specialist-led (`.claude/agents/tmux-electron-master.md`), brainstorm-first,
+verified LIVE. Current inbox (priority order):
+- **`ALS-DESIGN-001` (HEADLINE, critical)** — elevate AgentRemote into a badass,
+  design-led app. Multi-phase against DESIGN.md + the $10k quality bar. Chain:
+  brainstorming → frontend-design → premium-frontend-ui → motion-design →
+  interaction-design → icon-design → excalidraw → 21st.dev MCP → electron-expert
+  → verify. PLAN THE PHASES up front (this task or a dispatched Plan agent) before
+  coding.
+- **`ALS-LOCAL-020` (high)** — source electron skills into skillvault (they are
+  NOT in the vault; the zero-context catalog that had them disconnected). Unblocks
+  the electron parts of the design work + BUG A.
+- **`ALS-LOCAL-016` (high)** — **the /lead-gogo bug Richard hit.** He removed
+  `/lead-gogo` from kenpachi (`startup_slash=""`) but it STILL ran. Root (proven,
+  not a cache): `launch-agent.sh:277` forces `/lead-gogo` for Claude when
+  startup_slash is empty; `main.js:61 DEFAULT_LEAD_STARTUP_SLASH`; the form
+  default; AND tests (`launch-agent-runtime.test.sh:459-482`) + `scripts/audit-lead-startup.sh`
+  ENFORCE it. Fix: empty/removed = NONE (honor it); default-on only for brand-new
+  agents. Flip the enforcing tests + audit.
+- **`ALS-LOCAL-017` (high)** — BUG A full window-close. iTerm `close` verb no-ops
+  on a window with a running `tmux attach` (PromptOnQuit=1); ghost is already gone.
+  Use tmux-native teardown (`; exit` or detach-client). LRN-20260619-003.
+- **`ALS-LOCAL-019` (high)** — regenerate package-lock; the electron devDep subtree
+  (~70 entries) lacks resolved/integrity → clean `npm ci` fails (public-release blocker).
+- **`ALS-LOCAL-018` (medium)** — Attach button → plain-attach single window (still
+  uses -CC + break-pane).
 
 ### ⚠️ SAFETY — read before any tmux kill
-The Neo operator session may be running **inside** the `agentremote` tmux session
-it manages (on 2026-06-19 it was pane `%1`, the only live pane). Killing that
-session/server = killing Neo. "kill the vegeta session" was a near-miss: there
-was NO live vegeta/codex process — only the tmux *server's* startup argv named it.
-Always `echo "$TMUX_PANE"` + list real panes/processes before any kill. See
-memory `reference_neo_may_run_inside_agentremote`.
+The Neo session may be running **inside** the `agentremote` tmux session it manages
+(on 2026-06-19 it was the only live pane, `%1`). Killing that session/server kills
+Neo. Confirmed near-miss: "kill the vegeta session" — no live vegeta existed; the
+session was Neo itself. Always check `$TMUX_PANE` + real processes before any kill.
+Memory: `reference_neo_may_run_inside_agentremote`.
 
-### What shipped this session (on `main`, pushed)
-- **`a150668` (v1.6.1) — BUG B + BUG A:** single-window viewer now uses PLAIN
-  `tmux attach -t agentremote` in ONE marked iTerm window (not iTerm `-CC`).
-  `deploy-viewer.js`: `'single'` removed from `CONTROL_MODE_LAYOUTS` (any client
-  satisfies it). `iterm-attach.js`: `buildITermAttachScript` allows plain attach;
-  `buildITermHideMarkedViewerScript`→`buildITermCloseMarkedViewerScript` (close,
-  not miniaturize). `main.js`: `plainAttachViewerCommand()` used by the deploy
-  attach + release. Attach-pane (single-agent button) deliberately LEFT on the
-  old `-CC` path (follow-up).
-- **`5b10afa` (v1.6.2) — tooltip:** subtle `.composer-hint` paste hint above the
-  chat ("⌘V / Ctrl+V to paste a screenshot") + reusable on-brand `[data-tooltip]`
-  hover system (dark glass; never white native tooltips). renderer-static covers it.
-- **`2fbb2ec` — registry:** preserved app-generated `auto_restart:false` on 2
-  agents (live HUD edit from the session). Reversible.
-- Tests: remote-app JS suite **188/189** (the 1 fail is the pre-existing
-  `agent-transcript-source.test.js:201`, unrelated).
+### What shipped this session (on `main`, pushed) — done tasks in the board
+- `ALS-LOCAL-013` (`a150668`, v1.6.1) — viewer = plain `tmux attach`, one window,
+  close-not-miniaturize. BUG B. Proven live + Richard's kenpachi deploy.
+- `ALS-LOCAL-014` (`02930b7`) — kenpachi identity-leak in launch-agent.sh. Repro
+  test (fails without fix). Richard live-confirmed force-kill.
+- `ALS-LOCAL-015` (`5b10afa`, v1.6.2) — paste hint + `[data-tooltip]` system.
+- `2fbb2ec` — preserved app-generated `auto_restart:false` registry edit.
+- Tests: remote-app JS 188/189 (1 pre-existing `agent-transcript-source:201`);
+  launch-agent runtime tests pass incl the new repro.
 
-### PROVEN vs NOT (per LRN-20260619-001 — don't over-claim)
-- **PROVEN live** (isolated throwaway tmux + osascript): plain attach → exactly
-  ONE new iTerm window, a PLAIN client (`control_mode=0`), no gateway, no
-  per-window minis, no `[tmux detached]` ghost.
-- **NOT yet proven live:** the full **Deploy button → viewer** flow (didn't run
-  it into `agentremote` because Neo lives there); **explicit Close fully closing
-  the window**; kill/status of mis-tagged panes.
+### Skills + docs that worked (reuse)
+`attach-tmux` (skillvault) + `tmux.wiki/Control-Mode.md` for the viewer model;
+`systematic-debugging`/`test-driven-development` for the identity bug. Electron
+skills are NOT in skillvault yet (`ALS-LOCAL-020`). Live-test the viewer via an
+ISOLATED throwaway tmux session + osascript window/client counting — never mutate
+`agentremote`. Process gates: operator-contract, LEARNINGS (LRN-20260619-001/002/003),
+karpathy-guidelines (simplest fix, surgical, verify), feedback memories.
 
-### ▶ NEXT SESSION — START HERE (in order)
-1. **Live-verify the Deploy fix end-to-end** in Richard's real iTerm: relaunch
-   HUD, detach the stale `-CC` viewer (iTerm window 13769 tab 2), click Deploy →
-   confirm ONE window, panes tile in, no extra windows. (Couldn't do solo: Neo
-   is inside `agentremote`.)
-2. **BUG A full-close hardening.** iTerm `close` verb is UNRELIABLE here:
-   `PromptOnQuit=1`, and `close` no-ops on a window with a running `tmux attach`
-   job. Ghost is gone (plain attach), but explicit Close can leave a shell
-   window. Options: make the attach `tmux attach -t S; exit` (auto-close on
-   session end — but manual Ctrl-b d would also close the window), or
-   `tmux detach-client` then close. Needs Richard's UX call + live test.
-3. **Kill/status resolution (kenpachi) — FIXED `02930b7`.** Root cause was NOT the
-   resolver: `launch-agent.sh` derived `MESSAGE_AGENT_IDENTITY` only when empty
-   (`-z`), so deploying from inside an agent session (NEO, whose env exports
-   `MESSAGE_AGENT_IDENTITY=neo-claude`) leaked the parent's identity into the child
-   and mis-tagged EVERY deployed pane → resolve/illuminate/kill all failed. Fix:
-   always derive identity from the AGENT_ID/registry slug, never inherit. Repro
-   test added (fails without fix). Live for the running HUD on next Deploy (no
-   rebuild). LIVE-VERIFY remaining: deploy a fresh agent, confirm it illuminates
-   + kills cleanly.
-4. **Attach button → plain-attach single window.** `main.js attach-pane` (~L2830)
-   still uses `-CC` (`swarmyRuntimeAttachCommand`, `viewerSafetyState('ittab')`)
-   + break-pane-into-own-window (old multi-window model). Align to the single
-   plain-attach window. Live iTerm test required.
-5. **Lockfile public-release blocker.** The whole `electron` devDep subtree in
-   `remote-app/package-lock.json` (~70 entries incl `once`, `wrappy`) lacks
-   `resolved`/`integrity` → clean `npm ci` fails for cloners. Fix = deliberate
-   `npm install` regen + clean-clone `npm ci` verify; then validate the running
-   app. (Doesn't affect Richard's current HUD.)
-6. **Drift cleanup:** `embedded-terminal-viewer` branch + `.worktrees/embedded-terminal-viewer`
-   are SUPERSEDED by the native fix on main — safe to delete (needs `-D`, so
-   escalate per git rule, or do at /done).
-
-### Skills + docs that worked (keep using)
-- tmux skill `attach-tmux` (skillvault) — confirmed plain-attach-for-one-window +
-  the "don't attach into your own session" warning. tmux `Control-Mode.md`
-  (`~/ai_projects/tools/tmux.wiki/`) — explains why `-CC` = gateway+multi-window.
-- Operator contract + `.learnings/LEARNINGS.md` (LRN-20260619-001/002) + the
-  process-gate memories. Live-test via ISOLATED throwaway sessions + osascript
-  window/client counting (never mutate `agentremote`).
-
-## Open priorities (<=5)
-- **[#1]** Live-verify Deploy end-to-end + BUG A full-close hardening (Richard's eyeball).
-- **[#2]** Lockfile regen (public-release blocker).
-- **[done]** Kill/status resolution (kenpachi) — FIXED `02930b7` (identity-leak in launch-agent.sh); live-verify with a fresh deploy.
-- **[#4]** Attach button → plain-attach single window.
-- **[cleanup]** Delete superseded `embedded-terminal-viewer` branch/worktree.
+## Open priorities (<=5) — all tracked in memory/tasks/tasks.json
+- **[#1]** `ALS-DESIGN-001` — design-led elevation (the broader-approach mandate).
+- **[#2]** `ALS-LOCAL-016` — /lead-gogo empty=NONE fix.
+- **[#3]** `ALS-LOCAL-020` — source electron skills into skillvault.
+- **[#4]** `ALS-LOCAL-017` — BUG A full-close hardening.
+- **[#5]** `ALS-LOCAL-019` — package-lock regen (public-release blocker).
 
 ## Cross-session comms
 - None outstanding.
