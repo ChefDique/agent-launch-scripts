@@ -29,9 +29,13 @@ test('non-ittab deploy only requires any tmux client', () => {
   assert.equal(hasRequiredTmuxClient('panes', [{ name: 'plain', controlMode: '0' }]), true);
 });
 
-test('single-window deploy requires a control-mode tmux client (movable viewer)', () => {
-  assert.equal(hasRequiredTmuxClient('single', [{ name: 'plain', controlMode: '0' }]), false);
+test('single-window deploy is satisfied by ANY tmux client (plain-attach viewer)', () => {
+  // The native single-window viewer is a PLAIN `tmux attach` (one iTerm window),
+  // so a plain client now counts as the viewer; control-mode `-CC` is no longer
+  // required (and is what caused BUG B). Any attached client satisfies it.
+  assert.equal(hasRequiredTmuxClient('single', [{ name: 'plain', controlMode: '0' }]), true);
   assert.equal(hasRequiredTmuxClient('single', [{ name: 'control', controlMode: '1' }]), true);
+  assert.equal(hasRequiredTmuxClient('single', []), false);
 });
 
 test('viewer safety catches grouped session aliases before opening iTerm', () => {

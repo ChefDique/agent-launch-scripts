@@ -9,9 +9,14 @@ function parseTmuxClientLines(output) {
     });
 }
 
-// 'single' is the native one-window layout; like ittab/teams it is surfaced
-// through iTerm control mode, so it requires a control-mode client.
-const CONTROL_MODE_LAYOUTS = ['ittab', 'teams', 'single'];
+// 'single' is the native one-window layout. It is surfaced through a PLAIN
+// `tmux attach` viewer (one iTerm window of tiled panes), NOT iTerm control
+// mode — so it is intentionally NOT a control-mode layout and is satisfied by
+// ANY attached tmux client. iTerm `-CC` control mode (the legacy ittab/teams
+// layouts) is what opened a gateway window + a window-per-tmux-window (BUG B)
+// and left `[tmux detached]` ghosts on close (BUG A); plain attach avoids both.
+// See docs/operations/agentremote-operator-contract.md.
+const CONTROL_MODE_LAYOUTS = ['ittab', 'teams'];
 
 function hasRequiredTmuxClient(layout, clients) {
   const list = Array.isArray(clients) ? clients : [];

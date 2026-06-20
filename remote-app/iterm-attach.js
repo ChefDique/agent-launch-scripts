@@ -4,16 +4,26 @@ function quoteAppleScriptString(value) {
 
 const AGENTREMOTE_ITERM_VIEWER_MARKER = 'AgentRemote Viewer';
 
+// Legacy guard, retained ONLY for buildITermTwoByTwoScript (the unused 2x2
+// control-mode layout). The single-window viewer intentionally uses PLAIN
+// `tmux attach` now, so buildITermAttachScript no longer applies this guard.
 function rejectPlainTmuxAttachCommand(command) {
   if (/\btmux\s+attach\b/.test(command) && !/\btmux\s+-CC\s+attach\b/.test(command)) {
     throw new Error('AgentRemote iTerm viewer commands must not use plain tmux attach');
   }
 }
 
+// Build the AppleScript that creates or reuses the single marked AgentRemote
+// iTerm viewer window and runs `command` in it. The single-window deploy passes
+// a PLAIN `tmux attach -t <session>` (see plainAttachViewerCommand in main.js):
+// one iTerm window of tiled tmux panes. This replaced the iTerm `-CC`
+// control-mode attach, which opened a gateway window PLUS a window per tmux
+// window (BUG B). Plain attach is therefore allowed here — the old guard that
+// rejected plain `tmux attach` was removed because it described the broken
+// control-mode model.
 function buildITermAttachScript(command) {
   const safeCommand = String(command || '').trim();
   if (!safeCommand) throw new Error('iTerm attach command is required');
-  rejectPlainTmuxAttachCommand(safeCommand);
   const quotedCommand = quoteAppleScriptString(safeCommand);
   const quotedMarker = quoteAppleScriptString(AGENTREMOTE_ITERM_VIEWER_MARKER);
 
@@ -54,7 +64,13 @@ function buildITermAttachScript(command) {
 end tell`;
 }
 
-function buildITermHideMarkedViewerScript(marker = AGENTREMOTE_ITERM_VIEWER_MARKER) {
+// Fully CLOSE the marked AgentRemote iTerm viewer window. Called when killing
+// the last live pane empties its tmux window. Previously this only miniaturized
+// the window, so a `[tmux detached]` / hidden viewer survived "Close" (BUG A).
+// With the plain-attach viewer, closing the iTerm window just detaches the tmux
+// client — the tmux session and any remaining agents are unaffected — so it is
+// safe to fully close whenever a window is released.
+function buildITermCloseMarkedViewerScript(marker = AGENTREMOTE_ITERM_VIEWER_MARKER) {
   const safeMarker = String(marker || '').trim();
   if (!safeMarker) throw new Error('iTerm viewer marker is required');
   const quotedMarker = quoteAppleScriptString(safeMarker);
@@ -66,7 +82,7 @@ function buildITermHideMarkedViewerScript(marker = AGENTREMOTE_ITERM_VIEWER_MARK
       repeat with candidateSession in sessions of candidateTab
         try
           if (name of candidateSession as text) contains markerName then
-            set miniaturized of candidateWindow to true
+            close candidateWindow
             exit repeat
           end if
         end try
@@ -150,7 +166,7 @@ end tell`;
 module.exports = {
   AGENTREMOTE_ITERM_VIEWER_MARKER,
   buildITermAttachScript,
-  buildITermHideMarkedViewerScript,
+  buildITermCloseMarkedViewerScript,
   buildITermTwoByTwoScript,
   quoteAppleScriptString
 };

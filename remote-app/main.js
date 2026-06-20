@@ -10,7 +10,7 @@ const { normalizeSpawnLayout, swarmyLayoutFor } = require('./layout-policy');
 const { pruneSidecarToLiveSessions, removeSidecarIds, removeSidecarSession, resolveAgentPanes } = require('./pane-resolver');
 const { HARNESS_RUNTIME_IDS, normalizeRuntime } = require('./harness-options');
 const { computeWindowBounds } = require('./window-geometry');
-const { buildITermAttachScript, buildITermHideMarkedViewerScript } = require('./iterm-attach');
+const { buildITermAttachScript, buildITermCloseMarkedViewerScript } = require('./iterm-attach');
 const { killPaneReleasingEmptyWindow } = require('./pane-control');
 const { deploySingleWindow } = require('./tmux-deploy');
 const {
@@ -1852,20 +1852,34 @@ function swarmyRuntimeAttachCommand() {
   return shellQuoteCommand(['python3', ...swarmyRuntimeArgs('attach')]);
 }
 
+// The single-window AgentRemote viewer attaches with a PLAIN `tmux attach` into
+// ONE marked iTerm window (tiled tmux panes). This is the native model — it
+// mirrors chq-tmux.sh's tiled/panes path and replaces the iTerm `-CC`
+// control-mode attach, which opened a gateway window PLUS a window per tmux
+// window (BUG B: "deploy opens 2 mini windows") and left `[tmux detached]`
+// ghosts that "Close" only miniaturized (BUG A). Deploying more agents just
+// `split-window`s into the same tmux window, which the already-attached plain
+// client shows immediately — no new iTerm windows. RUNTIME_SESSION is the
+// alphanumeric session constant ('agentremote' by default).
+function plainAttachViewerCommand() {
+  return `tmux attach -t ${RUNTIME_SESSION}`;
+}
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// BUG A — release the marked AgentRemote iTerm control-mode viewer. Called when
-// a kill-pane empties a tmux window: that window's control-mode client would
-// otherwise linger showing `[tmux detached]`. Fire-and-forget osascript that
-// miniaturizes only the marked `AgentRemote Viewer` window (never a
-// first/current window — see iterm-attach.js); errors are logged, not thrown,
-// so closing an agent never fails on a viewer-hide hiccup.
+// BUG A — release the marked AgentRemote iTerm viewer. Called when a kill-pane
+// empties a tmux window: that window's viewer must FULLY CLOSE, not linger as a
+// miniaturized/`[tmux detached]` ghost. Fire-and-forget osascript that closes
+// only the marked `AgentRemote Viewer` window (never a first/current window —
+// see iterm-attach.js). Closing the plain-attach viewer just detaches tmux, so
+// remaining agents are unaffected. Errors are logged, not thrown, so closing an
+// agent never fails on a viewer-close hiccup.
 function releaseMarkedItermViewer() {
   let apple;
   try {
-    apple = buildITermHideMarkedViewerScript();
+    apple = buildITermCloseMarkedViewerScript();
   } catch (err) {
     logToOutLog(`[kill-pane] viewer-release script build failed: ${err.message}`);
     return;
@@ -2062,10 +2076,10 @@ async function spawnAgents(payload) {
   }
 
   // Bug Richard reported 2026-05-03: clicking Deploy multiple times piled
-  // every batch into a fresh iTerm tab. We now reuse an existing viewer only
-  // when tmux proves it is attached in the right mode. For teams/ittab, plain
-  // tmux attach is not enough; the operator path requires control mode so
-  // iTerm materializes the tmux windows.
+  // every batch into a fresh iTerm tab. We reuse an existing viewer only when
+  // tmux proves a client is attached. For the native 'single' layout that is
+  // ANY client (the plain `tmux attach` viewer); the legacy teams/ittab layouts
+  // still require a control-mode client. hasRequiredTmuxClient encodes this.
   let { error: viewerError, clients, sessions } = await viewerSafetyState(layout, RUNTIME_SESSION);
   if (viewerError) {
     logToOutLog(`[spawn] ${viewerError}`);
@@ -2076,9 +2090,12 @@ async function spawnAgents(payload) {
     return { ok: true, agents: safeAgents, layout, reusedViewer: true, clients, stdout };
   }
 
-  // No required viewer attached — open a fresh iTerm tab/window, then write
-  // the attach command into the newly created session.
-  const apple = buildITermAttachScript(swarmyRuntimeAttachCommand());
+  // No required viewer attached — open the single marked iTerm window and run a
+  // PLAIN `tmux attach` in it (the native single-window viewer). NOT iTerm `-CC`
+  // control mode, which opened a gateway window + a window per tmux window
+  // (BUG B). Subsequent deploys split-window into the same tmux window, which the
+  // already-attached client shows immediately, so no extra iTerm windows appear.
+  const apple = buildITermAttachScript(plainAttachViewerCommand());
   try {
     await execFileP('osascript', ['-e', apple]);
   } catch (err) {

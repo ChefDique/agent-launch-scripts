@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const {
   AGENTREMOTE_ITERM_VIEWER_MARKER,
   buildITermAttachScript,
-  buildITermHideMarkedViewerScript,
+  buildITermCloseMarkedViewerScript,
   buildITermTwoByTwoScript,
   quoteAppleScriptString
 } = require('../iterm-attach');
@@ -34,17 +34,24 @@ test('iTerm attach script creates or reuses only the marked AgentRemote viewer w
   assert.doesNotMatch(script, /tell first window\\n    create tab/);
 });
 
-test('iTerm attach script rejects plain tmux attach viewers', () => {
-  assert.throws(() => buildITermAttachScript('tmux attach -t chq'), /plain tmux attach/);
+test('iTerm attach script accepts a plain tmux attach viewer (single-window model)', () => {
+  // The single-window viewer attaches with PLAIN `tmux attach` (one iTerm window
+  // of tiled panes). Plain attach must be allowed now; the old guard that
+  // rejected it described the broken `-CC` control-mode model (BUG B).
+  const script = buildITermAttachScript('tmux attach -t agentremote');
+  assert.match(script, /write text "tmux attach -t agentremote"/);
+  assert.doesNotMatch(script, /-CC/);
+  // -CC is still accepted by the builder (the legacy attach-pane path still uses it).
   assert.doesNotThrow(() => buildITermAttachScript('tmux -CC attach -t chq'));
 });
 
-test('marked iTerm helper can be hidden without touching unrelated windows', () => {
-  const script = buildITermHideMarkedViewerScript();
+test('marked iTerm viewer is fully closed (not miniaturized) on release', () => {
+  const script = buildITermCloseMarkedViewerScript();
 
   assert.match(script, /set markerName to "AgentRemote Viewer"/);
-  assert.match(script, /set miniaturized of candidateWindow to true/);
-  assert.doesNotMatch(script, /close window|delete window|killall|tell application "Terminal"/i);
+  assert.match(script, /close candidateWindow/);
+  assert.doesNotMatch(script, /set miniaturized/);
+  assert.doesNotMatch(script, /killall|tell application "Terminal"/i);
 });
 
 test('native 2x2 iTerm script builds one marked target window object-by-object', () => {
