@@ -184,15 +184,14 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      },
-      "auto_restart": false
+      }
     },
     {
       "id": "mugatu",
       "display_name": "MUGATU",
       "runtime": "claude",
       "tmux_target": "mugatu",
-      "cwd": "/Users/richardadair/ai_projects/ecommerce/00_COMMAND-CENTER",
+      "cwd": "/Users/richardadair/ai_projects/content-creation/projects/halii-poaka-ep2-deathly-haoles",
       "color": "cyan",
       "startup_slash": "/lead-gogo",
       "model": "default",
@@ -208,8 +207,7 @@
       },
       "startup_lines": [
         "/color red"
-      ],
-      "auto_restart": false
+      ]
     },
     {
       "id": "hansel",
