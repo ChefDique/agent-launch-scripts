@@ -51,13 +51,15 @@ memory `reference_neo_may_run_inside_agentremote`.
    window. Options: make the attach `tmux attach -t S; exit` (auto-close on
    session end — but manual Ctrl-b d would also close the window), or
    `tmux detach-client` then close. Needs Richard's UX call + live test.
-3. **Kill/status resolution (kenpachi).** `pane-resolver.js paneOwnerMatchesAgent`
-   hard-gates out a pane whose `@agent-identity` is wrong ("neo-claude") even when
-   the TITLE matches ("KENPACHI") → live agent shows offline + "isn't running" on
-   kill. Root = launcher mis-tag (both NEO+KENPACHI panes were tagged neo-claude).
-   Loosening the gate risks regressing LRN-20260509-001 (wrong-pane delivery).
-   NEED repro + how kenpachi was launched (AgentRemote deploy? chq-tmux? manual?).
-   Do NOT change speculatively.
+3. **Kill/status resolution (kenpachi) — FIXED `02930b7`.** Root cause was NOT the
+   resolver: `launch-agent.sh` derived `MESSAGE_AGENT_IDENTITY` only when empty
+   (`-z`), so deploying from inside an agent session (NEO, whose env exports
+   `MESSAGE_AGENT_IDENTITY=neo-claude`) leaked the parent's identity into the child
+   and mis-tagged EVERY deployed pane → resolve/illuminate/kill all failed. Fix:
+   always derive identity from the AGENT_ID/registry slug, never inherit. Repro
+   test added (fails without fix). Live for the running HUD on next Deploy (no
+   rebuild). LIVE-VERIFY remaining: deploy a fresh agent, confirm it illuminates
+   + kills cleanly.
 4. **Attach button → plain-attach single window.** `main.js attach-pane` (~L2830)
    still uses `-CC` (`swarmyRuntimeAttachCommand`, `viewerSafetyState('ittab')`)
    + break-pane-into-own-window (old multi-window model). Align to the single
@@ -82,7 +84,7 @@ memory `reference_neo_may_run_inside_agentremote`.
 ## Open priorities (<=5)
 - **[#1]** Live-verify Deploy end-to-end + BUG A full-close hardening (Richard's eyeball).
 - **[#2]** Lockfile regen (public-release blocker).
-- **[#3]** Kill/status resolution (kenpachi) — needs repro + launch context.
+- **[done]** Kill/status resolution (kenpachi) — FIXED `02930b7` (identity-leak in launch-agent.sh); live-verify with a fresh deploy.
 - **[#4]** Attach button → plain-attach single window.
 - **[cleanup]** Delete superseded `embedded-terminal-viewer` branch/worktree.
 
