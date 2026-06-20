@@ -1,5 +1,33 @@
 # Learnings
 
+## [LRN-20260619-003] discovery
+
+**Logged**: 2026-06-19
+**Priority**: high
+**Status**: open
+**Area**: agentremote / iterm
+
+### Summary
+On Richard's iTerm (`PromptOnQuit=1`) the AppleScript `close` verb is UNRELIABLE for the AgentRemote viewer: it no-ops (rc=0, window persists) on a window running a `tmux attach` job. A "deterministic close" built only on `close candidateWindow` does NOT reliably close the viewer live, even though the unit test (string contains `close candidateWindow`) is green.
+
+### Details
+2026-06-19 live test (isolated throwaway tmux + osascript window/client counting): plain `tmux attach` opened exactly ONE iTerm window with a PLAIN client — BUG B fixed, no `-CC` gateway, no `[tmux detached]` ghost. But the production close (`buildITermCloseMarkedViewerScript`) failed to close a window while `tmux attach` was running; `close` returned success but the window stayed (iTerm close-confirmation under PromptOnQuit). It only cleared once the job exited. The unit test asserts the AppleScript STRING, not live close behavior — green-but-wrong, the LRN-20260619-001 trap one layer down.
+
+### Suggested Action
+Don't rely on the iTerm `close` verb for a viewer with a running job. Prefer tmux-native teardown so the window closes itself: attach as `tmux attach -t S; exit` (window closes on session end — but manual Ctrl-b d then also closes it: a UX call for Richard) and/or `tmux detach-client` before `close`. Verify LIVE (window count + actual close), never from the green string test alone.
+
+### Metadata
+- Source: live_test
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/iterm-attach.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md
+- Tags: agentremote, iterm, applescript, close, PromptOnQuit, plain-attach, bug-a, proof-before-pass
+- Pattern-Key: agentremote.iterm_close_verb_unreliable_with_running_job
+- Control Surface: docs/operations/agentremote-operator-contract.md (Proof Before PASS)
+
+### Resolution
+- **Status**: OPEN — BUG A's ghost is eliminated by plain attach; full window-close on explicit Close needs the tmux-native teardown above + a live test. See handoff.md #2.
+
+---
+
 ## [LRN-20260619-002] correction
 
 **Logged**: 2026-06-19
@@ -25,7 +53,7 @@ For ANY AgentRemote viewer/window bug: (1) SEARCH + USE the relevant skills FIRS
 - Loop Owner: scope-discipline
 
 ### Resolution
-- **Status**: OPEN — next session reverts/reworks toward the native plain-`tmux attach` one-window viewer; see handoff.md.
+- **Status**: RESOLVED (BUG B) 2026-06-19 — shipped the native plain-`tmux attach` one-window viewer on `main` (`a150668`, v1.6.1), PROVEN live (one iTerm window, plain client, no gateway, no ghost). No embedded terminal. BUG A's `[tmux detached]` ghost is eliminated; full window-close on explicit Close is partial — see LRN-20260619-003.
 
 ---
 
