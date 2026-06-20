@@ -184,7 +184,8 @@
           "dangerous_permission_enter",
           "startup_lines"
         ]
-      }
+      },
+      "auto_restart": false
     },
     {
       "id": "mugatu",
@@ -319,7 +320,8 @@
         "/color blue"
       ],
       "sandbox": "danger-full-access",
-      "approval_policy": "never"
+      "approval_policy": "never",
+      "auto_restart": false
     },
     {
       "id": "zoolander",
