@@ -1,5 +1,34 @@
 # Learnings
 
+## [LRN-20260619-002] correction
+
+**Logged**: 2026-06-19
+**Priority**: critical
+**Status**: open
+**Area**: agentremote / scope-discipline
+
+### Summary
+Building an in-app EMBEDDED TERMINAL (node-pty + xterm.js inside Electron) to fix the AgentRemote window bugs was a major over-build / drift. Richard wanted the NATIVE tmux tiled panes surfaced in ONE real iTerm window (plain `tmux attach`), "minus swarmy", with the iTerm `-CC` control-mode bugs fixed at the tmux/iTerm layer — NOT a new viewer architecture.
+
+### Details
+2026-06-19: following the prior handoff (which itself named "build the embedded terminal" as THE fix), I built a full node-pty+xterm embedded viewer, sized it like a real terminal, proved it in isolation, and shipped v1.7.0 on a branch. Richard: "why did you build the terminal into the app? all you had to do is have the tmux separate panes like i've always had it (minus the swarmy)... you def drifted and got carried away." He also flagged that I failed to use the available ELECTRON building skills and TMUX skills/docs before building. The cheap, correct, native fix was already in the codebase history: `chq-tmux.sh cmd_attach` surfaces tiled/panes via PLAIN `tmux attach` (one iTerm window) and reserves `-CC` for `ittab` only. The single-window 'single' layout was wrongly wired into `-CC`, which is the bug source. A handoff naming a big build as "THE fix" is NOT a substitute for confirming the cheapest native fix against the user's actual baseline.
+
+### Suggested Action
+For ANY AgentRemote viewer/window bug: (1) SEARCH + USE the relevant skills FIRST — electron (`pcl:electron-expert`, `claude-code-templates:electron-development`) and tmux (`attach-tmux`) + `~/ai_projects/tools/tmux.wiki` (esp. Control-Mode.md). (2) Confirm the user's "always had it" baseline in code (`chq-tmux.sh`) before designing anything. (3) Fix at the tmux/iTerm layer with the NATIVE model (plain `tmux attach`, one window, tiled panes, deterministic close) before considering any new viewer. (4) Do not treat a prior handoff's proposed architecture as a mandate — re-derive the cheapest fix. (5) Diagnose-before-build is a hard gate.
+
+### Metadata
+- Source: user_feedback
+- Related Files: /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/iterm-attach.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/deploy-viewer.js, /Users/richardadair/ai_projects/agent-launch-scripts/remote-app/main.js, /Users/richardadair/ai_projects/agent-launch-scripts/chq-tmux.sh, /Users/richardadair/ai_projects/agent-launch-scripts/docs/operations/agentremote-operator-contract.md
+- Tags: agentremote, drift, over-build, embedded-terminal, iterm, control-mode, plain-attach, scope-discipline, skill-search-first
+- Pattern-Key: agentremote.embedded_terminal_overbuild_drift
+- Control Surface: docs/operations/agentremote-operator-contract.md + .claude/memory/handoff.md
+- Loop Owner: scope-discipline
+
+### Resolution
+- **Status**: OPEN — next session reverts/reworks toward the native plain-`tmux attach` one-window viewer; see handoff.md.
+
+---
+
 ## [LRN-20260619-001] correction
 
 **Logged**: 2026-06-19
@@ -23,7 +52,7 @@ Treat the in-app embedded terminal (replacing iTerm control-mode) as the REQUIRE
 - Control Surface: docs/operations/agentremote-operator-contract.md (Proof Before PASS)
 
 ### Resolution
-- **Status**: OPEN — fix is the embedded terminal (next session #1 priority).
+- **Status**: SUPERSEDED by [LRN-20260619-002]. The "embedded terminal is the REQUIRED fix" recommendation was WRONG — it became the over-build drift Richard rejected. The DIAGNOSIS here (iTerm `-CC` control-mode = the root cause of both window bugs) is correct and still stands; the actual fix is the NATIVE plain `tmux attach` one-window viewer (mirror `chq-tmux.sh` tiled/panes), NOT an embedded xterm. See handoff.md.
 
 ---
 
