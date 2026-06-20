@@ -569,6 +569,32 @@ grep -Fxq 'set-option -p -t %codexpane @agent-identity intentional-runtime-codex
 grep -Fxq 'set-option -p -t %codexpane @agent-runtime codex' "$TMUX_CALLS"
 ! grep -Fxq 'set-option -p -t %codexpane @agent-identity intentional-runtime-claude' "$TMUX_CALLS"
 
+# test_identity_derived_from_agent_not_inherited_from_parent_env
+# Repro of the deploy-from-inside-an-agent bug: AgentRemote deploys from the NEO
+# session, whose MESSAGE_AGENT_IDENTITY=neo-claude is exported, so it leaked into
+# the child launch. The pane MUST be tagged with the DEPLOYED agent's identity,
+# not the inherited parent's — otherwise AgentRemote can't resolve/illuminate/kill
+# the real agent (the kenpachi bug).
+LEAK_CALLS="$TMP_DIR/leak-tmux-calls.log"
+rm -f "$LEAK_CALLS"
+leak_identity_output="$(
+    PATH="$TMP_DIR/bin:$PATH" \
+    AGENT_REGISTRY="$TMP_DIR/agents.json" \
+    SWARMY_RUNTIME_OVERRIDE=codex \
+    MESSAGE_AGENT_IDENTITY="neo-claude" \
+    MESSAGE_AGENT_FROM="neo-claude" \
+    SWARMY_WORKER_NAME="neo-claude" \
+    TMUX_PANE="%leakpane" \
+    TMUX_CALLS="$LEAK_CALLS" \
+    bash "$REPO_ROOT/launch-agent.sh" intentional-runtime
+)"
+grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=intentional-runtime-codex' <<< "$leak_identity_output"
+grep -qx 'ENV:MESSAGE_AGENT_FROM=intentional-runtime-codex' <<< "$leak_identity_output"
+grep -qx 'ENV:SWARMY_WORKER_NAME=intentional-runtime-codex' <<< "$leak_identity_output"
+grep -Fxq 'set-option -p -t %leakpane @agent-identity intentional-runtime-codex' "$LEAK_CALLS"
+! grep -Fq '@agent-identity neo-claude' "$LEAK_CALLS"
+! grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=neo-claude' <<< "$leak_identity_output"
+
 xavier_codex_identity_output="$(SWARMY_RUNTIME_OVERRIDE=codex run_agent xavier 2>&1)"
 grep -qx 'COMMAND:codex' <<< "$xavier_codex_identity_output"
 grep -qx 'ENV:MESSAGE_AGENT_IDENTITY=xavier-codex' <<< "$xavier_codex_identity_output"

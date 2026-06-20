@@ -493,11 +493,19 @@ done < <(jq -r '(.env // {}) | to_entries[] | "\(.key)\t\(.value)"' <<< "$ENTRY"
 MESSAGE_AGENT_SLUG="$(field message_agent_slug)"
 [[ -z "$MESSAGE_AGENT_SLUG" ]] && MESSAGE_AGENT_SLUG="$(canonical_agent_slug "$AGENT_ID")"
 MESSAGE_AGENT_SLUG="$(canonical_agent_slug "$MESSAGE_AGENT_SLUG")"
-if [[ -n "$MESSAGE_AGENT_SLUG" && -z "${MESSAGE_AGENT_IDENTITY:-}" ]]; then
+# Identity is derived from THE AGENT BEING LAUNCHED (its registry slug / AGENT_ID),
+# never inherited from the parent environment. AgentRemote frequently deploys from
+# inside another agent's session (e.g. NEO) whose MESSAGE_AGENT_* vars are already
+# exported. Honoring an inherited MESSAGE_AGENT_IDENTITY tagged every deployed pane
+# with the PARENT's identity (e.g. neo-claude), so AgentRemote could not resolve,
+# illuminate, or kill the real agent — and the agent's outgoing messages went out
+# as the parent. Derive from the slug and make FROM/WORKER_NAME follow it,
+# overriding any leaked values.
+if [[ -n "$MESSAGE_AGENT_SLUG" ]]; then
   export MESSAGE_AGENT_IDENTITY="${MESSAGE_AGENT_SLUG}-${RUNTIME}"
+  export MESSAGE_AGENT_FROM="$MESSAGE_AGENT_IDENTITY"
+  export SWARMY_WORKER_NAME="$MESSAGE_AGENT_IDENTITY"
 fi
-[[ -n "${MESSAGE_AGENT_IDENTITY:-}" && -z "${MESSAGE_AGENT_FROM:-}" ]] && export MESSAGE_AGENT_FROM="$MESSAGE_AGENT_IDENTITY"
-[[ -n "${MESSAGE_AGENT_IDENTITY:-}" && -z "${SWARMY_WORKER_NAME:-}" ]] && export SWARMY_WORKER_NAME="$MESSAGE_AGENT_IDENTITY"
 
 if [[ -n "${TMUX_PANE:-}" && -n "${MESSAGE_AGENT_IDENTITY:-}" ]]; then
   tmux set-option -p -t "$TMUX_PANE" @agent-identity "$MESSAGE_AGENT_IDENTITY" >/dev/null 2>&1 \
