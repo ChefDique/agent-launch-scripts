@@ -1,19 +1,19 @@
 {
   "repo_root": "/Users/richardadair/ai_projects/agent-launch-scripts",
   "lane": "neo-agentremote-quality",
-  "active_goal": "Close out the current AgentRemote recovery session truthfully without committing unsafe runtime/input changes.",
+  "active_goal": "Live-verify ALS-LOCAL-016 without changing kenpachi's explicitly empty startup_slash.",
   "status": "blocked",
-  "next_action": "Restore/verify Mugatu if needed, then fix ALS-LOCAL-006 timed Enter without breaking paste or Option+Backspace and ALS-LOCAL-008 tmux fallback submission.",
-  "updated_at": "2026-05-20T09:17:28Z",
+  "next_action": "With Richard's explicit live-mutation approval, deploy kenpachi from canonical AgentRemote v1.6.3 and confirm /lead-gogo does not run.",
+  "updated_at": "2026-06-27T01:50:36Z",
   "handoff": {
     "path": "memory/handoff.md",
-    "sha256": "c79efce29e1324bb7e466fab8124cf3691c45c924865f29e3b8216dc13010d63",
-    "read_at": "2026-05-20T09:17:28Z"
+    "sha256": "4ba27b8fc8af487454b6e7ee84b18aac710ced6121b7cabe35df8e00fc7439a3",
+    "read_at": "2026-06-27T01:50:36Z"
   },
   "taskboard": {
     "path": "memory/tasks/tasks.json",
-    "sha256": "36cb162c488eebbcf0accc7bb22a9d375b476674ec640a9b6a200566cd83f4c2",
-    "read_at": "2026-05-20T09:17:28Z"
+    "sha256": "c061bea14913576995d9494b23fad0d84d5a91b39020161ddd1bbc2b3e6631cf",
+    "read_at": "2026-06-27T01:50:36Z"
   },
   "keep_running_processes": []
 }
