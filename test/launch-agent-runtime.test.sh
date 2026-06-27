@@ -455,11 +455,10 @@ for expected in \
   fi
 done
 
-# Contract (2026-05-23): a Claude agent whose registry startup_slash is empty (or
-# missing) still boots into /lead-gogo by default — the launcher supplies the
-# Claude default startup command, so no per-agent startup_slash entry is required.
-# This is the hansel case (policy present, startup_slash ""), which previously
-# booted with /color + /rename but no /lead-gogo. Mirrors the HUD default.
+# ALS-LOCAL-016: an explicitly empty registry startup_slash is an operator opt-out.
+# The launcher must preserve the remaining Claude startup lines without silently
+# restoring /lead-gogo. New-agent defaults belong to AgentRemote's create flow,
+# which persists the chosen value before launch.
 TMUX_CALLS="$TMP_DIR/empty-slash-tmux-calls.log"
 rm -f "$TMUX_CALLS" /tmp/empty-slash-claude-bg-_emptyslash.pids
 empty_slash_output="$(
@@ -476,14 +475,18 @@ grep -qx 'COMMAND:claude' <<< "$empty_slash_output"
 sleep 1
 for expected in \
   'send-keys -t %emptyslash -l -- /color cyan' \
-  'send-keys -t %emptyslash -l -- /rename EMPTY SLASH' \
-  'send-keys -t %emptyslash -l -- /lead-gogo'; do
+  'send-keys -t %emptyslash -l -- /rename EMPTY SLASH'; do
   if ! grep -Fxq "$expected" "$TMUX_CALLS"; then
-    echo "Claude agent with empty startup_slash must default to /lead-gogo: $expected" >&2
+    echo "Claude agent with empty startup_slash must preserve startup line: $expected" >&2
     cat "$TMUX_CALLS" >&2
     exit 1
   fi
 done
+if grep -Fxq 'send-keys -t %emptyslash -l -- /lead-gogo' "$TMUX_CALLS"; then
+  echo "Claude agent with empty startup_slash must not fall back to /lead-gogo" >&2
+  cat "$TMUX_CALLS" >&2
+  exit 1
+fi
 
 # Negative guard (contract preservation): an explicit STARTUP_SLASH= env override
 # (empty) must STILL disable the startup command — the Claude default must not

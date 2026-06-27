@@ -261,20 +261,14 @@ fi
 RENAME_TO="$(field rename_to)"
 [[ -z "$RENAME_TO" ]] && RENAME_TO="$(tr '[:lower:]' '[:upper:]' <<< "$DISPLAY_NAME")"
 
-# STARTUP_SLASH precedence: env override > registry value. Empty string disables
-# the auto-inject (matches the old gekko.sh `[ -n "$STARTUP_SLASH" ]` guard).
+# STARTUP_SLASH precedence: env override > registry value. Empty or missing
+# registry values disable the auto-inject. AgentRemote applies any new-agent
+# default before persisting the registry entry; the launcher must not turn an
+# operator's explicit empty value back into /lead-gogo.
 if [[ -n "${STARTUP_SLASH+x}" ]]; then
   STARTUP="$STARTUP_SLASH"
 else
   STARTUP="$(field startup_slash)"
-fi
-# Claude default-on: every Claude lead boots into /lead-gogo. When the registry has
-# no usable startup_slash (null or "") and no env override is in play, default it
-# so a Claude agent gets the startup command WITHOUT a per-agent entry — the
-# dynamic contract (mirrors the HUD's DEFAULT_LEAD_STARTUP_SLASH). An env override
-# (STARTUP_SLASH=, even empty) always wins and can still disable it.
-if [[ "$RUNTIME" == "claude" && -z "$STARTUP" && -z "${STARTUP_SLASH+x}" ]]; then
-  STARTUP="/lead-gogo"
 fi
 
 expand_startup_line() {

@@ -58,7 +58,9 @@ const SWARMY_ROOT = process.env.SWARMY_ROOT || path.join(os.homedir(), 'ai_proje
 const SWARMY_RUNTIME_SCRIPT = process.env.AGENTREMOTE_SWARMY_RUNTIME
   || path.join(SWARMY_ROOT, 'scripts', 'agentremote_runtime.py');
 const RUNTIME_SESSION = process.env.AGENTREMOTE_TMUX_SESSION || 'agentremote';
-const DEFAULT_LEAD_STARTUP_SLASH = '/lead-gogo';
+// Only the create path may apply this default. Persisted empty or missing values
+// are operator opt-outs and launch-agent.sh must preserve them.
+const DEFAULT_NEW_AGENT_STARTUP_SLASH = '/lead-gogo';
 const ASSETS_DIR = path.join(__dirname, 'assets');
 const OUT_LOG = path.join(__dirname, 'out.log');
 const DEFAULT_ACRM_ENV_PATH = path.join(os.homedir(), 'ai_projects', 'CorporateHQ', 'ACRM', '.env.local');
@@ -2155,7 +2157,7 @@ ipcMain.handle('add-agent', async (event, payload) => {
       ? String(payload.themeColor).trim()
       : null;
     const startupSlash = (payload.startupSlash === undefined || payload.startupSlash === null)
-      ? DEFAULT_LEAD_STARTUP_SLASH
+      ? DEFAULT_NEW_AGENT_STARTUP_SLASH
       : String(payload.startupSlash).trim();
     const startupLines = normalizeStartupLines(payload.startupLines);
     const autoRestart = payload.autoRestart === false ? false : true;

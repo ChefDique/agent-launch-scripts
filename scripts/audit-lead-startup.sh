@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REGISTRY="${AGENT_REGISTRY:-${REPO_ROOT}/agents.json}"
-GLOBAL_SKILL="/Users/richardadair/.agents/skills/lead-gogo/SKILL.md"
-CODEX_CONFIG="/Users/richardadair/.codex/config.toml"
+GLOBAL_SKILL="${GLOBAL_LEAD_STARTUP_SKILL:-${HOME}/.codex/skills/lead-gogo/SKILL.md}"
+CODEX_CONFIG="${CODEX_CONFIG:-${HOME}/.codex/config.toml}"
 
 failures=0
 
@@ -19,12 +19,19 @@ if [[ ! -f "$GLOBAL_SKILL" ]]; then
   failures=$((failures + 1))
 fi
 
-if [[ -f "$CODEX_CONFIG" ]] && ! grep -Fq 'path = "/Users/richardadair/.agents/skills/lead-gogo/SKILL.md"' "$CODEX_CONFIG"; then
-  echo "FAIL Codex config does not enable lead-gogo skill: $CODEX_CONFIG" >&2
-  failures=$((failures + 1))
+if [[ -f "$CODEX_CONFIG" && -f "$GLOBAL_SKILL" ]]; then
+  resolved_global_skill="$(cd "$(dirname "$GLOBAL_SKILL")" && pwd -P)/$(basename "$GLOBAL_SKILL")"
+  if ! grep -Fq "path = \"$GLOBAL_SKILL\"" "$CODEX_CONFIG" \
+      && ! grep -Fq "path = \"$resolved_global_skill\"" "$CODEX_CONFIG"; then
+    echo "FAIL Codex config does not enable lead-gogo skill: $CODEX_CONFIG" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
-bad_startups="$(
+# Empty is an intentional opt-out. The audit only rejects non-empty commands
+# other than the supported lead startup; it must never normalize empty to the
+# default used by AgentRemote's new-agent form.
+unsupported_startups="$(
   jq -r '
     .agents[]
     | select((.startup_slash // "") != "" and (.startup_slash // "") != "/lead-gogo")
@@ -32,9 +39,9 @@ bad_startups="$(
   ' "$REGISTRY"
 )"
 
-if [[ -n "$bad_startups" ]]; then
-  echo "FAIL agents with non-empty startup_slash must use /lead-gogo:" >&2
-  printf '%s\n' "$bad_startups" >&2
+if [[ -n "$unsupported_startups" ]]; then
+  echo "FAIL startup_slash must be empty (disabled) or /lead-gogo:" >&2
+  printf '%s\n' "$unsupported_startups" >&2
   failures=$((failures + 1))
 fi
 

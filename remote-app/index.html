@@ -3957,7 +3957,7 @@
       <div class="form-row startup-row">
         <label>startup</label>
         <div class="startup-stack">
-          <input id="f-slash" value="/lead-gogo" placeholder="/lead-gogo" autocomplete="off" spellcheck="false" />
+          <input id="f-slash" placeholder="/lead-gogo (new agents; empty = none)" autocomplete="off" spellcheck="false" />
           <input id="f-startup-line-1" placeholder="/color {{color}}" autocomplete="off" spellcheck="false" />
           <input id="f-startup-line-2" placeholder="/rename {{rename_to}}" autocomplete="off" spellcheck="false" />
           <input id="f-startup-line-3" placeholder="{{startup_slash}}" autocomplete="off" spellcheck="false" />
@@ -4321,6 +4321,7 @@
     let visiblePets = {};
     let selectedPets = {};
     let petMoodAgentId = null;
+    const DEFAULT_NEW_AGENT_STARTUP_SLASH = '/lead-gogo';
 
     // Spawn-layout mode. The native deploy (tmux-deploy.js) always lands every
     // selected agent as a tiled pane in ONE tmux window, so there is no longer a
@@ -7234,7 +7235,7 @@
         const el = document.getElementById(id);
         if (el) el.value = '';
       });
-      document.getElementById('f-slash').value = '/lead-gogo';
+      document.getElementById('f-slash').value = DEFAULT_NEW_AGENT_STARTUP_SLASH;
       setStartupLinesIntoInputs(ADD_FORM_STARTUP_LINE_IDS, []);
       document.getElementById('f-color').value = '#00f2ff';
       document.getElementById('f-autorestart').checked = true;

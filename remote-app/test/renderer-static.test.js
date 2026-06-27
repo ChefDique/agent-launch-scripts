@@ -66,6 +66,17 @@ test('add-agent form exposes startup slash + 3 startup injection lines', () => {
   assert.doesNotMatch(html, /id="f-startup-line-4"/);
 });
 
+test('startup slash defaults only for new agents and edit forms preserve empty opt-outs', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.match(main, /const DEFAULT_NEW_AGENT_STARTUP_SLASH = '\/lead-gogo';/);
+  assert.match(main, /payload\.startupSlash === undefined[\s\S]*?DEFAULT_NEW_AGENT_STARTUP_SLASH/);
+  assert.doesNotMatch(html, /<input id="f-slash" value="\/lead-gogo"/);
+  assert.match(html, /const DEFAULT_NEW_AGENT_STARTUP_SLASH = '\/lead-gogo';/);
+  assert.match(html, /document\.getElementById\('f-slash'\)\.value = DEFAULT_NEW_AGENT_STARTUP_SLASH;/);
+  assert.match(html, /document\.getElementById\('f-slash'\)\.value = agent\.startupSlash \|\| '';/);
+  assert.match(html, /placeholder="\/lead-gogo \(new agents; empty = none\)"/);
+});
+
 test('avatar crop modal is wired: script loaded, IPC calls present, cropper invoked', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   // Script tag loads the crop module
