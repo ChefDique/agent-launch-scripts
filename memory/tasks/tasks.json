@@ -421,17 +421,17 @@
     },
     {
       "id": "ALS-LOCAL-016",
-      "title": "NEXT: empty startup_slash must mean NONE, not default /lead-gogo",
-      "status": "inbox",
+      "title": "LIVE CHECK: empty startup_slash means NONE, not default /lead-gogo",
+      "status": "review_pending",
       "priority": "high",
       "department": "agent-launch-scripts",
       "assignee": "neo",
       "blocked_by": null,
       "tags": ["launcher", "startup", "lead-gogo", "registry", "operator-trust", "bug"],
       "skill_chain": ["systematic-debugging", "test-driven-development", "verification-before-completion"],
-      "notes": "BUG (Richard 2026-06-19): removed /lead-gogo from kenpachi (startup_slash=\"\") but it STILL ran on deploy. Root (NOT a cache, an enforced default-on): launch-agent.sh:277 forces STARTUP=\"/lead-gogo\" for Claude when startup_slash is empty; main.js:61 DEFAULT_LEAD_STARTUP_SLASH; the add/edit form defaults f-slash to /lead-gogo (index.html:3960,7237); AND tests (test/launch-agent-runtime.test.sh:459-482 'empty startup_slash must default to /lead-gogo') + scripts/audit-lead-startup.sh ENFORCE it. Fix: distinguish UNSET (brand-new agent -> may default) from EXPLICITLY EMPTIED (user removed -> NONE) and honor the removal. Touch launch-agent.sh, main.js, the form, FLIP the enforcing tests, and audit-lead-startup.sh. Live-verify: remove the slash, deploy, confirm /lead-gogo does NOT run.",
+      "notes": "Code complete in 9888d8f (AgentRemote v1.6.3). launch-agent.sh no longer synthesizes /lead-gogo for empty or missing persisted values; AgentRemote scopes /lead-gogo to the new-agent form/create default and preserves explicit empty edits; the renderer copy says empty = none; launch-agent-runtime regression coverage was flipped; audit-lead-startup now treats empty as disabled and resolves the skillvault-owned Codex skill path. Verified locally: red-to-green launcher regression, renderer-static 46/46, Swarmy AgentRemote runtime 36/36, launcher runtime suite pass, syntax/JSON/diff checks pass, lead-startup positive + negative audit fixtures pass. Full npm test reaches 189/190; only the pre-existing unrelated agent-transcript-source:201 test fails. Remaining acceptance: live deploy kenpachi with startup_slash=\"\" and confirm /lead-gogo does not run.",
       "created_at": "2026-06-19T20:45:00-0700",
-      "updated_at": "2026-06-19T20:45:00-0700"
+      "updated_at": "2026-06-26T18:43:21-0700"
     },
     {
       "id": "ALS-LOCAL-017",

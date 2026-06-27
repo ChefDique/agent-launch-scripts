@@ -2,10 +2,22 @@
 
 ## Active thread (overwritten each /chores — read FIRST at startup)
 
-**Last worked: 2026-06-19.** Shipped on `main`: BUG B (deploy multi-window) fixed
-via plain `tmux attach`, the kenpachi kill/status identity-leak fixed, and a
-tooltip system. **Richard live-confirmed:** deployed kenpachi → one window, and
-menu force-kill "worked great." HUD running canonical **v1.6.2**.
+**Last worked: 2026-06-26.** `ALS-LOCAL-016` is code-complete in `9888d8f`
+(AgentRemote **v1.6.3**) and is waiting on exactly one live deploy check. The
+launcher no longer synthesizes `/lead-gogo` when persisted `startup_slash` is
+empty or missing; AgentRemote keeps `/lead-gogo` only as the new-agent create
+default and preserves explicit empty edits.
+
+**NEXT VERIFIABLE STEP:** in the canonical v1.6.3 HUD, confirm kenpachi still has
+`startup_slash=""`, deploy kenpachi, and verify `/lead-gogo` does not run. Do not
+change the field before deploying. After that live proof, move `ALS-LOCAL-016`
+from `review_pending` to `done` and resume `ALS-DESIGN-001`.
+
+Local proof: launcher regression passed after a recorded red failure;
+renderer-static 46/46; Swarmy AgentRemote runtime 36/36; lead-startup positive
+and negative audits passed; syntax/JSON/diff checks passed. Full `npm test` is
+189/190 because the pre-existing unrelated
+`agent-transcript-source.test.js:201` test still fails.
 
 **MANDATE for next session (Richard, verbatim intent):** *"you are doing the bare
 minimum for improvement instead of just making this a badass app. take a broader
@@ -28,13 +40,9 @@ verified LIVE. Current inbox (priority order):
 - **`ALS-LOCAL-020` (high)** — source electron skills into skillvault (they are
   NOT in the vault; the zero-context catalog that had them disconnected). Unblocks
   the electron parts of the design work + BUG A.
-- **`ALS-LOCAL-016` (high)** — **the /lead-gogo bug Richard hit.** He removed
-  `/lead-gogo` from kenpachi (`startup_slash=""`) but it STILL ran. Root (proven,
-  not a cache): `launch-agent.sh:277` forces `/lead-gogo` for Claude when
-  startup_slash is empty; `main.js:61 DEFAULT_LEAD_STARTUP_SLASH`; the form
-  default; AND tests (`launch-agent-runtime.test.sh:459-482`) + `scripts/audit-lead-startup.sh`
-  ENFORCE it. Fix: empty/removed = NONE (honor it); default-on only for brand-new
-  agents. Flip the enforcing tests + audit.
+- **`ALS-LOCAL-016` (review_pending)** — code complete in `9888d8f`, v1.6.3.
+  Empty/removed persisted startup means NONE; `/lead-gogo` remains only the
+  new-agent create default. Only the live kenpachi deploy proof above remains.
 - **`ALS-LOCAL-017` (high)** — BUG A full window-close. iTerm `close` verb no-ops
   on a window with a running `tmux attach` (PromptOnQuit=1); ghost is already gone.
   Use tmux-native teardown (`; exit` or detach-client). LRN-20260619-003.
@@ -51,6 +59,9 @@ session was Neo itself. Always check `$TMUX_PANE` + real processes before any ki
 Memory: `reference_neo_may_run_inside_agentremote`.
 
 ### What shipped this session (on `main`, pushed) — done tasks in the board
+- `ALS-LOCAL-016` code (`9888d8f`, v1.6.3) — explicit empty `startup_slash`
+  remains empty across AgentRemote and `launch-agent.sh`; local gates pass. Task
+  stays `review_pending` until the one live deploy check.
 - `ALS-LOCAL-013` (`a150668`, v1.6.1) — viewer = plain `tmux attach`, one window,
   close-not-miniaturize. BUG B. Proven live + Richard's kenpachi deploy.
 - `ALS-LOCAL-014` (`02930b7`) — kenpachi identity-leak in launch-agent.sh. Repro
@@ -69,11 +80,11 @@ ISOLATED throwaway tmux session + osascript window/client counting — never mut
 karpathy-guidelines (simplest fix, surgical, verify), feedback memories.
 
 ## Open priorities (<=5) — all tracked in memory/tasks/tasks.json
-- **[#1]** `ALS-DESIGN-001` — design-led elevation (the broader-approach mandate).
-- **[#2]** `ALS-LOCAL-016` — /lead-gogo empty=NONE fix.
-- **[#3]** `ALS-LOCAL-020` — source electron skills into skillvault.
-- **[#4]** `ALS-LOCAL-017` — BUG A full-close hardening.
-- **[#5]** `ALS-LOCAL-019` — package-lock regen (public-release blocker).
+- **[#1]** `ALS-LOCAL-016` — run the single live kenpachi deploy check, then close.
+- **[#2]** `ALS-DESIGN-001` — design-led elevation (the broader-approach mandate).
+- **[#3]** `ALS-LOCAL-017` — BUG A full-close hardening.
+- **[#4]** `ALS-LOCAL-019` — package-lock regen (public-release blocker).
+- **[#5]** `ALS-LOCAL-018` — Attach button plain-attach alignment.
 
 ## Cross-session comms
 - None outstanding.
